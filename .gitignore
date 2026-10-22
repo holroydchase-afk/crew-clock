@@ -3,3 +3,4 @@ tests/shots/
 .DS_Store
 .env
 supabase/.temp/
+dist/
