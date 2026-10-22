@@ -24,5 +24,4 @@ async function alertBoss(orgId: string, alerts: { punchId: string; crewId: strin
     const why = a.risk.length ? Risk.describe({ code: a.risk[0] }) : `clocked in ${WORDS[a.status] || a.status}`;
     await pushTo(bosses, { title: `${name(a.crewId)}: check this punch`, body: why, url: './#today', tag: a.punchId });
   }
-  }
 }
