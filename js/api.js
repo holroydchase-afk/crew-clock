@@ -1,5 +1,5 @@
-// Talks to the Google Apps Script backend. With no backendUrl configured the
-// app runs against DemoBackend, which keeps everything in this browser.
+// Picks the backend: Supabase (v2), the Google Apps Script MVP, or DemoBackend,
+// which keeps everything in this browser when nothing is configured.
 (function (root) {
   const cfg = root.APP_CONFIG || {};
   const TIMEOUT_MS = 20000;
@@ -27,6 +27,11 @@
       e.offline = true;
       throw e;
     });
+  }
+
+  if (cfg.backend === 'supabase' && cfg.supabaseUrl) {
+    root.Api = root.SupabaseApi;
+    return;
   }
 
   const isDemo = !cfg.backendUrl;

@@ -1,0 +1,25 @@
+# Edge Function settings for `supabase functions deploy`.
+# These functions check their own tokens (company code, cron secret or report token),
+# so the gateway's JWT check is off for them.
+[functions.crew-list]
+verify_jwt = false
+
+[functions.pin-login]
+verify_jwt = false
+
+[functions.digest]
+verify_jwt = false
+
+[functions.report-export]
+verify_jwt = false
+
+# The rest receive the session token from pin-login, signed with the project's
+# JWT secret, and verify it again in code.
+[functions.sync]
+verify_jwt = false
+[functions.photo-upload]
+verify_jwt = false
+[functions.photo-url]
+verify_jwt = false
+[functions.geocode]
+verify_jwt = false

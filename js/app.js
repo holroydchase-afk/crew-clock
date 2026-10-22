@@ -423,6 +423,7 @@
         <div class="sync-line" data-sync-line>${syncLineHtml()}</div>
         ${isLead() ? `<button class="btn secondary" data-action="teammate">${Icons.teammate} Clock in or out a teammate</button>` : ''}
         ${state.me.role === 'foreman' ? `<button class="btn secondary" data-action="go" data-to="boss">${Icons.map} See the team map</button>` : ''}
+        <div id="push-slot"></div>
         ${fake}
       </main>`;
   };
@@ -557,6 +558,20 @@
       </div>`;
   };
 
+  // Risk flags: the server's when it sent them, otherwise the same rules run here.
+  function riskFor(p) {
+    if (!p || !self.Risk) return [];
+    if (Array.isArray(p.risk)) return p.risk;
+    const crewHistory = teamPunches().filter((x) => x.crewId === p.crewId && x.id !== p.id);
+    const deviceHistory = p.deviceId ? teamPunches().filter((x) => x.deviceId === p.deviceId) : [];
+    return Risk.assess(p, { crewHistory, deviceHistory, receivedAt: p.receivedAt });
+  }
+  function riskHtml(flags) {
+    const high = flags.filter((f) => f.level === 'high');
+    if (!high.length) return '';
+    return `<div class="risk">${Icons.alert}<span>${high.map((f) => esc(Risk.describe(f))).join('<br>')}</span></div>`;
+  }
+
   function teamPunches() { return (state.team && state.team.punches) || []; }
   function teamCrew() { return ((state.team && state.team.crew) || state.crew).filter((c) => c.active !== false && c.role !== 'boss'); }
 
@@ -611,6 +626,7 @@
     return `<div class="popup"><b>${esc(c.name)}</b><br>${verb} ${dayLabel(p.at).toLowerCase()} ${time(p.at)}<br>
       ${esc(job ? job.name : '')}<br>${chip(p.status, p.hasPhoto)}${dist}
       ${p.address && p.status === 'offsite' ? `<br><span class="muted">${esc(p.address)}</span>` : ''}${late}
+      ${riskHtml(riskFor(p))}
       ${p.hasPhoto ? `<br><button class="mini" data-action="show-photo" data-id="${esc(p.id)}">See photo</button>` : ''}</div>`;
   }
 
@@ -642,11 +658,12 @@
       const c = crewById(s.crewId) || { name: '?' };
       const job = jobById(s.jobId);
       const photoP = [punchById[s.inId], punchById[s.outId]].find((p) => p && p.hasPhoto);
+      const flags = [punchById[s.inId], punchById[s.outId]].filter(Boolean).flatMap(riskFor);
       const span = `${s.inAt ? time(s.inAt) : '?'} – ${s.outAt ? time(s.outAt) : s.open ? '<b class="on-clock">on the clock</b>' : '<b class="warn">no clock-out</b>'}`;
       return `<div class="shift">
         <span class="avatar">${esc(initials(c.name))}</span>
         <div class="grow"><div class="shift-name">${esc(c.name)}</div>
-          <div class="muted small">${esc(job ? job.name : '')} · ${span}${s.hours != null ? ` · ${s.hours.toFixed(1)} h` : ''}</div></div>
+          <div class="muted small">${esc(job ? job.name : '')} · ${span}${s.hours != null ? ` · ${s.hours.toFixed(1)} h` : ''}</div>${riskHtml(flags)}</div>
         <div class="shift-right">${chip(s.status)}
           ${photoP ? `<button class="mini" data-action="show-photo" data-id="${esc(photoP.id)}">${Icons.camera}</button>` : ''}</div>
       </div>`;
@@ -657,6 +674,7 @@
       ${notIn.length ? `<div class="not-in"><div class="not-in-title">${Icons.alert} Not in yet (${notIn.length})</div>
         <div>${notIn.map((c) => `<span class="pill">${esc(c.name)}</span>`).join('')}</div></div>` : ''}
       <div class="list">${rows || '<p class="muted">No one has clocked in today.</p>'}</div>
+      <div id="push-slot"></div>
       <div class="actions">${isBoss() ? `<button class="btn secondary" data-action="send-report">${Icons.send} Send today's report now</button>` : ''}${sheet}</div>
     </div>`;
   }
@@ -784,7 +802,8 @@
     document.body.appendChild(overlay);
     try {
       const res = await Api.photo(state.auth, punchId);
-      overlay.innerHTML = res.dataUrl ? `<img src="${res.dataUrl}" alt="Clock-in photo">` : '<p>Photo not found.</p>';
+      const src = res.url || res.dataUrl;
+      overlay.innerHTML = src ? `<img src="${esc(src)}" alt="Clock-in photo">` : '<p>Photo not found.</p>';
     } catch (e) {
       overlay.innerHTML = '<p>Need signal to load the photo.</p>';
     }
@@ -800,6 +819,20 @@
     paint(fn());
     if (state.screen === 'boss' && state.bossTab === 'map') mountTeamMap();
     if (state.screen === 'job-form') mountJobMap();
+    mountPush();
+  }
+
+  async function mountPush() {
+    const slot = document.getElementById('push-slot');
+    if (!slot || !self.Push || !state.auth) return;
+    const st = await Push.status().catch(() => 'unsupported');
+    const words = {
+      ready: `<button class="btn secondary" data-action="push-enable">${Icons.alert} Get alerts on this phone</button>`,
+      'install-first': `<p class="muted small center">To get alerts on iPhone: tap Share, then <b>Add to Home Screen</b>, and open the app from there.</p>`,
+      blocked: '<p class="muted small center">Alerts are turned off for this app in the phone settings.</p>',
+      on: `<p class="muted small center">${Icons.check} Alerts are on for this phone</p>`,
+    };
+    slot.innerHTML = words[st] || '';
   }
 
   // ---------- events ----------
@@ -839,6 +872,10 @@
       render();
     },
     'boss-back': () => setScreen('boss'),
+    'push-enable': async () => {
+      try { await Push.enable(state.auth); toast('Alerts are on'); } catch (e) { toast("Couldn't turn on alerts. Try again with signal."); }
+      mountPush();
+    },
     'reload-team': async () => { await syncNow(); await loadTeam(); render(); },
     'show-photo': (el) => showPhoto(el.dataset.id),
     'send-report': async () => {

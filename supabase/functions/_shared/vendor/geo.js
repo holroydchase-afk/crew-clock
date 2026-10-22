@@ -1,0 +1,97 @@
+// Location math and the geofence rule. Shared by the app and the tests;
+// backend/Code.gs carries a copy of the same rule so the server can recheck.
+(function (root) {
+  const FT_PER_M = 3.28084;
+  const WEAK_ACCURACY_M = 152; // ~500 ft: worse than this, the fix says little
+  const NEAR_FACTOR = 3;
+
+  function toFeet(m) { return m * FT_PER_M; }
+  function toMeters(ft) { return ft / FT_PER_M; }
+
+  // Great-circle distance in meters.
+  function distanceM(lat1, lng1, lat2, lng2) {
+    const R = 6371000;
+    const rad = Math.PI / 180;
+    const dLat = (lat2 - lat1) * rad;
+    const dLng = (lng2 - lng1) * rad;
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+  }
+
+  // onsite | near | offsite | weak | nogps
+  // The worker gets the benefit of the phone's own stated error.
+  function fenceStatus(distM, accuracyM, radiusM) {
+    if (distM == null || accuracyM == null || isNaN(distM)) return 'nogps';
+    if (accuracyM > WEAK_ACCURACY_M) return 'weak';
+    const closest = distM - accuracyM;
+    if (closest <= radiusM) return 'onsite';
+    if (closest <= radiusM * NEAR_FACTOR) return 'near';
+    return 'offsite';
+  }
+
+  // Status for a fix against a job ({lat,lng,radiusFt}).
+  function checkFix(fix, job) {
+    if (!fix || fix.lat == null || !job || job.lat == null) {
+      return { status: 'nogps', distanceFt: null };
+    }
+    const d = distanceM(fix.lat, fix.lng, job.lat, job.lng);
+    return {
+      status: fenceStatus(d, fix.accuracy, toMeters(job.radiusFt || 300)),
+      distanceFt: Math.round(toFeet(d)),
+    };
+  }
+
+  function needsPhoto(status) { return status === 'nogps' || status === 'weak'; }
+
+  // Plain-words distance for crew screens: "200 ft", "1.4 mi".
+  function formatDistance(ft) {
+    if (ft == null) return '';
+    if (ft < 1000) return Math.round(ft / 10) * 10 + ' ft';
+    const mi = ft / 5280;
+    return (mi < 10 ? mi.toFixed(1) : Math.round(mi)) + ' mi';
+  }
+
+  // Watch GPS for up to timeoutMs and resolve with the most accurate fix,
+  // stopping early once it is good enough. Resolves null if nothing came back.
+  function bestFix(geolocation, opts) {
+    const o = Object.assign({ timeoutMs: 20000, goodEnoughM: 20, onUpdate: null }, opts);
+    return new Promise((resolve) => {
+      if (!geolocation) return resolve(null);
+      let best = null;
+      let watchId = null;
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        if (watchId != null) geolocation.clearWatch(watchId);
+        clearTimeout(timer);
+        resolve(best);
+      };
+      const timer = setTimeout(finish, o.timeoutMs);
+      try {
+        watchId = geolocation.watchPosition((pos) => {
+          const fix = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+            at: pos.timestamp || Date.now(),
+          };
+          if (!best || fix.accuracy < best.accuracy) best = fix;
+          if (o.onUpdate) o.onUpdate(best);
+          if (best.accuracy <= o.goodEnoughM) finish();
+        }, (err) => {
+          // Permission denied ends it now; other errors keep trying until timeout.
+          if (err && err.code === 1) finish();
+        }, { enableHighAccuracy: true, maximumAge: 0, timeout: o.timeoutMs });
+      } catch (e) {
+        finish();
+      }
+    });
+  }
+
+  const api = { FT_PER_M, WEAK_ACCURACY_M, NEAR_FACTOR, toFeet, toMeters, distanceM,
+    fenceStatus, checkFix, needsPhoto, formatDistance, bestFix };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.Geo = api;
+})(typeof self !== 'undefined' ? self : this);

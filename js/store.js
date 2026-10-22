@@ -73,7 +73,14 @@
 
   function uid() {
     if (root.crypto && root.crypto.randomUUID) return root.crypto.randomUUID();
-    return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+    // Older phones (iOS before 15.4): build a v4 UUID by hand.
+    const b = new Uint8Array(16);
+    if (root.crypto && root.crypto.getRandomValues) root.crypto.getRandomValues(b);
+    else for (let i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256);
+    b[6] = (b[6] & 0x0f) | 0x40;
+    b[8] = (b[8] & 0x3f) | 0x80;
+    const h = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+    return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
   }
 
   root.Store = { outbox, local, uid };
