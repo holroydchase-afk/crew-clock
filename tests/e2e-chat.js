@@ -1,8 +1,8 @@
 // Demo-mode chat: Dad starts an encrypted group with Jake, they trade messages,
 // and the shared store never holds plaintext. node tests/e2e-chat.js (with npm run serve)
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { launch } = require('./browser.js');
 (async () => {
-  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+  const browser = await launch();
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, permissions: ['geolocation'], geolocation: { latitude: 38.4538, longitude: -81.929, accuracy: 10 } });
   const page = await ctx.newPage();
   const errors = [];

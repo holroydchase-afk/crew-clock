@@ -1,7 +1,7 @@
 // Smoke test of demo mode: crew clock in/out, offline queue, boss map. node tests/e2e.js
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { launch } = require('./browser.js');
 (async () => {
-  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' }).catch(() => chromium.launch());
+  const browser = await launch();
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, permissions: ['geolocation'],
     geolocation: { latitude: 38.45380, longitude: -81.92900, accuracy: 10 } });
   const page = await ctx.newPage();
@@ -51,4 +51,5 @@ const { chromium } = require('/opt/node22/lib/node_modules/playwright');
   await page.waitForSelector('text=Test job'); await shot('7-jobs');
   console.log(JSON.stringify({ first, chipIn, offlineNote, waiting, dots, notIn, errors }, null, 1));
   await browser.close();
+  if (errors.length || !chipIn.includes('On site') || !offlineNote || !waiting.includes('waiting') || dots < 1 || !notIn.includes('Not in yet')) process.exit(1);
 })().catch((e) => { console.error('FAIL', e.message); process.exit(1); });

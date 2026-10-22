@@ -2,7 +2,7 @@
 // a no-GPS clock-in takes a photo, the photo goes to Backblaze, and the punch
 // arrives signed and chained. node tests/e2e-supabase.js (with npm run serve)
 const path = require('path');
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { launch } = require('./browser.js');
 const SB = 'https://fake.supabase.co';
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 const token = `${b64({ alg: 'HS256' })}.${b64({ org_id: 'org-1', crew_id: '00000000-0000-4000-8000-0000000000b1', crew_role: 'crew', device_id: 'x', exp: 9e9 })}.sig`;
@@ -10,7 +10,7 @@ const JAKE = { id: '00000000-0000-4000-8000-0000000000b1', name: 'Jake R.', role
 const JOB = { id: '00000000-0000-4000-8000-0000000000c1', name: 'Smith kitchen', address: 'Teays Valley', lat: 38.4537, lng: -81.929, radius_ft: 300, active: true };
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+  const browser = await launch();
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, permissions: ['geolocation'] });
   const page = await ctx.newPage();
   const errors = [];
