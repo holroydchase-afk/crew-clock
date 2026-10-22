@@ -495,6 +495,8 @@
       <label class="btn primary xl file-btn">${Icons.camera} Open camera
         <input type="file" accept="image/*" capture="environment" data-action="photo-file">
       </label>
+      ${f.photoProblem ? `<p class="notice">${Icons.alert} ${esc(AI.PHOTO_WORDS[f.photoProblem])}</p>
+        <button class="link" data-action="photo-anyway">Use that picture anyway</button>` : ''}
       ${f.forTeammate ? '' : '<button class="link" data-action="no-photo">I can\'t take a picture</button>'}
     </main>`;
   };
@@ -672,8 +674,20 @@
       </div>`;
     }).join('');
     const sheet = cfg.sheetUrl ? `<a class="btn secondary" href="${esc(cfg.sheetUrl)}" target="_blank" rel="noopener">${Icons.sheet} Open the Google Sheet</a>` : '';
+    let summary = '';
+    if (self.AI) {
+      const names = Object.fromEntries(teamCrew().map((c) => [c.id, c.name]));
+      const jobNames = Object.fromEntries(((state.team && state.team.jobs) || state.jobs).map((j) => [j.id, j.name]));
+      const text = state.aiSummary || AI.plainSummary(shifts, names, jobNames, notIn.map((c) => c.name));
+      state.summaryFacts = text;
+      const canWrite = AI.tier() >= 2 && !state.aiSummary && shifts.length;
+      summary = `<div class="summary"><div class="summary-text" id="summary-text">${esc(text)}</div>
+        ${canWrite ? `<button class="link" data-action="ai-summary">Write it up with AI on this phone</button>` : ''}
+        ${state.aiSummary ? '<div class="muted small">Written by an AI model running on this phone.</div>' : ''}</div>`;
+    }
     return `<div class="pad">
       <h2>Today</h2>
+      ${summary}
       ${notIn.length ? `<div class="not-in"><div class="not-in-title">${Icons.alert} Not in yet (${notIn.length})</div>
         <div>${notIn.map((c) => `<span class="pill">${esc(c.name)}</span>`).join('')}</div></div>` : ''}
       <div class="list">${rows || '<p class="muted">No one has clocked in today.</p>'}</div>
@@ -807,6 +821,23 @@
       const res = await Api.photo(state.auth, punchId);
       const src = res.url || res.dataUrl;
       overlay.innerHTML = src ? `<img src="${esc(src)}" alt="Clock-in photo">` : '<p>Photo not found.</p>';
+      if (src && self.AI && AI.tier() >= 1) {
+        const b = document.createElement('button');
+        b.className = 'btn secondary ai-check';
+        b.textContent = "What's in this picture?";
+        b.addEventListener('click', async (ev) => {
+          ev.stopPropagation();
+          b.disabled = true;
+          b.textContent = 'Looking… (first time downloads a small model)';
+          try {
+            const r = await AI.labelPhoto(src);
+            b.textContent = (r.looksLikeSite ? 'Looks like a job site: ' : "Doesn't look like a job site: ") + r.labels.slice(0, 3).map((l) => l.label).join(', ');
+          } catch (e) {
+            b.textContent = "Couldn't check this picture on this phone";
+          }
+        });
+        overlay.appendChild(b);
+      }
     } catch (e) {
       overlay.innerHTML = '<p>Need signal to load the photo.</p>';
     }
@@ -865,6 +896,10 @@
     'pick-job': (el) => pickJob(el.dataset.id),
     'skip-gps': () => { state.screen = 'skipping'; state.flow.fix = null; afterFix(); },
     'no-photo': () => finishPunch(),
+    'photo-anyway': () => {
+      state.flow.photoChecked = true;
+      onPhotoFile(state.flow.pendingFile);
+    },
     'fix-job': async () => {
       const orig = await Store.outbox.get(state.flow.saved.id) || state.flow.saved;
       startPunch('in', { fixing: Object.assign({}, orig, { photo: state.flow.photo }) });
@@ -876,6 +911,19 @@
       render();
     },
     'boss-back': () => setScreen('boss'),
+    'ai-summary': async (el) => {
+      if (!AI.onWifi() && !confirm('This downloads about 400 MB once. Use cell data anyway?')) return;
+      el.disabled = true;
+      el.textContent = 'Writing… (first time downloads the model)';
+      try {
+        state.aiSummary = (await AI.writeSummary('Facts for today: ' + state.summaryFacts)).trim();
+      } catch (e) {
+        toast("This phone couldn't run the AI model");
+        el.remove();
+        return;
+      }
+      render();
+    },
     'push-enable': async () => {
       try { await Push.enable(state.auth); toast('Alerts are on'); } catch (e) { toast("Couldn't turn on alerts. Try again with signal."); }
       mountPush();
@@ -1001,23 +1049,36 @@
     const h = handlers[el.dataset.action];
     if (h) { e.preventDefault(); h(el, e); }
   });
-  document.addEventListener('change', async (e) => {
+  async function onPhotoFile(file) {
+    const f = state.flow;
+    const who = crewById(f.crewId);
+    const job = jobById(f.jobId);
+    // On-phone check (every phone): ask for a retake if the picture is too dark or blurry.
+    if (self.AI && !f.photoChecked) {
+      const url = URL.createObjectURL(file);
+      const q = await AI.photoQuality(url).catch(() => ({}));
+      URL.revokeObjectURL(url);
+      if (q.problem) {
+        f.photoProblem = q.problem;
+        f.pendingFile = file;
+        return render();
+      }
+    }
+    try {
+      f.photo = await stampPhoto(file, [
+        `${who ? who.name : ''} · ${f.type === 'in' ? 'Clock in' : 'Clock out'}`,
+        `${job ? job.name : ''} · ${new Date(f.at).toLocaleString()}`,
+      ]);
+    } catch (err) {
+      return toast("That picture didn't work. Try again.");
+    }
+    finishPunch();
+  }
+
+  document.addEventListener('change', (e) => {
     const el = e.target;
     if (el.dataset.action === 'demo-fake') handlers['demo-fake'](el);
-    if (el.dataset.action === 'photo-file' && el.files && el.files[0]) {
-      const f = state.flow;
-      const who = crewById(f.crewId);
-      const job = jobById(f.jobId);
-      try {
-        f.photo = await stampPhoto(el.files[0], [
-          `${who ? who.name : ''} · ${f.type === 'in' ? 'Clock in' : 'Clock out'}`,
-          `${job ? job.name : ''} · ${new Date(f.at).toLocaleString()}`,
-        ]);
-      } catch (err) {
-        return toast("That picture didn't work. Try again.");
-      }
-      finishPunch();
-    }
+    if (el.dataset.action === 'photo-file' && el.files && el.files[0]) onPhotoFile(el.files[0]);
   });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && e.target.id === 'job-address') { e.preventDefault(); handlers['geo-search'](); }
