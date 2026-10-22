@@ -49,7 +49,7 @@
       const d = await get();
       if (!d) return punch;
       const p = Object.assign({}, punch, { deviceId: d.id });
-      if (p.photo) p.photoSha256 = await root.Chain.sha256(p.photo);
+      if (p.photo) p.photoSha256 = await root.Chain.sha256Bytes(root.Chain.fromB64url(p.photo.split(',')[1]));
       const signed = await root.Chain.signPunch(p, d.privateKey, { seq: d.seq, hash: d.hash });
       d.seq = signed.seq;
       d.hash = signed.hash;

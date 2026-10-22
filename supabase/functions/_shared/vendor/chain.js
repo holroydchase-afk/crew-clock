@@ -34,6 +34,11 @@
     return b64url(await subtle().digest('SHA-256', enc.encode(str)));
   }
 
+  // For photos: hash the JPEG bytes themselves, so the stored file can be checked later.
+  async function sha256Bytes(bytes) {
+    return b64url(await subtle().digest('SHA-256', bytes));
+  }
+
   function generateKey() {
     // extractable=false: the private key can be used but never read out, even by this app.
     return subtle().generateKey(ALG, false, ['sign', 'verify']);
@@ -66,7 +71,7 @@
     return { ok: true, chain: 'linked' };
   }
 
-  const api = { VERSION, canonical, sha256, generateKey, exportPublic, signPunch, verifyPunch, b64url, fromB64url };
+  const api = { VERSION, canonical, sha256, sha256Bytes, generateKey, exportPublic, signPunch, verifyPunch, b64url, fromB64url };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Chain = api;
 })(typeof self !== 'undefined' ? self : globalThis);
