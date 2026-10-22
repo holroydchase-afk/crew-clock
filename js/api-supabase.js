@@ -12,7 +12,9 @@
   }
 
   function session() { try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch (e) { return null; } }
-  function saveSession(s) { try { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch (e) { /* private mode */ } }
+  function saveSession(s) {
+    try { if (s) localStorage.setItem(SESSION_KEY, JSON.stringify(s)); else localStorage.removeItem(SESSION_KEY); } catch (e) { /* private mode */ }
+  }
 
   async function request(url, opts) {
     const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -45,25 +47,59 @@
 
   const rest = (path, token) => request(`${cfg.supabaseUrl}/rest/v1/${path}`, { headers: headers(token) });
 
-  // Calls with the session token, signing in again with the saved PIN if it expired.
+  // Sessions are Supabase Auth's: a short-lived access token plus a refresh token.
+  // The PIN is never stored; if the refresh token stops working (new PIN, let go,
+  // signed out) the app asks for the PIN again.
+  const signInAgain = () => Object.assign(new Error('Sign in again'), { server: true, status: 401, signIn: true });
+
+  let refreshing = null;
+  function refreshSession(s) {
+    refreshing = refreshing || (async () => {
+      let r;
+      try {
+        r = await request(`${cfg.supabaseUrl}/auth/v1/token?grant_type=refresh_token`,
+          { method: 'POST', headers: headers(), body: JSON.stringify({ refresh_token: s.refreshToken }) });
+      } catch (e) {
+        if (e.offline || e.status >= 500 || e.status === 429) throw e; // keep the session; try again later
+        saveSession(null);
+        throw signInAgain();
+      }
+      const next = Object.assign({}, s, { accessToken: r.access_token, refreshToken: r.refresh_token, expiresAt: r.expires_at * 1000 });
+      saveSession(next);
+      return next;
+    })().finally(() => { refreshing = null; });
+    return refreshing;
+  }
+
+  // Calls with a fresh access token, refreshing it first if it is about to run out.
   async function authed(auth, run) {
     let s = session();
-    if (!s || s.crewId !== auth.crewId || s.expiresAt < Date.now() + 60000) s = await signIn(auth.crewId, auth.pin);
+    if (!s || !s.refreshToken || !auth || s.crewId !== auth.crewId) throw signInAgain();
+    if (s.expiresAt < Date.now() + 60000) s = await refreshSession(s);
     try {
-      return await run(s.token);
+      return await run(s.accessToken);
     } catch (e) {
-      if (e.status !== 401) throw e;
-      s = await signIn(auth.crewId, auth.pin);
-      return run(s.token);
+      if (e.status !== 401 || e.signIn) throw e;
+      s = await refreshSession(s);
+      return run(s.accessToken);
     }
   }
 
   async function signIn(crewId, pin) {
     const device = root.Device && root.Device.supported() ? await root.Device.publicInfo().catch(() => null) : null;
     const r = await fn('pin-login', { crewId, pin, device });
-    const s = { token: r.token, expiresAt: r.expiresAt, crewId, me: r.me };
+    const s = { accessToken: r.accessToken, refreshToken: r.refreshToken, expiresAt: r.expiresAt, crewId, me: r.me, deviceId: r.deviceId };
     saveSession(s);
     return s;
+  }
+
+  async function signOut() {
+    const s = session();
+    saveSession(null);
+    // Ends this phone's session on the server too, so the refresh token is dead.
+    if (s && s.accessToken) {
+      await request(`${cfg.supabaseUrl}/auth/v1/logout?scope=local`, { method: 'POST', headers: headers(s.accessToken) }).catch(() => {});
+    }
   }
 
   const job = (j) => ({ id: j.id, name: j.name, address: j.address, lat: j.lat, lng: j.lng, radiusFt: j.radius_ft, active: j.active });
@@ -102,8 +138,10 @@
     },
     async login(crewId, pin) {
       await signIn(crewId, pin);
-      return this.refresh({ crewId, pin });
+      const auth = { crewId }; // no PIN: the session tokens stand in for it
+      return Object.assign(await this.refresh(auth), { auth });
     },
+    signOut,
     refresh(auth) {
       return authed(auth, async (t) => {
         const me = session().me;

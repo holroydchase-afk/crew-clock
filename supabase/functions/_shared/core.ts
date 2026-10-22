@@ -1,9 +1,11 @@
-// Runtime-neutral pieces of the Edge Functions: tokens, PINs, and punch ingest.
-// No Deno or npm imports here, so tests/edge.test.ts can run it with a fake repo.
+// Runtime-neutral pieces of the Edge Functions: session claims, PINs, and punch ingest.
+// No Deno or npm imports here, so tests/edge/core.test.ts can run it with a fake repo.
 import { Chain, Risk } from './vendor/mod.ts';
 
 const enc = new TextEncoder();
 
+// Session token claims. Supabase Auth signs the token; the hook in
+// 20261023000000_auth_hook.sql adds org_id, crew_id and crew_role. Checked in auth.ts.
 export type Claims = {
   sub: string;
   role: 'authenticated';
@@ -11,7 +13,6 @@ export type Claims = {
   org_id: string;
   crew_id: string;
   crew_role: 'crew' | 'foreman' | 'boss';
-  device_id?: string;
   iat: number;
   exp: number;
 };
@@ -22,33 +23,7 @@ export class HttpError extends Error {
   }
 }
 
-// ---------- JWT (HS256, the Supabase project's JWT secret) ----------
-
 const b64url = (b: ArrayBuffer | Uint8Array) => Chain.b64url(b);
-const b64urlStr = (s: string) => b64url(enc.encode(s));
-
-async function hmacKey(secret: string) {
-  return crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
-}
-
-export async function signJwt(claims: Claims, secret: string): Promise<string> {
-  const head = b64urlStr(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const body = b64urlStr(JSON.stringify(claims));
-  const sig = await crypto.subtle.sign('HMAC', await hmacKey(secret), enc.encode(`${head}.${body}`));
-  return `${head}.${body}.${b64url(sig)}`;
-}
-
-export async function verifyJwt(token: string, secret: string, now = Date.now()): Promise<Claims> {
-  const parts = (token || '').split('.');
-  if (parts.length !== 3) throw new HttpError(401, 'Sign in again');
-  const ok = await crypto.subtle.verify('HMAC', await hmacKey(secret), Chain.fromB64url(parts[2]),
-    enc.encode(`${parts[0]}.${parts[1]}`));
-  if (!ok) throw new HttpError(401, 'Sign in again');
-  const claims = JSON.parse(new TextDecoder().decode(Chain.fromB64url(parts[1]))) as Claims;
-  if (!claims.exp || claims.exp * 1000 < now) throw new HttpError(401, 'Sign in again');
-  if (!claims.org_id || !claims.crew_id) throw new HttpError(401, 'Sign in again');
-  return claims;
-}
 
 export function bearer(req: Request): string {
   return (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');

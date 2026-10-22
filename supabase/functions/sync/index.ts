@@ -1,6 +1,7 @@
 // Phones send their outbox here: punches (checked for signature, chain and risk) and boss edits.
-import { bearer, ingest, verifyJwt } from '../_shared/core.ts';
-import { env, serve } from '../_shared/http.ts';
+import { ingest } from '../_shared/core.ts';
+import { session } from '../_shared/auth.ts';
+import { serve } from '../_shared/http.ts';
 import { repo, admin } from '../_shared/db.ts';
 import { bossIds, pushTo } from '../_shared/push.ts';
 import { Risk } from '../_shared/vendor/mod.ts';
@@ -8,7 +9,7 @@ import { Risk } from '../_shared/vendor/mod.ts';
 const WORDS: Record<string, string> = { offsite: 'off site', near: 'near the job', nogps: 'with no GPS', weak: 'with weak GPS' };
 
 serve(async (req, body) => {
-  const claims = await verifyJwt(bearer(req), env('CREW_JWT_SECRET'));
+  const claims = await session(req);
   const items = Array.isArray(body.items) ? body.items : [];
   const result = await ingest(claims, items, repo());
   // Alerts are best effort: a push outage must never make the phone resend its punches.

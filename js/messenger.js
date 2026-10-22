@@ -68,7 +68,7 @@
     run(fn) { return sb().authed(state.auth, fn); },
     publishKeyPackage(b64) {
       return this.run((t) => sb().insert('mls_key_packages', { org_id: claim(t).org_id, crew_id: state.me.id,
-        device_id: claim(t).device_id || state.me.id, key_package: b64 }, t));
+        device_id: sb().session().deviceId || state.me.id, key_package: b64 }, t));
     },
     keyPackages(ids) {
       return this.run(async (t) => {

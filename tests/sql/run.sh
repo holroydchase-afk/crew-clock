@@ -4,4 +4,4 @@ set -e
 cd "$(dirname "$0")/../.."
 DB=crewclock_test
 su postgres -c "dropdb --if-exists $DB && createdb $DB"
-su postgres -c "psql -q -v ON_ERROR_STOP=1 -d $DB -f tests/sql/supabase_stub.sql -f supabase/migrations/20261022000000_init.sql -f tests/sql/rls_test.sql" 2>&1 | grep -E "NOTICE|ERROR|exception" 
+su postgres -c "psql -q -v ON_ERROR_STOP=1 -d $DB -f tests/sql/supabase_stub.sql -f supabase/migrations/20261022000000_init.sql -f supabase/migrations/20261023000000_auth_hook.sql -f tests/sql/rls_test.sql -f tests/sql/auth_test.sql" 2>&1 | grep -E "NOTICE|ERROR|exception" 

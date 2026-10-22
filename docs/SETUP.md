@@ -8,13 +8,27 @@ and a computer with [Deno](https://deno.com) and the [Supabase CLI](https://supa
 
 1. Create a project at supabase.com. Pick the US East region (closest to WV).
 2. In this repo: `supabase link --project-ref YOUR_REF`, then `supabase db push`.
-   That runs `supabase/migrations/20261022000000_init.sql` (tables, security rules, geofence).
-   Leave `20261022000100_schedules.sql` for step 6.
-3. Note from **Project Settings > API**: the project URL and the `anon` public key.
-4. Note from **Project Settings > JWT**: the JWT secret.
-   The app's PIN login signs session tokens with it (HS256). If the project only offers the newer
-   asymmetric signing keys and no legacy secret, PIN tokens won't be accepted by the database API;
-   the fix is moving `pin-login` to Supabase's custom access token hook (about an hour of work).
+   That runs `20261022000000_init.sql` (tables, security rules, geofence) and
+   `20261023000000_auth_hook.sql` (session claims). Leave `20261022000100_schedules.sql` for step 6.
+3. Note from **Project Settings > API Keys**: the project URL and the publishable (`anon`) key.
+4. Sign-in security, in the dashboard:
+   - **Project Settings > JWT Keys**: if it still says "Legacy JWT secret", click
+     **Migrate JWT secret**, then **Rotate keys** so the new ECC (P-256) key signs tokens.
+     Later, once the app and functions use the new `sb_publishable_` / `sb_secret_` API keys
+     instead of the legacy `anon` / `service_role` ones, revoke the legacy secret too. Until then
+     the database would still accept a token made with it (the functions already refuse them).
+   - **Authentication > Hooks**: add a **Customize Access Token (JWT) Claims** hook,
+     type Postgres, function `public.crew_access_token_hook`.
+   - **Authentication > Sign In / Providers**: turn **Allow new users to sign up** off.
+     Leave the Email provider on (PIN login uses it behind the scenes; no email is ever sent).
+   - **Authentication > Sessions** (optional): access tokens last 1 hour by default; leave that.
+
+   How sign-in works: a crew member taps their name and types their PIN. `pin-login` checks the PIN
+   (PBKDF2, 5 tries then a 15 minute lockout) and asks Supabase Auth for a normal session for that
+   person. Supabase signs the token with its private key; the database and the functions check it
+   with the public key. Nothing in this app can sign a token, and the phone never stores the PIN,
+   only Supabase's refresh token. A new PIN or turning someone off in the Crew tab ends their
+   sessions on every phone.
 
 ## 2. Backblaze B2 (photos)
 
@@ -32,7 +46,6 @@ Make push keys once: `npx web-push generate-vapid-keys`. Make two random secrets
 (`openssl rand -hex 32`) for `CRON_SECRET` and `REPORT_TOKEN`. Then:
 
     supabase secrets set \
-      CREW_JWT_SECRET=<JWT secret from 1.4> \
       B2_KEY_ID=<key id> B2_APPLICATION_KEY=<key> B2_BUCKET=crewclock-photos B2_REGION=us-east-005 \
       VAPID_PUBLIC_KEY=<public> VAPID_PRIVATE_KEY=<private> VAPID_SUBJECT=mailto:you@example.com \
       CRON_SECRET=<random> REPORT_TOKEN=<random> \

@@ -1,6 +1,6 @@
 // deno test tests/edge/   (Edge Function logic with an in-memory database)
 import { assert, assertEquals, assertRejects } from 'jsr:@std/assert@1';
-import { hashPin, ingest, signJwt, verifyJwt, verifyPin, type Claims, type Device, type PunchItem, type Repo } from '../../supabase/functions/_shared/core.ts';
+import { hashPin, ingest, verifyPin, type Claims, type Device, type PunchItem, type Repo } from '../../supabase/functions/_shared/core.ts';
 import { Chain } from '../../supabase/functions/_shared/vendor/mod.ts';
 
 const ORG = '00000000-0000-4000-8000-0000000000a1';
@@ -26,15 +26,6 @@ function fakeRepo(devices: Device[] = []) {
   };
   return { repo, punches, jobs, devices };
 }
-
-Deno.test('JWT round trip, tamper and expiry', async () => {
-  const t = await signJwt(claims(JAKE), 'secret');
-  assertEquals((await verifyJwt(t, 'secret')).crew_id, JAKE);
-  await assertRejects(() => verifyJwt(t, 'other'));
-  await assertRejects(() => verifyJwt(t.slice(0, -2) + 'xx', 'secret'));
-  const old = await signJwt({ ...claims(JAKE), exp: 1 }, 'secret');
-  await assertRejects(() => verifyJwt(old, 'secret'));
-});
 
 Deno.test('PIN hashing', async () => {
   const h = await hashPin('1234');
