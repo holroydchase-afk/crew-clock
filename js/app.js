@@ -147,7 +147,10 @@
 
   // ---------- punches ----------
   async function savePunch(p) {
-    const item = Object.assign({ kind: 'punch', id: Store.uid(), byCrewId: state.me.id }, p);
+    let item = Object.assign({ kind: 'punch', id: Store.uid(), byCrewId: state.me.id }, p);
+    if (self.Device && Device.supported()) {
+      try { item = await Device.sign(item); } catch (e) { /* unsigned punches still save; the server flags them */ }
+    }
     await Store.outbox.add(item);
     if (item.crewId === state.me.id && item.type !== 'void') setLast(item);
     await countPending();

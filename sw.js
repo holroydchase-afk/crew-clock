@@ -7,7 +7,7 @@ const MAX_TILES = 1500;
 
 const SHELL_FILES = [
   './', 'index.html', 'config.js', 'manifest.webmanifest', 'css/app.css',
-  'js/geo.js', 'js/report.js', 'js/store.js', 'js/icons.js', 'js/demo-backend.js', 'js/api.js', 'js/app.js',
+  'js/geo.js', 'js/report.js', 'js/store.js', 'js/chain.js', 'js/device.js', 'js/icons.js', 'js/demo-backend.js', 'js/api.js', 'js/app.js',
   'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css',
   'vendor/leaflet/images/marker-icon.png', 'vendor/leaflet/images/marker-icon-2x.png',
   'vendor/leaflet/images/marker-shadow.png', 'vendor/leaflet/images/layers.png', 'vendor/leaflet/images/layers-2x.png',

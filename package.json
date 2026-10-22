@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "GPS clock-in app for construction crews",
   "scripts": {
-    "test": "node --test tests/unit.test.js",
+    "test": "node --test tests/*.test.js",
     "test:e2e": "node tests/e2e.js",
     "test:sql": "sh tests/sql/run.sh",
     "serve": "npx http-server -p 8123 -c-1 ."
