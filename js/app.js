@@ -423,6 +423,7 @@
         <div class="sync-line" data-sync-line>${syncLineHtml()}</div>
         ${isLead() ? `<button class="btn secondary" data-action="teammate">${Icons.teammate} Clock in or out a teammate</button>` : ''}
         ${state.me.role === 'foreman' ? `<button class="btn secondary" data-action="go" data-to="boss">${Icons.map} See the team map</button>` : ''}
+        ${self.Messenger ? `<button class="btn secondary" data-action="go" data-to="chat-list">${Icons.chat} Messages <span class="badge" data-unread></span></button>` : ''}
         <div id="push-slot"></div>
         ${fake}
       </main>`;
@@ -535,6 +536,7 @@
     const tabs = [
       ['map', 'Map', Icons.map], ['today', 'Today', Icons.list],
       ...(isBoss() ? [['jobs', 'Jobs', Icons.job], ['crew', 'Crew', Icons.people]] : []),
+      ...(self.Messenger ? [['chat', 'Chat', Icons.chat]] : []),
     ];
     const updated = state.team ? `Updated ${time(state.team.at)}` : 'Not loaded yet';
     let body = '';
@@ -542,6 +544,7 @@
     if (tab === 'today') body = bossTodayHtml();
     if (tab === 'jobs') body = bossJobsHtml();
     if (tab === 'crew') body = bossCrewHtml();
+    if (tab === 'chat' && self.Messenger) body = Messenger.listHtml();
     return `${demoBanner()}
       <div class="boss">
         <header class="boss-head">
@@ -819,6 +822,7 @@
     paint(fn());
     if (state.screen === 'boss' && state.bossTab === 'map') mountTeamMap();
     if (state.screen === 'job-form') mountJobMap();
+    if (self.Messenger) Messenger.afterRender();
     mountPush();
   }
 
@@ -1028,6 +1032,7 @@
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 
-  self.CrewClock = { state, syncNow, render };
+  // Hooks for add-on screens (js/messenger.js registers the chat screens here).
+  self.CrewClock = { state, syncNow, render, screens, handlers, setScreen, esc, toast, time, initials, isBoss, isLead, crewById, goHome };
   countPending().then(() => { goHome(); syncNow(); });
 })();

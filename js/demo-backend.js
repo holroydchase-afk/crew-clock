@@ -91,7 +91,7 @@
       return {
         me: publicCrew(me),
         jobs: activeJobs(db),
-        crew: me.role === 'crew' ? [] : db.crew.filter((c) => c.active !== false).map(publicCrew),
+        crew: db.crew.filter((c) => c.active !== false).map(publicCrew),
         last: last ? stripPunch(last) : null,
         punchCount: mine.length,
       };

@@ -107,10 +107,9 @@
     refresh(auth) {
       return authed(auth, async (t) => {
         const me = session().me;
-        const lead = me.role !== 'crew';
         const [jobs, crew, last] = await Promise.all([
           rest('jobs?active=eq.true&select=*&order=name', t),
-          lead ? rest('crew?active=eq.true&select=id,name,role,active&order=name', t) : Promise.resolve([]),
+          rest('crew?active=eq.true&select=id,name,role,active&order=name', t),
           rest(`punches?crew_id=eq.${me.id}&type=in.(in,out)&status=neq.voided&order=phone_at.desc&limit=1&select=*`, t),
         ]);
         return { me, jobs: jobs.map(job), crew, last: last[0] ? punch(last[0]) : null };

@@ -281,3 +281,22 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .risk { display: flex; gap: 6px; align-items: flex-start; color: var(--red); font-size: 14px; font-weight: 600; margin-top: 4px; }
 .risk svg { width: 16px; height: 16px; margin-top: 2px; }
+
+/* Chat */
+.badge { display: none; min-width: 24px; height: 24px; border-radius: 12px; background: var(--red-bg); color: #fff; font-size: 14px; font-weight: 800; padding: 0 7px; align-items: center; justify-content: center; }
+.badge.on { display: inline-flex; }
+.e2e { display: flex; gap: 8px; align-items: center; color: var(--green); font-size: 15px; margin: 0; }
+.e2e svg { width: 18px; height: 18px; }
+.e2e.small { font-size: 13px; gap: 4px; }
+.e2e.small svg { width: 14px; height: 14px; }
+.screen.chat { gap: 0; padding-bottom: 0; height: 100vh; height: 100dvh; min-height: 0; }
+.chat-head { display: flex; align-items: center; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.bubbles { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 14px 0; }
+.bubble { max-width: 82%; align-self: flex-start; background: var(--card); box-shadow: var(--shadow); border-radius: 18px 18px 18px 6px; padding: 10px 14px; display: flex; flex-direction: column; gap: 2px; font-size: 18px; }
+.bubble b { font-size: 14px; color: var(--blue); }
+.bubble small { font-size: 12px; color: var(--muted); align-self: flex-end; }
+.bubble.mine { align-self: flex-end; background: var(--blue); color: #fff; border-radius: 18px 18px 6px 18px; }
+.bubble.mine small { color: rgba(255,255,255,.75); }
+.composer { display: flex; gap: 8px; padding: 10px 0 calc(env(safe-area-inset-bottom) + 12px); border-top: 1px solid var(--line); }
+.composer input { flex: 1; border: 2px solid var(--line); background: var(--card); border-radius: 22px; padding: 12px 16px; font-size: 18px; min-width: 0; }
+.row-card.pick input { width: 26px; height: 26px; }
