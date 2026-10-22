@@ -127,3 +127,11 @@ test('server copy of the fence rule matches the app', () => {
     }
   }
 });
+
+test('a void the server rejected does not hide the punch', () => {
+  const s = Report.pairShifts([
+    { id: 'a', crewId: 'c1', jobId: 'j1', type: 'in', at: 7 * H, status: 'onsite' },
+    { id: 'v', crewId: 'c2', type: 'void', voidsId: 'a', at: 7.01 * H, status: 'void_rejected' },
+  ]);
+  assert.strictEqual(s.length, 1);
+});

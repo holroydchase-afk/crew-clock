@@ -1,13 +1,13 @@
 // Keeps the app and recently seen map tiles on the phone so it opens with no signal.
 // Bump VERSION whenever any app file changes so phones pick up the new files.
-const VERSION = 'v1';
+const VERSION = 'v2';
 const SHELL = `shell-${VERSION}`;
 const TILES = 'tiles-v1';
 const MAX_TILES = 1500;
 
 const SHELL_FILES = [
   './', 'index.html', 'config.js', 'manifest.webmanifest', 'css/app.css',
-  'js/geo.js', 'js/report.js', 'js/store.js', 'js/icons.js', 'js/demo-backend.js', 'js/api.js', 'js/app.js',
+  'js/geo.js', 'js/report.js', 'js/store.js', 'js/chain.js', 'js/device.js', 'js/icons.js', 'js/demo-backend.js', 'js/risk.js', 'js/api-supabase.js', 'js/api.js', 'js/push.js', 'js/ai.js', 'js/app.js', 'js/messenger.js', 'js/vendor/crew-mls.js',
   'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css',
   'vendor/leaflet/images/marker-icon.png', 'vendor/leaflet/images/marker-icon-2x.png',
   'vendor/leaflet/images/marker-shadow.png', 'vendor/leaflet/images/layers.png', 'vendor/leaflet/images/layers-2x.png',
@@ -64,4 +64,27 @@ self.addEventListener('fetch', (e) => {
       return net.catch(() => caches.match('index.html'));
     }));
   }
+});
+
+// ---------- push alerts ----------
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = { title: 'Crew Clock', body: e.data && e.data.text() }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'Crew Clock', {
+    body: d.body || '',
+    tag: d.tag,
+    icon: 'icons/icon-192.png',
+    badge: 'icons/icon-192.png',
+    data: { url: d.url || './' },
+  }));
+});
+
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = new URL(e.notification.data && e.notification.data.url || './', self.registration.scope).href;
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    const open = list.find((c) => c.url.startsWith(self.registration.scope));
+    if (open) { open.focus(); return open.navigate(url).catch(() => {}); }
+    return self.clients.openWindow(url);
+  }));
 });

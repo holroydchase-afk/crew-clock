@@ -147,7 +147,10 @@
 
   // ---------- punches ----------
   async function savePunch(p) {
-    const item = Object.assign({ kind: 'punch', id: Store.uid(), byCrewId: state.me.id }, p);
+    let item = Object.assign({ kind: 'punch', id: Store.uid(), byCrewId: state.me.id }, p);
+    if (self.Device && Device.supported()) {
+      try { item = await Device.sign(item); } catch (e) { /* unsigned punches still save; the server flags them */ }
+    }
     await Store.outbox.add(item);
     if (item.crewId === state.me.id && item.type !== 'void') setLast(item);
     await countPending();
@@ -420,6 +423,8 @@
         <div class="sync-line" data-sync-line>${syncLineHtml()}</div>
         ${isLead() ? `<button class="btn secondary" data-action="teammate">${Icons.teammate} Clock in or out a teammate</button>` : ''}
         ${state.me.role === 'foreman' ? `<button class="btn secondary" data-action="go" data-to="boss">${Icons.map} See the team map</button>` : ''}
+        ${self.Messenger ? `<button class="btn secondary" data-action="go" data-to="chat-list">${Icons.chat} Messages <span class="badge" data-unread></span></button>` : ''}
+        <div id="push-slot"></div>
         ${fake}
       </main>`;
   };
@@ -490,6 +495,8 @@
       <label class="btn primary xl file-btn">${Icons.camera} Open camera
         <input type="file" accept="image/*" capture="environment" data-action="photo-file">
       </label>
+      ${f.photoProblem ? `<p class="notice">${Icons.alert} ${esc(AI.PHOTO_WORDS[f.photoProblem])}</p>
+        <button class="link" data-action="photo-anyway">Use that picture anyway</button>` : ''}
       ${f.forTeammate ? '' : '<button class="link" data-action="no-photo">I can\'t take a picture</button>'}
     </main>`;
   };
@@ -531,6 +538,7 @@
     const tabs = [
       ['map', 'Map', Icons.map], ['today', 'Today', Icons.list],
       ...(isBoss() ? [['jobs', 'Jobs', Icons.job], ['crew', 'Crew', Icons.people]] : []),
+      ...(self.Messenger ? [['chat', 'Chat', Icons.chat]] : []),
     ];
     const updated = state.team ? `Updated ${time(state.team.at)}` : 'Not loaded yet';
     let body = '';
@@ -538,6 +546,7 @@
     if (tab === 'today') body = bossTodayHtml();
     if (tab === 'jobs') body = bossJobsHtml();
     if (tab === 'crew') body = bossCrewHtml();
+    if (tab === 'chat' && self.Messenger) body = Messenger.listHtml();
     return `${demoBanner()}
       <div class="boss">
         <header class="boss-head">
@@ -553,6 +562,20 @@
         </nav>
       </div>`;
   };
+
+  // Risk flags: the server's when it sent them, otherwise the same rules run here.
+  function riskFor(p) {
+    if (!p || !self.Risk) return [];
+    if (Array.isArray(p.risk)) return p.risk;
+    const crewHistory = teamPunches().filter((x) => x.crewId === p.crewId && x.id !== p.id);
+    const deviceHistory = p.deviceId ? teamPunches().filter((x) => x.deviceId === p.deviceId) : [];
+    return Risk.assess(p, { crewHistory, deviceHistory, receivedAt: p.receivedAt });
+  }
+  function riskHtml(flags) {
+    const high = flags.filter((f) => f.level === 'high');
+    if (!high.length) return '';
+    return `<div class="risk">${Icons.alert}<span>${high.map((f) => esc(Risk.describe(f))).join('<br>')}</span></div>`;
+  }
 
   function teamPunches() { return (state.team && state.team.punches) || []; }
   function teamCrew() { return ((state.team && state.team.crew) || state.crew).filter((c) => c.active !== false && c.role !== 'boss'); }
@@ -608,6 +631,7 @@
     return `<div class="popup"><b>${esc(c.name)}</b><br>${verb} ${dayLabel(p.at).toLowerCase()} ${time(p.at)}<br>
       ${esc(job ? job.name : '')}<br>${chip(p.status, p.hasPhoto)}${dist}
       ${p.address && p.status === 'offsite' ? `<br><span class="muted">${esc(p.address)}</span>` : ''}${late}
+      ${riskHtml(riskFor(p))}
       ${p.hasPhoto ? `<br><button class="mini" data-action="show-photo" data-id="${esc(p.id)}">See photo</button>` : ''}</div>`;
   }
 
@@ -639,21 +663,35 @@
       const c = crewById(s.crewId) || { name: '?' };
       const job = jobById(s.jobId);
       const photoP = [punchById[s.inId], punchById[s.outId]].find((p) => p && p.hasPhoto);
+      const flags = [punchById[s.inId], punchById[s.outId]].filter(Boolean).flatMap(riskFor);
       const span = `${s.inAt ? time(s.inAt) : '?'} – ${s.outAt ? time(s.outAt) : s.open ? '<b class="on-clock">on the clock</b>' : '<b class="warn">no clock-out</b>'}`;
       return `<div class="shift">
         <span class="avatar">${esc(initials(c.name))}</span>
         <div class="grow"><div class="shift-name">${esc(c.name)}</div>
-          <div class="muted small">${esc(job ? job.name : '')} · ${span}${s.hours != null ? ` · ${s.hours.toFixed(1)} h` : ''}</div></div>
+          <div class="muted small">${esc(job ? job.name : '')} · ${span}${s.hours != null ? ` · ${s.hours.toFixed(1)} h` : ''}</div>${riskHtml(flags)}</div>
         <div class="shift-right">${chip(s.status)}
           ${photoP ? `<button class="mini" data-action="show-photo" data-id="${esc(photoP.id)}">${Icons.camera}</button>` : ''}</div>
       </div>`;
     }).join('');
     const sheet = cfg.sheetUrl ? `<a class="btn secondary" href="${esc(cfg.sheetUrl)}" target="_blank" rel="noopener">${Icons.sheet} Open the Google Sheet</a>` : '';
+    let summary = '';
+    if (self.AI) {
+      const names = Object.fromEntries(teamCrew().map((c) => [c.id, c.name]));
+      const jobNames = Object.fromEntries(((state.team && state.team.jobs) || state.jobs).map((j) => [j.id, j.name]));
+      const text = state.aiSummary || AI.plainSummary(shifts, names, jobNames, notIn.map((c) => c.name));
+      state.summaryFacts = text;
+      const canWrite = AI.tier() >= 2 && !state.aiSummary && shifts.length;
+      summary = `<div class="summary"><div class="summary-text" id="summary-text">${esc(text)}</div>
+        ${canWrite ? `<button class="link" data-action="ai-summary">Write it up with AI on this phone</button>` : ''}
+        ${state.aiSummary ? '<div class="muted small">Written by an AI model running on this phone.</div>' : ''}</div>`;
+    }
     return `<div class="pad">
       <h2>Today</h2>
+      ${summary}
       ${notIn.length ? `<div class="not-in"><div class="not-in-title">${Icons.alert} Not in yet (${notIn.length})</div>
         <div>${notIn.map((c) => `<span class="pill">${esc(c.name)}</span>`).join('')}</div></div>` : ''}
       <div class="list">${rows || '<p class="muted">No one has clocked in today.</p>'}</div>
+      <div id="push-slot"></div>
       <div class="actions">${isBoss() ? `<button class="btn secondary" data-action="send-report">${Icons.send} Send today's report now</button>` : ''}${sheet}</div>
     </div>`;
   }
@@ -781,7 +819,25 @@
     document.body.appendChild(overlay);
     try {
       const res = await Api.photo(state.auth, punchId);
-      overlay.innerHTML = res.dataUrl ? `<img src="${res.dataUrl}" alt="Clock-in photo">` : '<p>Photo not found.</p>';
+      const src = res.url || res.dataUrl;
+      overlay.innerHTML = src ? `<img src="${esc(src)}" alt="Clock-in photo">` : '<p>Photo not found.</p>';
+      if (src && self.AI && AI.tier() >= 1) {
+        const b = document.createElement('button');
+        b.className = 'btn secondary ai-check';
+        b.textContent = "What's in this picture?";
+        b.addEventListener('click', async (ev) => {
+          ev.stopPropagation();
+          b.disabled = true;
+          b.textContent = 'Looking… (first time downloads a small model)';
+          try {
+            const r = await AI.labelPhoto(src);
+            b.textContent = (r.looksLikeSite ? 'Looks like a job site: ' : "Doesn't look like a job site: ") + r.labels.slice(0, 3).map((l) => l.label).join(', ');
+          } catch (e) {
+            b.textContent = "Couldn't check this picture on this phone";
+          }
+        });
+        overlay.appendChild(b);
+      }
     } catch (e) {
       overlay.innerHTML = '<p>Need signal to load the photo.</p>';
     }
@@ -797,6 +853,21 @@
     paint(fn());
     if (state.screen === 'boss' && state.bossTab === 'map') mountTeamMap();
     if (state.screen === 'job-form') mountJobMap();
+    if (self.Messenger) Messenger.afterRender();
+    mountPush();
+  }
+
+  async function mountPush() {
+    const slot = document.getElementById('push-slot');
+    if (!slot || !self.Push || !state.auth) return;
+    const st = await Push.status().catch(() => 'unsupported');
+    const words = {
+      ready: `<button class="btn secondary" data-action="push-enable">${Icons.alert} Get alerts on this phone</button>`,
+      'install-first': `<p class="muted small center">To get alerts on iPhone: tap Share, then <b>Add to Home Screen</b>, and open the app from there.</p>`,
+      blocked: '<p class="muted small center">Alerts are turned off for this app in the phone settings.</p>',
+      on: `<p class="muted small center">${Icons.check} Alerts are on for this phone</p>`,
+    };
+    slot.innerHTML = words[st] || '';
   }
 
   // ---------- events ----------
@@ -825,6 +896,10 @@
     'pick-job': (el) => pickJob(el.dataset.id),
     'skip-gps': () => { state.screen = 'skipping'; state.flow.fix = null; afterFix(); },
     'no-photo': () => finishPunch(),
+    'photo-anyway': () => {
+      state.flow.photoChecked = true;
+      onPhotoFile(state.flow.pendingFile);
+    },
     'fix-job': async () => {
       const orig = await Store.outbox.get(state.flow.saved.id) || state.flow.saved;
       startPunch('in', { fixing: Object.assign({}, orig, { photo: state.flow.photo }) });
@@ -836,6 +911,23 @@
       render();
     },
     'boss-back': () => setScreen('boss'),
+    'ai-summary': async (el) => {
+      if (!AI.onWifi() && !confirm('This downloads about 400 MB once. Use cell data anyway?')) return;
+      el.disabled = true;
+      el.textContent = 'Writing… (first time downloads the model)';
+      try {
+        state.aiSummary = (await AI.writeSummary('Facts for today: ' + state.summaryFacts)).trim();
+      } catch (e) {
+        toast("This phone couldn't run the AI model");
+        el.remove();
+        return;
+      }
+      render();
+    },
+    'push-enable': async () => {
+      try { await Push.enable(state.auth); toast('Alerts are on'); } catch (e) { toast("Couldn't turn on alerts. Try again with signal."); }
+      mountPush();
+    },
     'reload-team': async () => { await syncNow(); await loadTeam(); render(); },
     'show-photo': (el) => showPhoto(el.dataset.id),
     'send-report': async () => {
@@ -957,23 +1049,36 @@
     const h = handlers[el.dataset.action];
     if (h) { e.preventDefault(); h(el, e); }
   });
-  document.addEventListener('change', async (e) => {
+  async function onPhotoFile(file) {
+    const f = state.flow;
+    const who = crewById(f.crewId);
+    const job = jobById(f.jobId);
+    // On-phone check (every phone): ask for a retake if the picture is too dark or blurry.
+    if (self.AI && !f.photoChecked) {
+      const url = URL.createObjectURL(file);
+      const q = await AI.photoQuality(url).catch(() => ({}));
+      URL.revokeObjectURL(url);
+      if (q.problem) {
+        f.photoProblem = q.problem;
+        f.pendingFile = file;
+        return render();
+      }
+    }
+    try {
+      f.photo = await stampPhoto(file, [
+        `${who ? who.name : ''} · ${f.type === 'in' ? 'Clock in' : 'Clock out'}`,
+        `${job ? job.name : ''} · ${new Date(f.at).toLocaleString()}`,
+      ]);
+    } catch (err) {
+      return toast("That picture didn't work. Try again.");
+    }
+    finishPunch();
+  }
+
+  document.addEventListener('change', (e) => {
     const el = e.target;
     if (el.dataset.action === 'demo-fake') handlers['demo-fake'](el);
-    if (el.dataset.action === 'photo-file' && el.files && el.files[0]) {
-      const f = state.flow;
-      const who = crewById(f.crewId);
-      const job = jobById(f.jobId);
-      try {
-        f.photo = await stampPhoto(el.files[0], [
-          `${who ? who.name : ''} · ${f.type === 'in' ? 'Clock in' : 'Clock out'}`,
-          `${job ? job.name : ''} · ${new Date(f.at).toLocaleString()}`,
-        ]);
-      } catch (err) {
-        return toast("That picture didn't work. Try again.");
-      }
-      finishPunch();
-    }
+    if (el.dataset.action === 'photo-file' && el.files && el.files[0]) onPhotoFile(el.files[0]);
   });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && e.target.id === 'job-address') { e.preventDefault(); handlers['geo-search'](); }
@@ -988,6 +1093,7 @@
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 
-  self.CrewClock = { state, syncNow, render };
+  // Hooks for add-on screens (js/messenger.js registers the chat screens here).
+  self.CrewClock = { state, syncNow, render, screens, handlers, setScreen, esc, toast, time, initials, isBoss, isLead, crewById, goHome };
   countPending().then(() => { goHome(); syncNow(); });
 })();
