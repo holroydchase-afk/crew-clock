@@ -18,17 +18,22 @@ then all 10 if the beta gates pass. Budget is $0, so everything runs on free tie
   Google Sheets reports.
 - Sign-in (PR #2): Supabase Auth sessions signed with asymmetric (ES256) keys. Phones keep a
   refresh token, never the PIN. Don't go back to shared-secret tokens.
-- Hosting prep: `scripts/build-site.mjs` builds `dist/` for Cloudflare Pages.
+- Hosting: `scripts/build-site.mjs` builds `dist/`, and `.github/workflows/pages.yml` deploys it
+  to GitHub Pages on every push to `main` (the repo is public for this).
 - CI runs unit, SQL / row-level security, Edge Function, MLS and browser tests on every PR.
 
 Demo mode runs with nothing configured: `npm run serve`, PINs in the README.
 
 ## Not live yet (needs Chase's accounts)
 
+Chase already has Supabase, Backblaze, Porkbun (domain), GitHub, Resend, Expo and an Apple
+Developer account. Expo isn't used (this is a web app); Apple Developer is for a Capacitor
+App Store build after the beta.
+
 None of this has run against real services. In order:
 
 1. Supabase project and SETUP steps 1.1 to 1.4 (about 25 minutes).
-2. Cloudflare Pages, SETUP step 5 (about 10 minutes).
+2. GitHub Pages, SETUP step 5 (about 5 minutes).
 3. Backblaze, secrets, alerts and Sheets, SETUP steps 2, 3, 4, 6 and 7 (about 40 minutes).
 4. Install day on the crew's phones, SETUP step 8.
 

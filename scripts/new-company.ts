@@ -1,5 +1,5 @@
 // Prints the SQL that creates a company and its boss, with the PIN hashed.
-// deno run scripts/new-company.ts "Holroyd Construction" TEAYS "Dad" 1234
+// deno run scripts/new-company.ts "Example Construction" TEAYS "Dad" 1234
 // Paste the output into the Supabase SQL editor.
 import { hashPin } from '../supabase/functions/_shared/core.ts';
 

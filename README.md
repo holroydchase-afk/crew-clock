@@ -28,7 +28,7 @@ Where things stand and what's next: [HANDOFF.md](HANDOFF.md).
 | Part | Choice |
 | --- | --- |
 | App | Progressive web app, plain JS, no build step (the MLS bundle is prebuilt) |
-| Hosting | Cloudflare Pages (free); `scripts/build-site.mjs` publishes only the app to `dist/` |
+| Hosting | GitHub Pages (free, public repo); `scripts/build-site.mjs` publishes only the app to `dist/` |
 | Database, API | Supabase Postgres with row-level security; geofence and shift logic in SQL |
 | Server code | Supabase Edge Functions (Deno) |
 | Photos | Backblaze B2, private bucket, presigned upload and view links |
@@ -57,5 +57,5 @@ Where things stand and what's next: [HANDOFF.md](HANDOFF.md).
 | `supabase/migrations/` | Schema, security rules, schedules |
 | `supabase/functions/` | Edge Functions: `pin-login`, `crew-list`, `sync`, `photo-upload`, `photo-url`, `geocode`, `digest`, `report-export` |
 | `backend/sheets-export.gs` | Google Sheets reports |
-| `scripts/build-site.mjs`, `_headers` | Static site build and Cloudflare Pages headers |
+| `scripts/build-site.mjs`, `.github/workflows/pages.yml` | Static site build and deploy (`_headers` if hosted on Cloudflare) |
 | `backend/Code.gs` | The original all-in-Google-Sheets backend (still works, `backend: 'sheets'`) |
