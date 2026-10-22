@@ -1,6 +1,6 @@
 // Keeps the app and recently seen map tiles on the phone so it opens with no signal.
 // Bump VERSION whenever any app file changes so phones pick up the new files.
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL = `shell-${VERSION}`;
 const TILES = 'tiles-v1';
 const MAX_TILES = 1500;

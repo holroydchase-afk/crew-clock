@@ -1,7 +1,8 @@
 // Scheduled pushes: 8:30 AM "not in yet" and 7 PM day summary. Called by pg_cron
 // (see supabase/migrations/*_schedules.sql) with the CRON_SECRET, or by the boss's
 // "Send today's report now" button with their session token.
-import { bearer, HttpError, verifyJwt } from '../_shared/core.ts';
+import { bearer, HttpError } from '../_shared/core.ts';
+import { session } from '../_shared/auth.ts';
 import { env, serve } from '../_shared/http.ts';
 import { admin } from '../_shared/db.ts';
 import { bossIds, pushTo } from '../_shared/push.ts';
@@ -44,7 +45,7 @@ serve(async (req, body) => {
     for (const o of orgs || []) sent += await runFor(o, kind);
     return { sent };
   }
-  const claims = await verifyJwt(token, env('CREW_JWT_SECRET'));
+  const claims = await session(req);
   if (claims.crew_role !== 'boss') throw new HttpError(403, 'Boss only');
   const { data: org } = await db.from('orgs').select('id, timezone').eq('id', claims.org_id).single();
   if (!org) throw new HttpError(404, 'Company not found');

@@ -7,6 +7,11 @@ export const admin = () => createClient(env('SUPABASE_URL'), env('SUPABASE_SERVI
   auth: { persistSession: false },
 });
 
+// Public-key client, used only to redeem a one-time sign-in link for a session.
+export const anon = () => createClient(env('SUPABASE_URL'), env('SUPABASE_ANON_KEY'), {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+
 function must<T>(r: { data: T; error: unknown }): T {
   if (r.error) throw r.error;
   return r.data;

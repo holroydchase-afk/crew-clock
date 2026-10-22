@@ -99,7 +99,8 @@
       state.lastSyncAt = Date.now();
       Store.local.set('lastSyncAt', state.lastSyncAt);
     } catch (e) {
-      if (e.server && /PIN/.test(e.message)) signOut('Your PIN was changed. Ask the boss for the new one.');
+      if (e.signIn) signOut('Please sign in again with your PIN.');
+      else if (e.server && /PIN/.test(e.message)) signOut('Your PIN was changed. Ask the boss for the new one.');
     } finally {
       state.syncing = false;
       await countPending();
@@ -291,7 +292,7 @@
   async function tryLogin(crewId, pin) {
     try {
       const res = await Api.login(crewId, pin);
-      state.auth = { crewId, pin };
+      state.auth = res.auth || { crewId, pin };
       Store.local.set('auth', state.auth);
       state.me = res.me;
       state.jobs = res.jobs || [];
@@ -316,6 +317,7 @@
     if (waiting.length && !msg) {
       if (!confirm(`${waiting.length} clock-ins have not sent yet. Switch anyway? They will send when this person signs in again.`)) return;
     }
+    if (Api.signOut) Api.signOut();
     ['auth', 'me', 'last', 'team', 'jobs', 'crew'].forEach((k) => Store.local.remove(k));
     Object.assign(state, { auth: null, me: null, last: null, team: null, jobs: [], crew: [] });
     if (msg) toast(msg);

@@ -13,8 +13,8 @@ verify_jwt = false
 [functions.report-export]
 verify_jwt = false
 
-# The rest receive the session token from pin-login, signed with the project's
-# JWT secret, and verify it again in code.
+# The rest receive a Supabase Auth session token and check it in code against the
+# project's public signing keys (_shared/auth.ts), including the crew claims.
 [functions.sync]
 verify_jwt = false
 [functions.photo-upload]

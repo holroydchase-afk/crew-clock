@@ -35,7 +35,7 @@ jobs:
         run: |
           psql -h localhost -U postgres -c 'create database crewclock_test'
           psql -h localhost -U postgres -d crewclock_test -v ON_ERROR_STOP=1 -q \
-            -f tests/sql/supabase_stub.sql -f supabase/migrations/20261022000000_init.sql -f tests/sql/rls_test.sql
+            -f tests/sql/supabase_stub.sql -f supabase/migrations/20261022000000_init.sql -f supabase/migrations/20261023000000_auth_hook.sql -f tests/sql/rls_test.sql -f tests/sql/auth_test.sql
 
       - name: Edge Functions (logic + type check)
         run: |
@@ -47,8 +47,9 @@ jobs:
 
       - name: Browser tests
         run: |
-          npm install --no-save playwright@1.56.1
+          npm install --no-save playwright@1.56.1 http-server@14.1.1
           npx playwright install --with-deps chromium
           npx http-server -p 8123 -c-1 -s . &
-          sleep 2
+          # Wait for the server rather than a fixed sleep
+          for i in $(seq 1 30); do curl -sf http://localhost:8123/ >/dev/null && break; sleep 1; done
           npm run test:e2e

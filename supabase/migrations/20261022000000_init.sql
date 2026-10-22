@@ -1,7 +1,7 @@
 -- Crew Clock v2 schema for Supabase Postgres.
 -- Every table is scoped to an org (a contracting company) and protected by
--- row-level security keyed on claims in the session token that the
--- pin-login Edge Function issues: org_id, crew_id, crew_role, device_id.
+-- row-level security keyed on claims in the Supabase Auth session token:
+-- org_id, crew_id, crew_role (added by the hook in 20261023000000_auth_hook.sql).
 
 create extension if not exists pgcrypto;
 

@@ -1,9 +1,30 @@
-// Name + PIN in, session token out. Registers this phone's public key for punch signatures.
-import { HttpError, LOCKOUT, signJwt, verifyPin } from '../_shared/core.ts';
-import { env, serve } from '../_shared/http.ts';
-import { admin } from '../_shared/db.ts';
+// Name + PIN in, Supabase Auth session out. Registers this phone's public key for punch signatures.
+// This function never signs a token: once the PIN checks out it has Supabase Auth issue
+// a normal session for that person's Auth user, signed with the project's private key.
+import { HttpError, LOCKOUT, verifyPin } from '../_shared/core.ts';
+import { serve } from '../_shared/http.ts';
+import { admin, anon } from '../_shared/db.ts';
 
-const DAYS = 30;
+// Auth users need an email. Crew never see it and no mail is sent; .invalid is a reserved domain.
+const authEmail = (crewId: string) => `${crewId}@crew.invalid`;
+
+// Issues a session for this crew member without sending anything: an admin-made
+// one-time link, redeemed right here.
+async function issueSession(crewId: string) {
+  const db = admin();
+  const email = authEmail(crewId);
+  const found = await db.auth.admin.getUserById(crewId);
+  if (!found.data.user) {
+    // First sign-in: make the Auth user, with the same id as the crew row.
+    const made = await db.auth.admin.createUser({ id: crewId, email, email_confirm: true });
+    if (made.error) throw made.error;
+  }
+  const link = await db.auth.admin.generateLink({ type: 'magiclink', email });
+  if (link.error) throw link.error;
+  const { data, error } = await anon().auth.verifyOtp({ token_hash: link.data.properties.hashed_token, type: 'magiclink' });
+  if (error || !data.session) throw error || new Error('No session');
+  return data.session;
+}
 
 serve(async (req, body) => {
   const crewId = String(body.crewId || '');
@@ -36,10 +57,9 @@ serve(async (req, body) => {
     } // otherwise someone reused a device id with a different key: punches will show as unsigned
   }
 
-  const now = Math.floor(Date.now() / 1000);
-  const token = await signJwt({
-    sub: me.id, role: 'authenticated', aud: 'authenticated', org_id: me.org_id, crew_id: me.id,
-    crew_role: me.role, device_id: deviceId, iat: now, exp: now + DAYS * 86400,
-  }, env('CREW_JWT_SECRET'));
-  return { token, expiresAt: (now + DAYS * 86400) * 1000, me: { id: me.id, name: me.name, role: me.role } };
+  const s = await issueSession(me.id);
+  return {
+    accessToken: s.access_token, refreshToken: s.refresh_token, expiresAt: (s.expires_at || 0) * 1000,
+    me: { id: me.id, name: me.name, role: me.role }, deviceId: deviceId || null,
+  };
 });
