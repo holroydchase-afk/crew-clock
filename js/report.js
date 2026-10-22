@@ -11,8 +11,13 @@
 
   // punches: [{id, crewId, jobId, type, at, status, voidsId}]
   // Returns [{crewId, jobId, inAt, outAt, hours, status, open, inId, outId}]
+  // Voids the server refused (someone else's punch, or too old) don't count.
+  function voidedIds(punches) {
+    return new Set(punches.filter((p) => p.type === 'void' && p.status !== 'void_rejected').map((p) => p.voidsId));
+  }
+
   function pairShifts(punches) {
-    const voided = new Set(punches.filter((p) => p.type === 'void').map((p) => p.voidsId));
+    const voided = voidedIds(punches);
     const live = punches
       .filter((p) => (p.type === 'in' || p.type === 'out') && !voided.has(p.id))
       .sort((a, b) => a.at - b.at);
@@ -47,7 +52,7 @@
 
   // The most recent live punch per crew member, for the team map.
   function lastPunchByCrew(punches) {
-    const voided = new Set(punches.filter((p) => p.type === 'void').map((p) => p.voidsId));
+    const voided = voidedIds(punches);
     const last = {};
     for (const p of punches) {
       if (p.type === 'void' || voided.has(p.id)) continue;

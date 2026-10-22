@@ -189,7 +189,11 @@ declare
 begin
   if new.type = 'void' then
     new.status := 'voided';
-    update public.punches set status = 'voided' where id = new.voids_id and org_id = new.org_id;
+    -- Only your own punch, and only soon after it (the app's "Wrong job? Fix it" is 2 minutes).
+    update public.punches set status = 'voided'
+      where id = new.voids_id and org_id = new.org_id and crew_id = new.crew_id
+        and phone_at > new.phone_at - interval '15 minutes';
+    if not found then new.status := 'void_rejected'; end if;
     return new;
   end if;
   select * into j from public.jobs where id = new.job_id and org_id = new.org_id;

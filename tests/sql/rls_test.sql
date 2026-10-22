@@ -34,11 +34,23 @@ do $$ declare s text; n int; begin
   raise notice 'OK scoring + shifts';
 end $$;
 
+-- Voids: someone else's punch, or an old one, can't be voided
+insert into punches (id, org_id, crew_id, by_crew_id, type, voids_id, phone_at) values
+  ('00000000-0000-0000-0000-0000000000d5', '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-0000000000b2', 'void', '00000000-0000-0000-0000-0000000000d1', '2026-10-21 07:01-04'),
+  ('00000000-0000-0000-0000-0000000000d6', '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-0000000000b1', 'void', '00000000-0000-0000-0000-0000000000d1', '2026-10-21 12:00-04');
+do $$ declare s text; begin
+  select status into s from punches where id = '00000000-0000-0000-0000-0000000000d1';
+  if s <> 'onsite' then raise exception 'void abuse worked: %', s; end if;
+  select status into s from punches where id = '00000000-0000-0000-0000-0000000000d5';
+  if s <> 'void_rejected' then raise exception 'bad void not marked: %', s; end if;
+  raise notice 'OK void limits';
+end $$;
+
 -- As Jake (crew)
 set role authenticated;
 select set_config('request.jwt.claims', '{"org_id":"00000000-0000-0000-0000-0000000000a1","crew_id":"00000000-0000-0000-0000-0000000000b1","crew_role":"crew"}', false);
 do $$ declare n int; begin
-  select count(*) into n from punches; if n <> 2 then raise exception 'crew should see only own punches, saw %', n; end if;
+  select count(*) into n from punches; if n <> 3 then raise exception 'crew should see only own punches, saw %', n; end if;
   select count(*) into n from crew; if n <> 3 then raise exception 'crew should see own org names only, saw %', n; end if;
   select count(*) into n from jobs; if n <> 1 then raise exception 'jobs leaked across orgs: %', n; end if;
   begin
@@ -60,7 +72,7 @@ end $$;
 -- As Dad (boss)
 select set_config('request.jwt.claims', '{"org_id":"00000000-0000-0000-0000-0000000000a1","crew_id":"00000000-0000-0000-0000-0000000000b0","crew_role":"boss"}', false);
 do $$ declare n int; begin
-  select count(*) into n from punches; if n <> 4 then raise exception 'boss should see all org punches, saw %', n; end if;
+  select count(*) into n from punches; if n <> 6 then raise exception 'boss should see all org punches, saw %', n; end if;
   insert into jobs (org_id, name, lat, lng) values ('00000000-0000-0000-0000-0000000000a1', 'Miller roof', 38.42, -81.79);
   begin
     insert into jobs (org_id, name) values ('00000000-0000-0000-0000-0000000000a2', 'Other org job');
