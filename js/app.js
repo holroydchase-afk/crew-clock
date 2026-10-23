@@ -407,8 +407,10 @@
   // ---------- screens ----------
   const screens = {};
 
+  // One line on every demo screen (SEP-3, SEP-4); the crew app never shows it (SEP-5).
   function demoBanner() {
-    return Api.isDemo ? '<div class="demo-banner">Demo mode: data stays on this phone</div>' : '';
+    return Api.isDemo ? `<div class="demo-banner" role="note"><span>Sample data, made-up crew, saved only in this browser</span>
+      · <a href="https://chaseholroyd.com/">Back to chaseholroyd.com</a></div>` : '';
   }
 
   screens.names = () => {
@@ -432,8 +434,7 @@
           ${demoNoPin() && role[c.role] ? `<span class="name-role">${role[c.role]}</span>` : ''}
         </button>`).join('')}</div>`;
     }
-    return `${demoBanner()}
-      <main class="screen">
+    return `<main class="screen">
         <div class="brand">${Icons.job}<span>Crew Clock</span></div>
         <h1>Who are you?</h1>
         <p class="privacy">${Icons.pin}<span>This app only checks where you are when you tap <b>Clock In</b> or <b>Clock Out</b>. It does not follow you.</span></p>
@@ -445,8 +446,7 @@
     const c = (state.names || []).find((x) => x.id === state.pinFor) || {};
     const n = (state.pinEntry || '').length;
     const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'];
-    return `${demoBanner()}
-      <main class="screen">
+    return `<main class="screen">
         <button class="back" data-action="go" data-to="names">${Icons.back} Back</button>
         <div class="pin-head">
           <span class="avatar big">${esc(initials(c.name))}</span>
@@ -490,8 +490,7 @@
     const fake = Api.isDemo
       ? `<label class="demo-toggle"><input type="checkbox" data-action="demo-fake" ${Store.local.get('demoFake', false) ? 'checked' : ''}> Demo: pretend I'm at the job</label>`
       : '';
-    return `${demoBanner()}
-      <main class="screen home">
+    return `<main class="screen home">
         <header class="home-head">
           <div><div class="muted small">Signed in as</div><div class="who">${esc(state.me.name)}</div></div>
           <button class="link" data-action="sign-out">Not you?</button>
@@ -767,7 +766,8 @@
       const jobNames = Object.fromEntries(((state.team && state.team.jobs) || state.jobs).map((j) => [j.id, j.name]));
       const text = state.aiSummary || AI.plainSummary(shifts, names, jobNames, notIn.map((c) => c.name));
       state.summaryFacts = text;
-      const canWrite = AI.tier() >= 2 && !state.aiSummary && shifts.length;
+      // The demo never loads a model: it would fetch a script from another site (SEP-2)
+      const canWrite = !Api.isDemo && AI.tier() >= 2 && !state.aiSummary && shifts.length;
       summary = `<div class="summary"><div class="summary-text" id="summary-text">${esc(text)}</div>
         ${canWrite ? `<button class="link" data-action="ai-summary">Write it up with AI on this phone</button>` : ''}
         ${state.aiSummary ? '<div class="muted small">Written by an AI model running on this phone.</div>' : ''}</div>`;
@@ -908,7 +908,7 @@
       const res = await Api.photo(state.auth, punchId);
       const src = res.url || res.dataUrl;
       overlay.innerHTML = src ? `<img src="${esc(src)}" alt="Clock-in photo">` : '<p>Photo not found.</p>';
-      if (src && self.AI && AI.tier() >= 1) {
+      if (src && !Api.isDemo && self.AI && AI.tier() >= 1) {
         const b = document.createElement('button');
         b.className = 'btn secondary ai-check';
         b.textContent = "What's in this picture?";
@@ -932,7 +932,8 @@
 
   // ---------- rendering ----------
   function paint(html) {
-    $app.innerHTML = html;
+    // The boss screen puts the banner inside its own frame, so the tab bar still fits (UX-5).
+    $app.innerHTML = (state.screen === 'boss' ? '' : demoBanner()) + html;
   }
 
   function render() {

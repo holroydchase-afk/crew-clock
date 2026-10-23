@@ -34,6 +34,15 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
 
 ## In progress
 
+- `M1.1` demo separation (branch `m1.1-demo-separation`, stacked on PR #6 with PR #5 merged in):
+  SEP-2..SEP-6 tests in `tests/e2e-demo.js` and `tests/demo.test.js`, red first, now green. The demo
+  address search uses four made-up sample places instead of Nominatim; `DemoBackend.forgetCrewApp()`
+  drops crew-app session keys and any session whose worker isn't in the demo seed (demo only);
+  one banner on every demo screen ("Sample data, made-up crew, saved only in this browser · Back to
+  chaseholroyd.com"); the demo hides the on-phone AI buttons; `forgetCrewApp()` runs only when
+  `backend: 'demo'`; job pins rounded
+  to 3 decimals (demo store key now `cc.demo.db.v3`). Hardening tests updated for the merge (boss
+  Sam W., tap-to-sign-in, new store key and pins); assertions unchanged.
 - `M0.1` studio setup (branch `claude/project-thread-rewwa2`): CLAUDE.md, PLAN.md, studio agents
   in `.claude/agents/`, `handoff-check`, dependabot, MIT LICENSE, README CI badge and demo link,
   docs/PRIVACY.md and the privacy-security review (15 findings: two P0, four P1), this HANDOFF
@@ -68,14 +77,17 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
 
 ## Exact next step
 
-Chase reviews and merges M0.1 (`claude/project-thread-rewwa2`), then retargets PR #6 to `main`
-and merges it. Then `M1.1` demo separation in the app (branch `m1.1-demo-separation`): qa-tdd first writes failing
-tests for SEP-2 (demo opened with `?org=` or a stale crew session still makes zero off-origin
-requests) and SEP-3/SEP-4 (a "Sample data" label and a link back to chaseholroyd.com on every
-demo screen). Criteria are in PLAN.md. Then `M1.2` location consent.
+Chase merges M0.1 (PR #4), then the stack: PR #5 (demo tap-to-sign-in), PR #6 (M1.5 hardening)
+and the M1.1 PR (branch `m1.1-demo-separation`, which already contains #5 and #6). Next build
+task: `M1.2` location consent, branch `m1.2-location-consent` stacked on `m1.1-demo-separation`:
+qa-tdd writes failing tests for CON-1..CON-6 first (PLAN.md), wording from docs/PRIVACY.md.
 
 ## Decisions to review
 
+- **The demo still loads map tiles** from OpenStreetMap and USGS (no crew data in those requests);
+  every other off-site request is gone. Undo: a static map image, at the cost of a real map.
+- **The demo hides on-phone AI** ("Write it up with AI", photo labels), because they download a
+  model from another site. The plain-words summary stays.
 - **Public demo and crew app are two builds.** GitHub Pages only ever serves the demo (sample
   data in the visitor's browser, no backend). The crew's real app will be a separate Cloudflare
   Pages build on its own address with the Supabase variables (SETUP step 5). Undo: drop `--demo`
@@ -130,9 +142,13 @@ Waiting on Chase, in order (each unblocks an M2 task; nothing in M1 needs these)
   bar (`M1.8`).
 - Live demo: https://chaseholroyd.com/crew-clock/ (GitHub Pages, deployed by
   `.github/workflows/pages.yml` after CI passes on `main`, demo-only build).
-- Demo data: made-up crew (Dad, Ray T., Jake R., Cody M. and others) and jobs, seeded in
-  `js/demo-backend.js`, kept only in the visitor's browser. No real people, accounts or keys.
+- Demo data: made-up crew (Sam W., Ray T., Jake R., Cody M. and others), jobs and sample
+  address-search places, seeded in `js/demo-backend.js`, kept only in the visitor's browser. Job
+  pins rounded to 3 decimals. No real people, accounts or keys.
 - Studio status: https://github.com/holroydchase-afk/pm-tools/blob/main/STUDIO-STATUS.md
+- 2026-10-23 (M1.1, unmerged): every demo screen gets "Sample data, made-up crew, saved only in
+  this browser · Back to chaseholroyd.com"; no AI model downloads in the demo; the demo's address search is local; a stale crew-app session can't carry into
+  the demo.
 - 2026-10-23: first Pages deploy from `main` (manual run). M0.1 makes every later deploy wait for
   CI and forces demo mode.
 

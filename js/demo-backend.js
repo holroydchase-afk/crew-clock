@@ -1,17 +1,18 @@
 // Stand-in for the Apps Script backend, used when no backendUrl is set.
 // Same actions and rules as backend/Code.gs, stored in this browser only.
 (function (root) {
-  const KEY = 'cc.demo.db.v2'; // v2: boss renamed from "Dad"
+  const KEY = 'cc.demo.db.v3'; // v2: boss renamed from "Dad"; v3: job pins rounded (SEP-6)
   const H = 3600000;
 
   function seed() {
     const now = Date.now();
     const day = root.Report.startOfDay(now);
+    // Made-up jobs. Pins are rounded to 3 decimals (about 100 m), so none marks any one house (SEP-6).
     const jobs = [
-      { id: 'j1', name: 'Smith kitchen', address: 'Teays Valley Rd, Hurricane, WV', lat: 38.4537, lng: -81.9290, radiusFt: 300, active: true },
-      { id: 'j2', name: 'Miller roof', address: 'Cross Lanes, WV', lat: 38.4204, lng: -81.7907, radiusFt: 300, active: true },
-      { id: 'j3', name: 'Scott Depot deck', address: 'Scott Depot, WV', lat: 38.4401, lng: -81.9002, radiusFt: 150, active: true },
-      { id: 'j4', name: 'Hurricane addition', address: 'Main St, Hurricane, WV', lat: 38.4326, lng: -82.0201, radiusFt: 600, active: true },
+      { id: 'j1', name: 'Smith kitchen', address: 'Teays Valley Rd, Hurricane, WV', lat: 38.454, lng: -81.929, radiusFt: 300, active: true },
+      { id: 'j2', name: 'Miller roof', address: 'Cross Lanes, WV', lat: 38.420, lng: -81.791, radiusFt: 300, active: true },
+      { id: 'j3', name: 'Scott Depot deck', address: 'Scott Depot, WV', lat: 38.440, lng: -81.900, radiusFt: 150, active: true },
+      { id: 'j4', name: 'Hurricane addition', address: 'Main St, Hurricane, WV', lat: 38.433, lng: -82.020, radiusFt: 600, active: true },
     ];
     const crew = [
       { id: 'c0', name: 'Sam W.', role: 'boss', pin: '1234', active: true },
@@ -26,15 +27,23 @@
     const base = Math.max(Math.min(day, now - 12.5 * H), day - 6.5 * H);
     const t = (h) => Math.min(base + h * H, now - 60000);
     const punches = [
-      mk('p1', 'c1', 'j1', 'in', t(6.9), 38.45375, -81.92895, 8),
-      mk('p2', 'c2', 'j1', 'in', t(7.05), 38.45402, -81.92860, 15),
-      mk('p3', 'c3', 'j2', 'in', t(7.2), 38.42200, -81.79310, 25),
+      mk('p1', 'c1', 'j1', 'in', t(6.9), 38.45405, -81.92895, 8),
+      mk('p2', 'c2', 'j1', 'in', t(7.05), 38.45432, -81.92860, 15),
+      mk('p3', 'c3', 'j2', 'in', t(7.2), 38.42160, -81.79340, 25),
       mk('p4', 'c4', 'j3', 'in', t(7.5), null, null, null),
-      mk('p5', 'c4', 'j3', 'out', t(11.5), 38.44030, -81.90020, 12),
+      mk('p5', 'c4', 'j3', 'out', t(11.5), 38.44020, -81.90000, 12),
     ];
     punches.forEach((p) => { p.receivedAt = p.at + 30000; });
     return { jobs, crew, punches, photos: {} };
   }
+
+  // Address search answers in the demo: made-up sample places, rounded like the job pins.
+  const SAMPLE_PLACES = [
+    { label: 'Main St, Hurricane, WV (sample)', lat: 38.433, lng: -82.020 },
+    { label: 'Teays Valley Rd, Hurricane, WV (sample)', lat: 38.454, lng: -81.929 },
+    { label: 'Scott Depot, WV (sample)', lat: 38.440, lng: -81.900 },
+    { label: 'Cross Lanes, WV (sample)', lat: 38.420, lng: -81.791 },
+  ];
 
   function mk(id, crewId, jobId, type, at, lat, lng, accuracy) {
     return { id, crewId, byCrewId: crewId, jobId, type, at, lat, lng, accuracy };
@@ -154,13 +163,14 @@
       authed(db, req.auth);
       return { dataUrl: db.photos[req.punchId] || null };
     },
+    // The demo never calls an address server (SEP-2): it answers from a few sample places.
     geocode(db, req) {
       authed(db, req.auth);
-      const url = 'https://nominatim.openstreetmap.org/search?format=json&countrycodes=us&limit=5&q=' +
-        encodeURIComponent(req.address);
-      return fetch(url).then((r) => r.json()).then((rows) => ({
-        results: rows.map((r) => ({ label: r.display_name, lat: +r.lat, lng: +r.lon })),
-      }));
+      const words = String(req.address || '').toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 1);
+      const hits = SAMPLE_PLACES
+        .map((p) => ({ p, n: words.filter((w) => p.label.toLowerCase().includes(w)).length }))
+        .filter((x) => x.n > 0).sort((a, b) => b.n - a.n).map((x) => x.p);
+      return { results: (hits.length ? hits : SAMPLE_PLACES).map((p) => Object.assign({}, p)) };
     },
     sendReport(db, req) {
       authed(db, req.auth);
@@ -192,5 +202,17 @@
     });
   }
 
-  root.DemoBackend = { handle, reset: () => { try { localStorage.removeItem(KEY); } catch (e) { root.__demoDb = null; } } };
+  // A phone that once ran the crew app (or opened a crew link) may have left its session here.
+  // The demo never uses it (SEP-2): drop the crew-app keys, and a signed-in worker the demo doesn't know.
+  function forgetCrewApp() {
+    try {
+      ['cc.sbSession', 'cc.orgCode'].forEach((k) => localStorage.removeItem(k));
+      const auth = JSON.parse(localStorage.getItem('cc.auth'));
+      if (auth && !load().crew.some((c) => c.id === auth.crewId)) {
+        ['auth', 'me', 'last', 'team', 'jobs', 'crew', 'crewNames', 'locPrimed'].forEach((k) => localStorage.removeItem('cc.' + k));
+      }
+    } catch (e) { /* private mode: nothing was kept */ }
+  }
+
+  root.DemoBackend = { handle, forgetCrewApp, reset: () => { try { localStorage.removeItem(KEY); } catch (e) { root.__demoDb = null; } } };
 })(self);

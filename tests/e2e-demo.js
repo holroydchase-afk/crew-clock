@@ -46,6 +46,7 @@ async function open(browser, opts = {}) {
   await ctx.route((u) => u.origin !== ORIGIN, (r) => r.fulfill({ status: 204, body: '' }));
   await page.addInitScript(gpsAt, J1);
   if (opts.stale) await page.addInitScript(staleCrewSession);
+  if (opts.init) await page.addInitScript(opts.init);
   await page.goto(BASE + (opts.query || ''));
   return { ctx, page };
 }
@@ -142,9 +143,53 @@ t('SEP-3 every demo screen shows a visible "Sample data" label that says data st
     const label = p.getByText(/Sample data/i).filter({ visible: true });
     if (!(await label.count())) return missing.push(`${where}: no visible "Sample data" label`);
     const text = (await label.first().innerText()) + ' ' + (await label.first().evaluate((e) => (e.closest('.demo-banner, [role="note"], [role="status"], header, div') || e).innerText));
+    if (!/made-up/i.test(text)) missing.push(`${where}: label does not say the crew is made up ("${text.trim().slice(0, 80)}")`);
     if (!/this browser/i.test(text)) missing.push(`${where}: label does not say data stays in this browser ("${text.trim().slice(0, 80)}")`);
   });
   if (missing.length) throw new Error(missing.join(' | '));
+  return page;
+});
+
+t('SEP-2 (PSR-1) the demo never offers the on-phone AI buttons, which would load a model script from another site', async (browser) => {
+  const { page } = await open(browser, { init: () => {
+    // Pretend this is a phone strong enough for the AI tiers, on every load
+    let ai;
+    Object.defineProperty(self, 'AI', { configurable: true, get: () => ai, set: (v) => { ai = v; ai.tier = () => 2; } });
+  } });
+  await page.waitForSelector('.name-btn');
+  // Make sure Today has a shift, whatever the hour (the summary only offers AI when it does)
+  await signIn(page, 'Travis K.');
+  await page.click('.punch.in');
+  await page.waitForSelector('.job-btn');
+  await page.click('.job-btn[data-id="j1"]');
+  await page.waitForSelector('.big-check');
+  await page.getByRole('button', { name: 'OK', exact: true }).click();
+  await page.waitForSelector('.punch.out');
+  await signOut(page, 'Not you?');
+  await signIn(page, 'Sam W.');
+  if (await page.evaluate(() => AI.tier()) !== 2) throw new Error('could not force the AI tier');
+  await bossTab(page, 'today');
+  await page.waitForSelector('.summary-text');
+  await page.waitForTimeout(500);
+  if (process.env.DEBUG) console.log(await page.locator('.boss-body').innerText());
+  if (await page.getByText(/Write it up with AI/i).count()) throw new Error('"Write it up with AI on this phone" is offered in the demo');
+  assertNoOffOrigin(page);
+  return page;
+});
+
+t('SEP-2 (PSR-2) a crew build that falls back to demo mode (empty supabaseUrl) keeps the crew-app session', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await ctx.newPage();
+  page.errors = [];
+  page.on('pageerror', (e) => page.errors.push(e.message));
+  await ctx.route((u) => u.origin !== ORIGIN, (r) => r.fulfill({ status: 204, body: '' }));
+  await page.route('**/config.js', (r) => r.fulfill({ contentType: 'application/javascript',
+    body: "window.APP_CONFIG = { backend: 'supabase', supabaseUrl: '', supabaseAnonKey: '', orgCode: '', gpsTimeoutMs: 1500 };" }));
+  await page.addInitScript(() => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('cc.sbSession', JSON.stringify({ refreshToken: 'rt-keep' })); } });
+  await page.goto(BASE);
+  await page.waitForSelector('.name-btn, .punch, .boss');
+  const kept = await page.evaluate(() => localStorage.getItem('cc.sbSession'));
+  if (!kept || !kept.includes('rt-keep')) throw new Error('cc.sbSession was deleted by a build that is not the demo');
   return page;
 });
 

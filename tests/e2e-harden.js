@@ -7,7 +7,7 @@ const path = require('path');
 const { launch } = require('./browser.js');
 
 const BASE = process.env.BASE_URL || 'http://localhost:8123/';
-const JOBS = { j1: { lat: 38.4537, lng: -81.9290 }, j2: { lat: 38.4204, lng: -81.7907 }, j4: { lat: 38.4326, lng: -82.0201 } };
+const JOBS = { j1: { lat: 38.454, lng: -81.929 }, j2: { lat: 38.420, lng: -81.791 }, j4: { lat: 38.433, lng: -82.020 } };
 const SITE_JPG = fs.readFileSync(path.join(__dirname, 'fixtures/site.jpg')).toString('base64');
 const cases = [];
 const t = (name, fn) => cases.push({ name, fn });
@@ -73,7 +73,7 @@ const quiet = (page) => page.waitForFunction(() => window.__busy && window.__bus
 async function punches(page) {
   return page.evaluate(async () => {
     const box = await Store.outbox.all(); // outbox first: an item leaves it only after the server has it
-    const db = JSON.parse(localStorage.getItem('cc.demo.db.v2') || '{"punches":[]}');
+    const db = JSON.parse(localStorage.getItem('cc.demo.db.v3') || '{"punches":[]}');
     const all = new Map();
     db.punches.forEach((p) => all.set(p.id, Object.assign({ where: 'server' }, p)));
     box.filter((i) => i.kind === 'punch').forEach((p) => all.set(p.id, Object.assign({ where: 'outbox' }, p)));
