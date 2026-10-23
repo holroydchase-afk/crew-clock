@@ -4,6 +4,10 @@ updates:
     directory: /messenger
     schedule:
       interval: weekly
+    # ts-mls pins @noble/curves to an exact version as a peer, so npm ci fails on any other.
+    # Bump ts-mls instead; it brings its own curves version.
+    ignore:
+      - dependency-name: "@noble/curves"
     groups:
       minor-and-patch:
         update-types: [minor, patch]

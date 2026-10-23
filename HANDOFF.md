@@ -161,6 +161,8 @@ docs/PRIVACY.md, including consent records (C6) and a removed worker's data.
   `workflow_dispatch` still deploys by hand.
 - **handoff-check skips Dependabot PRs** (a version bump doesn't move the work, and Dependabot
   can't edit HANDOFF.md). Undo: drop the `dependabot[bot]` condition in `handoff-check.yml`.
+- **Dependabot skips `@noble/curves`**: ts-mls 1.6.4 pins it to exactly 2.0.1 as a peer, so
+  Dependabot's #14 (2.0.1 to 2.4.0) broke `npm ci`. #14 is closed; the curves version moves with ts-mls.
 - **Dependabot** watches `messenger/` (the only npm dependencies) and Actions. A messenger bump
   also needs `npm run build:mls` committed, or CI's bundle check fails; that's intended.
 - **Retention defaults** (docs/PRIVACY.md): hours 3 years, raw GPS 90 days, photos 60 days,
