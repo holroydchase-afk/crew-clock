@@ -1,7 +1,7 @@
 // Stand-in for the Apps Script backend, used when no backendUrl is set.
 // Same actions and rules as backend/Code.gs, stored in this browser only.
 (function (root) {
-  const KEY = 'cc.demo.db';
+  const KEY = 'cc.demo.db.v2'; // v2: boss renamed from "Dad"
   const H = 3600000;
 
   function seed() {
@@ -14,7 +14,7 @@
       { id: 'j4', name: 'Hurricane addition', address: 'Main St, Hurricane, WV', lat: 38.4326, lng: -82.0201, radiusFt: 600, active: true },
     ];
     const crew = [
-      { id: 'c0', name: 'Dad', role: 'boss', pin: '1234', active: true },
+      { id: 'c0', name: 'Sam W.', role: 'boss', pin: '1234', active: true },
       { id: 'c1', name: 'Ray T.', role: 'foreman', pin: '3333', active: true },
       { id: 'c2', name: 'Jake R.', role: 'crew', pin: '1111', active: true },
       { id: 'c3', name: 'Cody M.', role: 'crew', pin: '2222', active: true },
@@ -83,6 +83,12 @@
     login(db, req) {
       const me = authed(db, req.auth);
       return actions.refresh(db, req, me);
+    },
+    // Demo without PINs (config demoPin off): sign in by tapping a name.
+    demoLogin(db, req) {
+      const me = db.crew.find((c) => c.id === req.crewId && c.active !== false);
+      if (!me) throw new Error('Not found');
+      return Object.assign(actions.refresh(db, req, me), { auth: { crewId: me.id, pin: me.pin } });
     },
     refresh(db, req, me) {
       me = me || authed(db, req.auth);

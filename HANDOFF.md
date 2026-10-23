@@ -22,7 +22,9 @@ then all 10 if the beta gates pass. Budget is $0, so everything runs on free tie
   to GitHub Pages on every push to `main` (the repo is public for this).
 - CI runs unit, SQL / row-level security, Edge Function, MLS and browser tests on every PR.
 
-Demo mode runs with nothing configured: `npm run serve`, PINs in the README.
+Demo mode runs with nothing configured: `npm run serve`. In the demo you sign in by tapping a
+name (no PIN); `demoPin: true` in `config.js` brings the PIN screen back. The demo boss is "Sam W.",
+never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
 
 ## Not live yet (needs Chase's accounts)
 

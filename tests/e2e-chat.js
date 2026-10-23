@@ -1,4 +1,4 @@
-// Demo-mode chat: Dad starts an encrypted group with Jake, they trade messages,
+// Demo-mode chat: the boss starts an encrypted group with Jake, they trade messages,
 // and the shared store never holds plaintext. node tests/e2e-chat.js (with npm run serve)
 const { launch } = require('./browser.js');
 (async () => {
@@ -7,18 +7,15 @@ const { launch } = require('./browser.js');
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  const login = async (name, pin) => {
-    await page.getByText(name, { exact: true }).click();
-    for (const k of pin) await page.click(`.keypad [data-k="${k}"]`);
-  };
+  const login = async (name) => { await page.getByText(name, { exact: true }).click(); }; // demo: no PIN
   const signOut = async () => { page.once('dialog', (d) => d.accept()); await page.click('[data-action="sign-out"]'); };
   await page.goto('http://localhost:8123/');
-  await login('Jake R.', '1111');
+  await login('Jake R.');
   await page.getByText('OK, ask me').click().catch(() => {});
   await page.waitForSelector('[data-to="chat-list"]');
   await page.waitForFunction(() => JSON.stringify(localStorage).includes('keyPackages') && localStorage.getItem('cc.demo.chat').includes('c2'), null, { timeout: 15000 });
   await signOut();
-  await login('Dad', '1234');
+  await login('Sam W.');
   await page.click('[data-tab="chat"]');
   await page.click('[data-action="chat-new"]');
   await page.fill('#chat-name', 'Smith kitchen crew');
@@ -31,7 +28,7 @@ const { launch } = require('./browser.js');
   await page.screenshot({ path: 'tests/shots/8-chat-dad.png' });
   await page.click('[data-action="chat-back"]');
   await signOut();
-  await login('Jake R.', '1111');
+  await login('Jake R.');
   await page.waitForTimeout(1500);
   if (!(await page.locator('[data-to="chat-list"]').count())) console.log('SCREEN:', (await page.locator('#app').innerText()).slice(0, 400), errors);
   await page.click('[data-to="chat-list"]');
