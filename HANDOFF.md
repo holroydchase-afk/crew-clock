@@ -34,7 +34,8 @@ Demo mode runs with nothing configured: `npm run serve`, PINs in the README.
 
 - `M0.1` studio setup (branch `claude/project-thread-rewwa2`): CLAUDE.md, PLAN.md, studio agents
   in `.claude/agents/`, `handoff-check`, dependabot, MIT LICENSE, README CI badge and demo link,
-  docs/PRIVACY.md and the privacy-security review, this HANDOFF layout. `pages.yml` now deploys
+  docs/PRIVACY.md and the privacy-security review (15 findings: two P0, four P1), this HANDOFF
+  layout. SETUP no longer names the company code or sends the crew to the demo's address. `pages.yml` now deploys
   only after CI passes on `main` and always builds demo-only (`build-site.mjs --demo` ignores
   backend variables and fails if config.js points at a backend; tested in `tests/site.test.js`).
 - `M1.5` hardening: the 2:15am night shift (2026-10-23) stacks on the M0.1 branch.
@@ -56,6 +57,10 @@ demo screen). Criteria are in PLAN.md. Then `M1.2` location consent.
   `workflow_dispatch` still deploys by hand.
 - **Dependabot** watches `messenger/` (the only npm dependencies) and Actions. A messenger bump
   also needs `npm run build:mls` committed, or CI's bundle check fails; that's intended.
+- **Retention defaults** (docs/PRIVACY.md): hours 3 years, raw GPS 90 days, photos 60 days,
+  chat ciphertext 30 days, based on federal FLSA minimums. Built in `M1.4`.
+- **Company code is no longer written in the repo.** SETUP uses a `<CODE>` placeholder and tells
+  Chase to pick random letters, because anyone with the code can see the crew name list (F-03).
 - MLS: keep the open-source ts-mls library for the beta (recommended), or swap in Chase's own
   build behind the same interface in `messenger/`.
 - Weekly report: hours only for the beta (recommended), or hours times pay rate.
@@ -68,6 +73,10 @@ Waiting on Chase, in order (each unblocks an M2 task; nothing in M1 needs these)
 2. Cloudflare Pages for the crew app, SETUP step 5 "Crew app" (about 10 minutes). Unblocks `M2.2`.
 3. Backblaze, secrets, alerts and Sheets, SETUP steps 2, 3, 4, 6 and 7 (about 40 minutes).
 4. Install day on the crew's phones, SETUP step 8, after `M1.2` consent ships.
+5. Check West Virginia's record-keeping and employee-monitoring rules (docs/PRIVACY.md "Needs
+   Chase") with whoever does the company's payroll. Only the hours row could change.
+6. Turn on secret scanning and push protection (2 minutes): repo **Settings > Advanced Security**
+   (or **Code security**) > Secret Protection > Enable, then Push protection > Enable.
 
 ## Portfolio / public presence
 

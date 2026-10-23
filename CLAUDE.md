@@ -16,7 +16,15 @@ Read first: [HANDOFF.md](HANDOFF.md) (where things stand), [PLAN.md](PLAN.md) (m
 - No secrets, keys, Supabase project refs or URLs, Backblaze ids, VAPID private keys, tokens or
   scheduled-task ids in the repo. Real config lives only in the crew app host's variables.
 - The public demo is never the crew app. GitHub Pages builds with `--demo` only and must never
-  get a backend URL; the crew app is a separate build on its own address (SETUP step 5).
+  get a backend URL; the crew app is a separate build on its own address (SETUP step 5). CORS
+  (`APP_ORIGIN`, the B2 rule) lists only the crew app's address, never the demo's and never `*`.
+- Location is read only inside the clock-in/out flow (and the boss's "Use where I'm standing" for a
+  job pin). No background location, no watch that outlives the punch screen, none in the service worker.
+- No location without the worker's consent record (text version, time, device), including when a
+  foreman clocks them in. Withdrawal adds a record; consent records are never edited or deleted.
+- Retention follows [docs/PRIVACY.md](docs/PRIVACY.md). Any new personal field needs a retention
+  rule and a test before it merges. Push text and the Sheets export never carry coordinates.
+- The crew app runs only the Supabase backend; the old Sheets backend stays demo-only.
 - Never block a clock-in. A bad GPS fix or no signal means a photo fallback or a flag, not a refusal.
 - Sign-in stays on Supabase Auth with asymmetric (ES256) keys; phones keep a refresh token, never
   the PIN. Never reintroduce shared-secret token minting.

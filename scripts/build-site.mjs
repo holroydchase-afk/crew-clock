@@ -47,7 +47,7 @@ export function fillConfig(src, env) {
 // The public demo must never point at a real backend, whatever the config or environment says.
 export function assertDemo(config) {
   const cfg = new Function('window', `${config}; return window.APP_CONFIG;`)({});
-  const live = ['supabaseUrl', 'supabaseAnonKey', 'orgCode', 'backendUrl', 'sheetUrl'].filter((k) => cfg[k]);
+  const live = ['supabaseUrl', 'supabaseAnonKey', 'orgCode', 'vapidPublicKey', 'backendUrl', 'sheetUrl'].filter((k) => cfg[k]);
   if (cfg.backend !== 'demo' || live.length) {
     throw new Error(`--demo build has a live backend (backend: ${cfg.backend}${live.length ? `, ${live.join(', ')}` : ''})`);
   }

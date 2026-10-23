@@ -53,4 +53,5 @@ test('--demo refuses a config that points at a live backend', async () => {
   assert.doesNotThrow(() => assertDemo(src));
   assert.throws(() => assertDemo(src.replace("backend: 'demo'", "backend: 'supabase'")), /live backend/);
   assert.throws(() => assertDemo(src.replace("supabaseUrl: ''", "supabaseUrl: 'https://x.supabase.co'")), /supabaseUrl/);
+  assert.throws(() => assertDemo(src.replace("vapidPublicKey: ''", "vapidPublicKey: 'BKey'")), /vapidPublicKey/);
 });

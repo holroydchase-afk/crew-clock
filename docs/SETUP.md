@@ -37,7 +37,7 @@ and a computer with [Deno](https://deno.com) and the [Supabase CLI](https://supa
 2. Create an application key limited to that bucket with read and write. Note the key ID and key.
 3. Allow the app to upload from the browser (B2 CLI):
 
-       b2 bucket update --cors-rules '[{"corsRuleName":"app","allowedOrigins":["https://holroydchase-afk.github.io"],
+       b2 bucket update --cors-rules '[{"corsRuleName":"app","allowedOrigins":["https://clock.example.com"],
          "allowedOperations":["s3_put","s3_get"],"allowedHeaders":["content-type"],"maxAgeSeconds":3600}]' crewclock-photos allPrivate
 
 ## 3. Secrets and functions
@@ -49,15 +49,17 @@ Make push keys once: `npx web-push generate-vapid-keys`. Make two random secrets
       B2_KEY_ID=<key id> B2_APPLICATION_KEY=<key> B2_BUCKET=crewclock-photos B2_REGION=us-east-005 \
       VAPID_PUBLIC_KEY=<public> VAPID_PRIVATE_KEY=<private> VAPID_SUBJECT=mailto:you@example.com \
       CRON_SECRET=<random> REPORT_TOKEN=<random> \
-      APP_ORIGIN=https://holroydchase-afk.github.io
+      APP_ORIGIN=https://clock.example.com
 
     supabase functions deploy
 
 ## 4. The company and the boss
 
-    deno run scripts/new-company.ts "Example Construction" TEAYS "Dad" 1234
+    deno run scripts/new-company.ts "Example Construction" <CODE> "Dad" <boss PIN>
 
-Paste the printed SQL into the Supabase SQL editor and run it. `TEAYS` is the company code.
+Paste the printed SQL into the Supabase SQL editor and run it. `<CODE>` is the company code: pick
+6 or more random letters (not the town or company name) and keep it out of this repo, since anyone
+with it sees the crew name list.
 Dad adds the crew himself from the app's **Crew** tab after that.
 
 ## 5. The app (two builds: the public demo and the crew's app)
@@ -84,7 +86,7 @@ build ignores them anyway.
    | `CREW_BACKEND` | `supabase` |
    | `SUPABASE_URL` | the project URL from step 1.3 |
    | `SUPABASE_ANON_KEY` | the publishable key from step 1.3 |
-   | `ORG_CODE` | `TEAYS` |
+   | `ORG_CODE` | your company code from step 4 |
    | `VAPID_PUBLIC_KEY` | the public push key from step 3 |
 
    None of them is a secret (phones see them anyway). The build writes them into `config.js`, so
@@ -112,7 +114,7 @@ and run it in the SQL editor. Times are UTC; the file explains the Eastern time 
 
 ## 8. Install day (10 minutes a person)
 
-Send each person `https://holroydchase-afk.github.io/crew-clock/?org=TEAYS`. On their phone:
+Send each person `https://clock.example.com/?org=<CODE>` (the crew app's address from step 5, never the demo's). On their phone:
 
 1. Open the link. iPhone: Share, **Add to Home Screen**. Android: **Install app** or Add to Home screen.
 2. Open it from the home screen, tap their name, type their PIN.
