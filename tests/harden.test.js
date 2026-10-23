@@ -129,7 +129,9 @@ async function seedAt(at) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'), ctx, { filename: f });
   }
   await ctx.DemoBackend.handle('listCrew', {});
-  return { punches: JSON.parse(ls.get('cc.demo.db')).punches, Report: ctx.Report };
+  // The demo store key carries a version (cc.demo.db.v2 after the boss rename)
+  const key = [...ls.keys()].find((k) => k.startsWith('cc.demo.db'));
+  return { punches: JSON.parse(ls.get(key)).punches, Report: ctx.Report };
 }
 
 for (const [label, h, m] of [['6:30 AM', 6, 30], ['7:30 AM', 7, 30], ['9:15 AM', 9, 15], ['2:00 PM', 14, 0]]) {

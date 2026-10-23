@@ -78,10 +78,13 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 .center-col > .back:first-child { position: absolute; top: calc(env(safe-area-inset-top) + 12px); left: 20px; margin: 0; }
 .lead { font-size: 21px; margin: 0; }
 
+/* Ink on amber-soft: 15.9:1 light, 7.9:1 dark. */
 .demo-banner {
-  background: var(--amber-soft); color: var(--amber); text-align: center;
-  font-size: 14px; font-weight: 600; padding: calc(env(safe-area-inset-top) + 6px) 12px 6px;
+  background: var(--amber-soft); color: var(--ink); text-align: center;
+  font-size: 13px; font-weight: 600; line-height: 1.35; padding: calc(env(safe-area-inset-top) + 6px) 12px 6px;
 }
+/* The link's hit area fills the banner's own padding, never past its edge, so it can't cover "Not you?" below */
+.demo-banner a { color: inherit; text-decoration: underline; white-space: nowrap; display: inline-block; padding: 6px; margin: -6px 0; }
 /* On the boss screen the banner sits inside .boss, so the tab bar still fits in 100dvh (UX-5). */
 .demo-banner + .screen, .boss > .demo-banner + .boss-head { padding-top: 16px; }
 
@@ -108,6 +111,7 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
   padding: 18px 12px; display: flex; flex-direction: column; align-items: center; gap: 10px;
   font-size: 20px; font-weight: 600; min-height: 120px; justify-content: center;
 }
+.name-role { font-size: 14px; font-weight: 600; color: var(--blue); margin-top: -6px; }
 .name-btn:active, .job-btn:active, .punch:active, .btn:active, .keypad button:active { transform: scale(0.97); }
 
 .back { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; color: var(--blue); font-size: 18px; padding: 8px 4px; margin-left: -6px; }

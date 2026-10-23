@@ -7,7 +7,7 @@ const path = require('path');
 const { launch } = require('./browser.js');
 
 const BASE = process.env.BASE_URL || 'http://localhost:8123/';
-const JOBS = { j1: { lat: 38.4537, lng: -81.9290 }, j2: { lat: 38.4204, lng: -81.7907 }, j4: { lat: 38.4326, lng: -82.0201 } };
+const JOBS = { j1: { lat: 38.454, lng: -81.929 }, j2: { lat: 38.420, lng: -81.791 }, j4: { lat: 38.433, lng: -82.020 } };
 const SITE_JPG = fs.readFileSync(path.join(__dirname, 'fixtures/site.jpg')).toString('base64');
 const cases = [];
 const t = (name, fn) => cases.push({ name, fn });
@@ -43,8 +43,12 @@ async function open(browser, mode, pos) {
 
 async function signIn(page, name, pin) {
   await page.getByRole('button', { name, exact: false }).first().click();
-  for (const k of pin) await page.click(`.keypad [data-k="${k}"]`);
-  await page.waitForSelector('.punch, .boss, [data-action="prime-location"]');
+  // The demo signs in on the tap (demoPin off); the PIN screen only shows when it's on
+  await page.waitForSelector('.keypad, .punch, .boss, [data-action="prime-location"]');
+  if (await page.locator('.keypad').count()) {
+    for (const k of pin) await page.click(`.keypad [data-k="${k}"]`);
+    await page.waitForSelector('.punch, .boss, [data-action="prime-location"]');
+  }
   if (await page.locator('[data-action="prime-location"]').count()) {
     await page.click('[data-action="prime-location"]');
     await page.waitForSelector('.punch');
@@ -69,7 +73,7 @@ const quiet = (page) => page.waitForFunction(() => window.__busy && window.__bus
 async function punches(page) {
   return page.evaluate(async () => {
     const box = await Store.outbox.all(); // outbox first: an item leaves it only after the server has it
-    const db = JSON.parse(localStorage.getItem('cc.demo.db') || '{"punches":[]}');
+    const db = JSON.parse(localStorage.getItem('cc.demo.db.v3') || '{"punches":[]}');
     const all = new Map();
     db.punches.forEach((p) => all.set(p.id, Object.assign({ where: 'server' }, p)));
     box.filter((i) => i.kind === 'punch').forEach((p) => all.set(p.id, Object.assign({ where: 'outbox' }, p)));
@@ -120,7 +124,7 @@ t('HRD-1 Jake leaves 2 unsent punches, Cody signs in and syncs: they stay queued
 // queued for Jake, sent as Jake's when Jake signs back in, never re-attributed to whoever is signed in.
 t('HRD-1 Jake leaves 2 unsent punches, the boss signs in and syncs: they stay queued, then send as Jake\'s', async (browser) => {
   const { page, queued } = await jakeTwoUnsent(browser);
-  await signIn(page, 'Dad', '1234');
+  await signIn(page, 'Sam W.', '1234');
   await syncAndWait(page);
   let all = await punches(page);
   const sentByBoss = all.filter((p) => queued.includes(p.id) && p.where === 'server');
@@ -448,7 +452,7 @@ t('PS-7b an old queued job edit with no byCrewId is not sent by a crew member an
 });
 
 t('PS-7b (guard) the boss does send an old queued job edit with no byCrewId', async (browser) => {
-  const { ctx, page } = await legacyEditQueued(browser, 'Dad', '1234');
+  const { ctx, page } = await legacyEditQueued(browser, 'Sam W.', '1234');
   const sent = await page.evaluate(() => window.__sent.includes('legacy-edit-1'));
   if (!sent) throw new Error('the boss\'s sync did not send the old edit');
   if (await outboxItem(page, 'legacy-edit-1')) throw new Error('the old edit is still queued after the boss sent it');
@@ -600,7 +604,7 @@ t('UX-4 pick-teammate: one button per row, at least 96x48, "Clock in" when off a
 
 async function bossOnMap(browser) {
   const { page } = await open(browser, 'auto', JOBS.j1);
-  await signIn(page, 'Dad', '1234');
+  await signIn(page, 'Sam W.', '1234');
   await page.click('[data-tab="map"]');
   await page.waitForSelector('.leaflet-control-attribution');
   return page;

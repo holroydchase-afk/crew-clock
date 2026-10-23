@@ -17,6 +17,10 @@ window.APP_CONFIG = {
   // The Google Sheet link, shown to the boss as "Open the Google Sheet"
   sheetUrl: '',
 
+  // Demo mode only: ask for the 4-number PIN at sign-in. Off, anyone trying the demo
+  // signs in by tapping a name. The real app always asks for the PIN.
+  demoPin: false,
+
   // How long to wait for GPS before offering a photo
   gpsTimeoutMs: 20000,
 };

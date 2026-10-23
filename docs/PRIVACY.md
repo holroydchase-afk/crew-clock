@@ -189,8 +189,10 @@ Rules:
   demo's, and the functions refuse to start without `APP_ORIGIN`. [to build, M1.1 / M2.2; today
   `http.ts:4` falls back to `*` and SETUP still names github.io]
 - **S4** The demo always says it is sample data and never asks for a real name, PIN, picture of a
-  person, or location it keeps. "Pretend I'm at the job" exists only in the demo. [partly true:
-  banner `js/app.js:338`; full label M1.1]
+  person, or location it keeps. "Pretend I'm at the job" exists only in the demo. [true since M1.1:
+  every demo screen shows "Sample data, made-up crew, saved only in this browser" with a link back
+  to chaseholroyd.com; the demo makes no off-site requests except map tiles and never loads the AI
+  models; tested in `tests/e2e-demo.js`]
 - **S5** The crew app never runs the old Google Sheets backend (`backend: 'sheets'`): it keeps the
   PIN in the phone's storage (`js/app.js:295`). [to build: refuse `sheets` in a non-demo build,
   M1.1]

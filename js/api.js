@@ -36,11 +36,14 @@
 
   const isDemo = !cfg.backendUrl;
   const call = isDemo ? (a, p) => root.DemoBackend.handle(a, p) : remote;
+  // Only the real demo build forgets crew-app keys; a crew build missing its URL must not lose a session
+  if (isDemo && cfg.backend === 'demo') root.DemoBackend.forgetCrewApp();
 
   root.Api = {
     isDemo,
     listCrew: () => call('listCrew', {}),
     login: (crewId, pin) => call('login', { auth: { crewId, pin } }),
+    demoLogin: isDemo ? (crewId) => call('demoLogin', { crewId }) : undefined,
     refresh: (auth) => call('refresh', { auth }),
     sync: (auth, items) => call('sync', { auth, items }),
     team: (auth, since) => call('team', { auth, since }),

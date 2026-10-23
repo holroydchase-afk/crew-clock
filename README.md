@@ -26,7 +26,9 @@ Or run it locally:
     npm run serve        # then open http://localhost:8123
 
 With nothing configured it runs in **demo mode**, data kept in the browser.
-Demo PINs (all names are made up): Dad (boss) 1234, Ray T. (foreman) 3333, Jake R. 1111, Cody M. 2222.
+In the demo you sign in by tapping a name (all names are made up); pick **Sam W.** (boss) for the
+team map. To try the PIN screen, set `demoPin: true` in `config.js`: Sam W. 1234, Ray T. (foreman)
+3333, Jake R. 1111, Cody M. 2222.
 
 To run it for real, follow [docs/SETUP.md](docs/SETUP.md) (about an hour).
 Where things stand and what's next: [HANDOFF.md](HANDOFF.md).

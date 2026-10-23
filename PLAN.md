@@ -14,7 +14,7 @@ Plain-JS PWA, no build step except `scripts/build-site.mjs` (copies the app to `
 ## M1: Recruiter-demoable v1
 _Done when the recruiter-ready bar (pm-tools ONBOARDING section 5) passes and `docs/reviews/<date>-recruiter-ready.md` says go. Every M1 task is buildable with no accounts from Chase._
 
-- `M1.1` Demo can't reach a backend, and says it's a demo — todo — done when SEP-1..SEP-6 pass — branch `m1.1-demo-separation`
+- `M1.1` Demo can't reach a backend, and says it's a demo — doing (SEP-1..SEP-5 and SEP-6's rounded pins pass; SEP-6 name check is Chase's) — done when SEP-1..SEP-6 pass — branch `m1.1-demo-separation`
 - `M1.2` Record each worker's location consent in the app — todo — done when CON-1..CON-7 pass in demo mode and against local Postgres — branch `m1.2-location-consent`
 - `M1.3` Location read only at the clock-in/out tap — todo — done when a test proves no GPS read happens on any screen except the punch flow (and the opt-in "nearest job" sort inside it), and docs/PRIVACY.md matches — branch `m1.3-location-at-tap`
 - `M1.4` Retention and delete rules in code — todo — done when the retention periods in docs/PRIVACY.md are a SQL function with local tests (old punches, GPS points, photos keys, chat purged on schedule; a removed worker's data deleted or anonymized), and the demo has "Reset sample data" — branch `m1.4-retention`
@@ -26,7 +26,7 @@ _Done when the recruiter-ready bar (pm-tools ONBOARDING section 5) passes and `d
 
 ### M1.1 acceptance criteria (SEP)
 - **SEP-1 (auto, done in M0.1: `tests/site.test.js` "--demo build ignores backend variables")** Given the Pages workflow with `CREW_BACKEND=supabase` and `SUPABASE_URL` set, when `build-site.mjs` runs in demo-forced mode, then `dist/config.js` has `backend: 'demo'` and empty `supabaseUrl`, `supabaseAnonKey`, `orgCode`, `vapidPublicKey`, `backendUrl`.
-- **SEP-2 (auto)** Given the demo build, when it is opened with `?org=ANY` or with a stale crew-app session in localStorage, then it stays in demo mode and the e2e network log has zero requests to any host other than its own origin.
+- **SEP-2 (auto)** Given the demo build, when it is opened with `?org=ANY` or with a stale crew-app session in localStorage, then it stays in demo mode and the e2e network log has zero requests to any host other than its own origin, except map tiles (OpenStreetMap, USGS), which carry no crew data. The demo never offers the on-phone AI (it would load a model script from another site).
 - **SEP-3 (auto)** Given demo mode, when any screen renders (sign-in, home, punch, boss tabs, chat), then a visible "Sample data, not a real crew" label is present and data is described as saved only in this browser.
 - **SEP-4 (auto)** Given demo mode, when the visitor looks for a way out, then every screen has a link to `https://chaseholroyd.com` that resolves (not a 404).
 - **SEP-5 (auto)** Given a crew-app build (`backend: 'supabase'`), when it renders, then no demo banner, demo PIN hints, "pretend I'm at the job" toggle, sample-data label or portfolio link appear.
