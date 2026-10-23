@@ -159,6 +159,8 @@ docs/PRIVACY.md, including consent records (C6) and a removed worker's data.
   from `pages.yml`, but then recruiters and the crew share one site.
 - **Pages waits for CI** via `workflow_run`, and deploys the exact commit CI tested.
   `workflow_dispatch` still deploys by hand.
+- **handoff-check skips Dependabot PRs** (a version bump doesn't move the work, and Dependabot
+  can't edit HANDOFF.md). Undo: drop the `dependabot[bot]` condition in `handoff-check.yml`.
 - **Dependabot** watches `messenger/` (the only npm dependencies) and Actions. A messenger bump
   also needs `npm run build:mls` committed, or CI's bundle check fails; that's intended.
 - **Retention defaults** (docs/PRIVACY.md): hours 3 years, raw GPS 90 days, photos 60 days,
