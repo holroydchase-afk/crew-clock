@@ -8,7 +8,7 @@
   "dependencies": {
     "@noble/curves": "^2.0.1",
     "@noble/hashes": "^2.4.0",
-    "esbuild": "^0.24.0",
+    "esbuild": "^0.28.2",
     "ts-mls": "^1.6.4"
   },
   "private": true,
