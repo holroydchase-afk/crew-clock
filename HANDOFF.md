@@ -38,7 +38,7 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
   SEP-2..SEP-6 tests in `tests/e2e-demo.js` and `tests/demo.test.js`, red first, now green. The demo
   address search uses four made-up sample places instead of Nominatim; `DemoBackend.forgetCrewApp()`
   drops crew-app session keys and any session whose worker isn't in the demo seed (demo only);
-  one banner on every demo screen ("Sample data, made-up crew, saved only in this browser · Back to
+  one banner on every demo screen (its link's tap area stays inside the banner, tested; "Sample data, made-up crew, saved only in this browser · Back to
   chaseholroyd.com"); the demo hides the on-phone AI buttons; `forgetCrewApp()` runs only when
   `backend: 'demo'`; job pins rounded
   to 3 decimals (demo store key now `cc.demo.db.v3`). Hardening tests updated for the merge (boss

@@ -199,6 +199,14 @@ t('SEP-4 every demo screen has a visible link to https://chaseholroyd.com', asyn
   await everyScreen(page, async (p, where) => {
     const hrefs = await p.locator('a[href]').filter({ visible: true }).evaluateAll((as) => as.map((a) => a.getAttribute('href')));
     if (!hrefs.some((h) => PORTFOLIO.test(h))) missing.push(where);
+    // The link's tap area stays inside the banner, so it never covers a control under it
+    const spill = await p.evaluate(() => {
+      const b = document.querySelector('.demo-banner'); const a = b && b.querySelector('a');
+      if (!a) return 0;
+      const br = b.getBoundingClientRect(); const ar = a.getBoundingClientRect();
+      return Math.max(0, ar.bottom - br.bottom, br.top - ar.top);
+    });
+    if (spill > 0.5) missing.push(`${where} (link tap area spills ${spill.toFixed(1)} px past the banner)`);
   });
   if (missing.length) throw new Error(`no visible chaseholroyd.com link on: ${missing.join(', ')}`);
   return page;
@@ -301,7 +309,8 @@ t('SEP-5 the crew app (backend: supabase) shows no demo banner, sample-data labe
       console.log(`ok     ${c.name}`);
     } catch (e) {
       failed++;
-      console.log(`FAIL   ${c.name}\n       ${e.message.split('\n')[0]}`);
+      // A few lines of Playwright's call log, so a CI-only failure says what blocked the click
+      console.log(`FAIL   ${c.name}\n       ${e.message.split('\n').slice(0, 6).join('\n       ')}`);
       if (process.env.DEBUG) console.log(e.stack);
     }
   }
