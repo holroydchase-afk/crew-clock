@@ -13,10 +13,17 @@ const cases = [];
 const t = (name, fn) => cases.push({ name, fn });
 
 // mode 'auto': every GPS request answers at pos; 'deny': permission denied; 'manual': the test fires each watch.
+// A rough reading (the job list's sort, the permission primer) isn't a punch watch: it answers on its
+// own as the old one-shot read did (M1.3 moved those reads to a watch so they can be stopped).
 function gpsStub(cfg) {
   const g = window.__gps = { mode: cfg.mode, pos: cfg.pos, watches: [] };
   const at = (p) => ({ coords: { latitude: p.lat, longitude: p.lng, accuracy: p.acc }, timestamp: Date.now() });
-  navigator.geolocation.watchPosition = (ok, err) => {
+  let rough = 1000;
+  navigator.geolocation.watchPosition = (ok, err, opts) => {
+    if (opts && opts.enableHighAccuracy === false) {
+      setTimeout(() => (g.mode === 'auto' ? ok(at(g.pos)) : err && err({ code: 1 })), 0);
+      return ++rough;
+    }
     const w = { ok, err, cleared: false };
     g.watches.push(w);
     if (g.mode === 'auto') setTimeout(() => !w.cleared && ok(at(g.pos)), 0);

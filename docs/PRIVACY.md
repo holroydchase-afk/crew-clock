@@ -21,19 +21,26 @@ The consent screen (below) is the short version of this.
 
 | When | What is read | Where it goes | Status |
 | --- | --- | --- | --- |
-| Worker taps **Clock in** or **Clock out**, after picking the job | GPS watched for up to 20 s (stops early at 20 m accuracy), best fix kept: latitude, longitude, accuracy, time | Saved with the punch, sent to the server when there is signal | [true] `js/app.js:195-218`, `js/geo.js:57-91` |
-| Worker taps **Clock in** (job list) | One rough, low-accuracy reading to put the nearest job on top | Stays in the app's memory for that screen; never saved or sent | [true] `js/app.js:173-180` |
-| First sign-in, **OK, ask me** | One reading only to make the phone show its permission prompt | Thrown away | [true] `js/app.js:888-893` |
-| Foreman clocks in a teammate | The **foreman's** phone GPS; a picture is asked for, and a punch without one is flagged high for the boss (`teammate_no_photo`) | Saved on the teammate's punch, marked as made by the foreman | [true] `js/app.js:224`, `js/risk.js:58`, `supabase/functions/_shared/core.ts:157-159` |
-| Boss taps **Use where I'm standing** when adding a job | The boss's own GPS | Saved as the job site's pin, not as anyone's punch | [true] `js/app.js:968-976` |
-| Any other time (home screen, chat, boss tabs, app closed, phone locked) | Nothing | — | [true] no other geolocation call in `js/`, none in `sw.js`, no background or periodic sync |
+| Worker taps **Clock in** or **Clock out**, after picking the job | GPS watched for up to 20 s (stops early at 20 m accuracy), best fix kept: latitude, longitude, accuracy, time | Saved with the punch, sent to the server when there is signal | [true] `js/app.js` `locate`, `js/geo.js` `bestFix`; stops when they leave the screen (L2) |
+| Worker taps **Clock in** (job list) | One rough, low-accuracy reading to put the nearest job on top | Stays in the app's memory for that screen; never saved or sent | [true] `js/app.js` `sortJobsByDistance`; stops when they pick a job or leave the list (L2) |
+| First sign-in, **OK, ask me** | One reading only to make the phone show its permission prompt | Thrown away | [true] `js/app.js` `prime-location`; stops if the app goes to the background (L2) |
+| Foreman clocks in a teammate | The **foreman's** phone GPS; a picture is asked for, and a punch without one is flagged high for the boss (`teammate_no_photo`) | Saved on the teammate's punch, marked as made by the foreman | [true] `js/app.js` `startPunch`, `js/risk.js` `teammate_no_photo`, `core.ts` `ingestPunch` |
+| Boss taps **Use where I'm standing** when adding a job | The boss's own GPS | Saved as the job site's pin, not as anyone's punch | [true] `js/app.js` `job-here`; stops when the boss leaves the job form or picks another way (L2) |
+| Any other time (home screen, chat, boss tabs, app closed, phone locked) | Nothing | — | [true] no other geolocation call in `js/`, none in `sw.js`, no background or periodic sync (`tests/location.test.js`, `tests/e2e-location.js` LOC-1) |
 
 Rules:
 - **L1** Location is read only inside the punch flow and the boss's "Use where I'm standing".
   No `watchPosition` that outlives the punch screen, no background location, no periodic or
-  background sync that reads location. [true today; a test that proves it is **to build**, M1.3]
-- **L2** When the worker backs out of the "Finding you" screen, the GPS watch stops at once.
-  [to build, M1.3: today the result is discarded but the watch can run up to 20 s more]
+  background sync that reads location. [true] `tests/location.test.js` fails if a location read
+  appears anywhere else in `js/` or in `sw.js`; `tests/e2e-location.js` LOC-1 walks Home, the
+  teammate list and every boss screen at 390 and 1280 wide and counts zero reads.
+- **L2** When the worker backs out of the "Finding you" screen, taps "Take a picture instead",
+  or the app goes to the background, the GPS watch stops at once, and any reading so far is thrown
+  away (after going to the background they clock in with a picture). The same holds for the job
+  list's rough reading and the permission primer's one reading: every read in the app goes through
+  one gate (`watchGps`) tied to its screen. The boss's "Use where I'm standing" stops the same way when they
+  leave the job form. [true] `js/app.js` `watchGps`/`stopGps`, `js/geo.js` `bestFix` `signal`;
+  `tests/e2e-location.js` LOC-2, `tests/unit.test.js`
 - **L3** No location is read for a worker with no consent on record (they clock in with a
   picture instead). This also applies when a foreman clocks them in. The sync function checks it
   too: a punch from someone whose latest record at that time isn't "agree" to the current words is

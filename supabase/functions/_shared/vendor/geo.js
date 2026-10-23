@@ -54,10 +54,12 @@
 
   // Watch GPS for up to timeoutMs and resolve with the most accurate fix,
   // stopping early once it is good enough. Resolves null if nothing came back.
+  // opts.signal (an AbortSignal) stops the watch at once and resolves null: a stopped reading is
+  // never used. highAccuracy: false and maximumAgeMs are for a rough reading.
   function bestFix(geolocation, opts) {
-    const o = Object.assign({ timeoutMs: 20000, goodEnoughM: 20, onUpdate: null }, opts);
+    const o = Object.assign({ timeoutMs: 20000, goodEnoughM: 20, onUpdate: null, signal: null, highAccuracy: true, maximumAgeMs: 0 }, opts);
     return new Promise((resolve) => {
-      if (!geolocation) return resolve(null);
+      if (!geolocation || (o.signal && o.signal.aborted)) return resolve(null);
       let best = null;
       let watchId = null;
       let done = false;
@@ -83,10 +85,11 @@
         }, (err) => {
           // Permission denied ends it now; other errors keep trying until timeout.
           if (err && err.code === 1) finish();
-        }, { enableHighAccuracy: true, maximumAge: 0, timeout: o.timeoutMs });
+        }, { enableHighAccuracy: o.highAccuracy, maximumAge: o.maximumAgeMs, timeout: o.timeoutMs });
       } catch (e) {
         finish();
       }
+      if (o.signal) o.signal.addEventListener('abort', () => { best = null; finish(); }, { once: true });
     });
   }
 
