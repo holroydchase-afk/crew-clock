@@ -2,7 +2,7 @@
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-10-23 (studio onboarding thread, M0.1)
+Updated: 2026-10-23 (night shift, M1.5)
 
 ## What it is
 
@@ -38,9 +38,11 @@ Demo mode runs with nothing configured: `npm run serve`, PINs in the README.
   layout. SETUP no longer names the company code or sends the crew to the demo's address. `pages.yml` now deploys
   only after CI passes on `main` and always builds demo-only (`build-site.mjs --demo` ignores
   backend variables and fails if config.js points at a backend; tested in `tests/site.test.js`).
-- `M1.5` hardening: the 2:15am night shift (2026-10-23) stacks on the M0.1 branch.
-  HRD-1/2/3/4/5/6/9 fixed by engineer against qa-tdd's tests (`tests/harden.test.js`,
-  `tests/e2e-harden.js`); unit and full e2e green locally. Edge tests run in CI only (no deno here).
+- `M1.5` hardening (PR #6, draft, stacked on M0.1; night shift 2026-10-23). All P0/P1 found are
+  fixed with a test. HRD-1/2/3/4/5/6/9 fixed by engineer against qa-tdd's tests (`tests/harden.test.js`,
+  `tests/e2e-harden.js`), then privacy-security follow-ups PS-2, PS-6, PS-7. Unit (50), SQL/RLS, MLS
+  and full e2e passed 3x locally after one flaky test was root-caused (the sync line was redrawn
+  after `syncing` cleared; fixed in `syncNow`). Edge Function tests run in CI only (no deno here).
   ux-reviewer findings fixed test-first the same night: UX-1 "Wrong job? Fix it" after sync
   (`Store.outbox.get` now resolves undefined for a missing id; a punch saved mid-sync is sent right
   after), UX-2 live "Sent to the boss" line on the done screen, UX-3 foreman clock-out uses the
@@ -51,10 +53,21 @@ Demo mode runs with nothing configured: `npm run serve`, PINs in the README.
   screen, UX-10 "GPS signal: weak (about …)"/"good", UX-16 contrast tokens (all text ≥ 4.5:1).
   HRD-9's browser case now clocks in Travis (Cody is on the clock in the seed, so his row only
   offers "Clock out"); its assertions are unchanged.
+- Left from `M1.5` (P2, logged, not fixed): PS-1 punches held for someone who never signs in again
+  are invisible to the boss (send a content-free "N unsent on a phone" notice); PS-3 no retry
+  backoff for transient failures; PS-4 "Unknown crew member" drops a turned-off worker's last
+  clock-out silently; PS-5 server should check a late `replay_or_old` punch fills the recorded gap
+  and clear the neighbor's `chain_gap`; HRD-7 Today hides a shift that started before midnight;
+  HRD-8 GPS boundary unit tests; HRD-11 worker and foreman both closing one shift offline;
+  HRD-12 empty states (no jobs, no crew); HRD-13 private mode keeps the outbox in memory only;
+  UX-11 mark the current job in the fix picker; UX-12 chat "No groups yet" dead end; UX-13/14 Add
+  job placeholder, inline error, 15px size labels; UX-15 boss header "Sign out" / "Refresh";
+  UX-17 keypad Delete icon and key borders in dark; UX-18 "See photo" label on Today.
 
 ## Exact next step
 
-`M1.1` demo separation in the app (branch `m1.1-demo-separation`): qa-tdd first writes failing
+Chase reviews and merges M0.1 (`claude/project-thread-rewwa2`), then retargets PR #6 to `main`
+and merges it. Then `M1.1` demo separation in the app (branch `m1.1-demo-separation`): qa-tdd first writes failing
 tests for SEP-2 (demo opened with `?org=` or a stale crew session still makes zero off-origin
 requests) and SEP-3/SEP-4 (a "Sample data" label and a link back to chaseholroyd.com on every
 demo screen). Criteria are in PLAN.md. Then `M1.2` location consent.
@@ -86,6 +99,8 @@ demo screen). Criteria are in PLAN.md. Then `M1.2` location consent.
   kind`), so the phone keeps only kind, id, crewId, byCrewId, type, at, jobId and the reason; GPS,
   photo, signature and edit data are deleted. Network, 5xx and photo-upload failures keep the full
   item and retry. Open: stubs stay until the app gets a "clear" action or a retention trim.
+- **UX-7: before about 12:30 PM the demo seed slides the seeded day back** so the last punch is an hour old and shifts show real hours;
+  a 1 AM visitor sees shifts that started around 1 AM. Undo in `js/demo-backend.js` seed anchor.
 - **HRD-6: a punch whose photo won't upload stays queued with its photo; the rest send.** A later
   resend can then arrive out of chain order (server marks it `replay_or_old`, no new flag).
 - **HRD-9: a foreman can finish a teammate punch with no picture; it is flagged high**

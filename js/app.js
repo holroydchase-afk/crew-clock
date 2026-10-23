@@ -136,8 +136,8 @@
       if (e.signIn) signOut('Please sign in again with your PIN.');
       else if (e.server && /PIN/.test(e.message)) signOut('Your PIN was changed. Ask the boss for the new one.');
     } finally {
-      state.syncing = false;
       await countPending();
+      state.syncing = false; // cleared only once the counts are fresh, so the line never shows stale state
       updateSyncLine();
     }
     if (state.syncAgain) return syncNow();
