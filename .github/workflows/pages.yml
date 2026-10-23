@@ -1,6 +1,12 @@
-name: Deploy app
+name: Deploy demo
+# The public demo at chaseholroyd.com/crew-clock/. It deploys only after CI passes on main,
+# and it is always built in demo mode (sample data in the visitor's browser, no backend),
+# so a recruiter can never reach the real crew's data. The crew's own app is a separate
+# build on its own host: docs/SETUP.md step 5.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -15,26 +21,21 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Deploy the commit CI tested, not whatever main is by now
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # Settings > Secrets and variables > Actions > Variables. None of these is a secret:
-      # phones see them anyway. Left unset, the site runs in demo mode.
-      - name: Build the site
-        env:
-          CREW_BACKEND: ${{ vars.CREW_BACKEND }}
-          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
-          ORG_CODE: ${{ vars.ORG_CODE }}
-          VAPID_PUBLIC_KEY: ${{ vars.VAPID_PUBLIC_KEY }}
-          SHEET_URL: ${{ vars.SHEET_URL }}
-        run: node scripts/build-site.mjs
+      - name: Build the demo
+        run: node scripts/build-site.mjs dist --demo
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

@@ -4,6 +4,8 @@
 // It also:
 // - fills config.js from environment variables when they are set (the host's dashboard),
 //   so the real Supabase project doesn't have to be committed;
+// - with --demo (the public GitHub Pages demo), ignores those variables and refuses to build
+//   anything but demo mode, so a visitor can never reach the real crew's backend;
 // - stamps the service worker VERSION with a hash of the app files, so phones always
 //   pick up a new release even if nobody remembered to bump it.
 import { createHash } from 'node:crypto';
@@ -12,7 +14,9 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const out = resolve(root, process.argv[2] || 'dist');
+const args = process.argv.slice(2);
+const demoOnly = args.includes('--demo');
+const out = resolve(root, args.find((a) => !a.startsWith('--')) || 'dist');
 
 const COPY = ['index.html', 'config.js', 'manifest.webmanifest', 'sw.js', '_headers', 'css', 'js', 'vendor', 'icons'];
 
@@ -40,6 +44,15 @@ export function fillConfig(src, env) {
   return text;
 }
 
+// The public demo must never point at a real backend, whatever the config or environment says.
+export function assertDemo(config) {
+  const cfg = new Function('window', `${config}; return window.APP_CONFIG;`)({});
+  const live = ['supabaseUrl', 'supabaseAnonKey', 'orgCode', 'vapidPublicKey', 'backendUrl', 'sheetUrl'].filter((k) => cfg[k]);
+  if (cfg.backend !== 'demo' || live.length) {
+    throw new Error(`--demo build has a live backend (backend: ${cfg.backend}${live.length ? `, ${live.join(', ')}` : ''})`);
+  }
+}
+
 export function shellFiles(sw) {
   const m = sw.match(/const SHELL_FILES = \[([\s\S]*?)\];/);
   if (!m) throw new Error('sw.js has no SHELL_FILES list');
@@ -57,7 +70,10 @@ function build() {
   mkdirSync(out, { recursive: true });
   for (const p of COPY) cpSync(join(root, p), join(out, p), { recursive: true });
 
-  writeFileSync(join(out, 'config.js'), fillConfig(readFileSync(join(out, 'config.js'), 'utf8'), process.env));
+  const configPath = join(out, 'config.js');
+  const config = readFileSync(configPath, 'utf8');
+  if (demoOnly) assertDemo(config);
+  else writeFileSync(configPath, fillConfig(config, process.env));
 
   const swPath = join(out, 'sw.js');
   const sw = readFileSync(swPath, 'utf8');
@@ -69,7 +85,7 @@ function build() {
   const hash = h.digest('hex').slice(0, 10);
   writeFileSync(swPath, stampVersion(sw, hash));
 
-  console.log(`Built ${out} (app version ${hash})`);
+  console.log(`Built ${out} (app version ${hash}${demoOnly ? ', demo only' : ''})`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) build();
