@@ -1,5 +1,7 @@
 # Crew Clock
 
+[![CI](https://github.com/holroydchase-afk/crew-clock/actions/workflows/ci.yml/badge.svg)](https://github.com/holroydchase-afk/crew-clock/actions/workflows/ci.yml)
+
 GPS clock-in and clock-out for construction crews on rural job sites, built for
 crews who aren't phone people and for places with one bar or none.
 
@@ -15,10 +17,16 @@ crews who aren't phone people and for places with one bar or none.
 
 ## Try it
 
+**Try the demo:** [chaseholroyd.com/crew-clock](https://chaseholroyd.com/crew-clock/). It runs on
+made-up sample data kept in your browser, with no sign-up and no server. The real crew's app is a
+separate build on its own address, so the demo never touches real data.
+
+Or run it locally:
+
     npm run serve        # then open http://localhost:8123
 
 With nothing configured it runs in **demo mode**, data kept in the browser.
-Demo PINs: Dad (boss) 1234, Ray T. (foreman) 3333, Jake R. 1111, Cody M. 2222.
+Demo PINs (all names are made up): Dad (boss) 1234, Ray T. (foreman) 3333, Jake R. 1111, Cody M. 2222.
 
 To run it for real, follow [docs/SETUP.md](docs/SETUP.md) (about an hour).
 Where things stand and what's next: [HANDOFF.md](HANDOFF.md).
@@ -57,5 +65,9 @@ Where things stand and what's next: [HANDOFF.md](HANDOFF.md).
 | `supabase/migrations/` | Schema, security rules, schedules |
 | `supabase/functions/` | Edge Functions: `pin-login`, `crew-list`, `sync`, `photo-upload`, `photo-url`, `geocode`, `digest`, `report-export` |
 | `backend/sheets-export.gs` | Google Sheets reports |
-| `scripts/build-site.mjs`, `.github/workflows/pages.yml` | Static site build and deploy (`_headers` if hosted on Cloudflare) |
+| `scripts/build-site.mjs`, `.github/workflows/pages.yml` | Static site build; Pages deploys the demo-only build after CI passes (`_headers` is for the crew app on Cloudflare) |
 | `backend/Code.gs` | The original all-in-Google-Sheets backend (still works, `backend: 'sheets'`) |
+
+## License
+
+[MIT](LICENSE)

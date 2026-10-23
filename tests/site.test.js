@@ -34,3 +34,23 @@ test('build publishes only the app, with a stamped service worker', () => {
   assert.match(fs.readFileSync(path.join(out, 'config.js'), 'utf8'), /supabaseUrl: 'https:\/\/x\.supabase\.co'/);
   fs.rmSync(out, { recursive: true, force: true });
 });
+
+test('--demo build ignores backend variables and stays in demo mode', () => {
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'crew-demo-'));
+  execFileSync(process.execPath, [script, out, '--demo'], {
+    env: { ...process.env, CREW_BACKEND: 'supabase', SUPABASE_URL: 'https://x.supabase.co', ORG_CODE: 'TEAYS' },
+  });
+  const cfg = new Function('window', `${fs.readFileSync(path.join(out, 'config.js'), 'utf8')}; return window.APP_CONFIG;`)({});
+  assert.equal(cfg.backend, 'demo');
+  assert.equal(cfg.supabaseUrl, '');
+  assert.equal(cfg.orgCode, '');
+  fs.rmSync(out, { recursive: true, force: true });
+});
+
+test('--demo refuses a config that points at a live backend', async () => {
+  const { assertDemo } = await load();
+  const src = fs.readFileSync(path.join(__dirname, '..', 'config.js'), 'utf8');
+  assert.doesNotThrow(() => assertDemo(src));
+  assert.throws(() => assertDemo(src.replace("backend: 'demo'", "backend: 'supabase'")), /live backend/);
+  assert.throws(() => assertDemo(src.replace("supabaseUrl: ''", "supabaseUrl: 'https://x.supabase.co'")), /supabaseUrl/);
+});

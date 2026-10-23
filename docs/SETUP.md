@@ -60,10 +60,24 @@ Make push keys once: `npx web-push generate-vapid-keys`. Make two random secrets
 Paste the printed SQL into the Supabase SQL editor and run it. `TEAYS` is the company code.
 Dad adds the crew himself from the app's **Crew** tab after that.
 
-## 5. The app (GitHub Pages, free for a public repo)
+## 5. The app (two builds: the public demo and the crew's app)
 
-1. **Settings > Pages**: under Build and deployment, set **Source** to **GitHub Actions**.
-2. **Settings > Secrets and variables > Actions > Variables**, add:
+The same code is published twice, so recruiters and visitors never reach the crew's real data:
+
+| Build | Where | Data |
+| --- | --- | --- |
+| Public demo | GitHub Pages, `chaseholroyd.com/crew-clock/` | Made-up sample data in the visitor's browser. `pages.yml` builds it with `--demo`, which ignores every backend setting and fails the build if one slips in. |
+| Crew app | Cloudflare Pages, its own address (e.g. `clock.example.com`) | The real Supabase project. Only this build gets the variables below. |
+
+**Public demo** (once): **Settings > Pages**, set **Source** to **GitHub Actions**. After that it
+deploys by itself after CI passes on `main`. Don't add the variables below to GitHub; the demo
+build ignores them anyway.
+
+**Crew app** (Cloudflare Pages, free):
+
+1. [dash.cloudflare.com](https://dash.cloudflare.com) > **Workers & Pages > Create > Pages > Connect to
+   Git** > `crew-clock`. Build command `node scripts/build-site.mjs`, output directory `dist`.
+2. Under **Settings > Variables and secrets**, add:
 
    | Variable | Value |
    | --- | --- |
@@ -73,23 +87,15 @@ Dad adds the crew himself from the app's **Crew** tab after that.
    | `ORG_CODE` | `TEAYS` |
    | `VAPID_PUBLIC_KEY` | the public push key from step 3 |
 
-   None of them is a secret (phones see them anyway), so they go under Variables, not Secrets.
-   The build writes them into `config.js`, so the repo's copy stays in demo mode.
-3. **Actions > Deploy app > Run workflow** (after that, every push to `main` deploys by itself).
-   The app is at `https://holroydchase-afk.github.io/crew-clock/`.
-
-Your own domain (optional): in **Settings > Pages > Custom domain** type e.g. `clock.example.com`,
-and at Porkbun add a `CNAME` record for `clock` pointing to `holroydchase-afk.github.io`. Then tick
-**Enforce HTTPS** once it offers it, and use `https://clock.example.com` in the CORS rule, in
-`APP_ORIGIN` and in the install link.
+   None of them is a secret (phones see them anyway). The build writes them into `config.js`, so
+   the repo's copy stays in demo mode.
+3. Your own address: in the Pages project, **Custom domains > Set up a domain**, e.g.
+   `clock.example.com`, and at Porkbun add the `CNAME` it shows. Use that address in the CORS
+   rule, in `APP_ORIGIN` and in the install link. Never use the demo's address for the crew.
 
 `scripts/build-site.mjs` publishes only the phone app (no backend code, tests or docs) and stamps
 the service worker with a hash of the app files, so phones pick up every release without bumping
-`VERSION` by hand.
-
-Hosting on Cloudflare Pages instead (works with a private repo): connect the repo under **Workers &
-Pages > Create > Pages**, build command `node scripts/build-site.mjs`, output directory `dist`, and
-the same variables as above. `_headers` is for Cloudflare.
+`VERSION` by hand. `_headers` sets the crew app's security headers on Cloudflare.
 
 ## 6. Morning and evening alerts
 

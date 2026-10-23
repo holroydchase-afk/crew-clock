@@ -1,0 +1,27 @@
+name: handoff-check
+# Studio session rule: any PR that changes files also updates HANDOFF.md.
+# Put [skip handoff] in the PR title for changes that don't move the work.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+permissions:
+  contents: read
+jobs:
+  handoff:
+    if: ${{ !contains(github.event.pull_request.title, '[skip handoff]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: HANDOFF.md updated
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE...$HEAD")
+          if [ -z "$changed" ] || echo "$changed" | grep -qx 'HANDOFF.md'; then
+            echo "ok"; exit 0
+          fi
+          echo "::error::This PR changes files but not HANDOFF.md. Update it (done, in progress, exact next step, decisions, blockers), or add [skip handoff] to the title if the change doesn't move the work."
+          exit 1
