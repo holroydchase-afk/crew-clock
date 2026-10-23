@@ -147,6 +147,8 @@ t('CON-2 a foreman clocking in a teammate with no consent reads no location', as
 t('CON-2 (guard) a foreman clocking in a teammate who agreed still uses location', async (browser) => {
   const { page } = await open(browser);
   await signIn(page, 'Ray T.');
+  // The teammates' consent status loads after sign-in; until then the app safely reads no location.
+  await page.waitForFunction(() => { try { return !!JSON.parse(localStorage.getItem('cc.team')).consents; } catch (e) { return false; } });
   const before = await gpsReads(page);
   await page.click('[data-action="teammate"]');
   await page.locator('.row-card', { hasText: 'Travis K.' }).locator('[data-action="mate-punch"][data-type="in"]').click();
