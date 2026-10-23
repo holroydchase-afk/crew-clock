@@ -13,6 +13,7 @@ const claims = (crew: string, role: Claims['crew_role'] = 'crew'): Claims =>
 function fakeRepo(devices: Device[] = []) {
   const punches: Record<string, unknown>[] = [];
   const jobs: Record<string, unknown>[] = [];
+  const consents: Record<string, unknown>[] = [];
   const repo: Repo = {
     crewInOrg: async (_o, c) => [JAKE, CODY].includes(c),
     punchExists: async (id) => punches.some((p) => p.id === id),
@@ -23,8 +24,9 @@ function fakeRepo(devices: Device[] = []) {
     insertPunch: async (row) => { punches.push(row); return { status: row.lat == null ? 'nogps' : 'offsite', distance_ft: 9000 }; },
     upsertJob: async (row) => { jobs.push(row); },
     upsertCrew: async () => {},
+    insertConsent: async (row) => { if (!consents.some((c) => c.id === row.id)) consents.push(row); },
   };
-  return { repo, punches, jobs, devices };
+  return { repo, punches, jobs, devices, consents };
 }
 
 Deno.test('PIN hashing', async () => {
@@ -80,4 +82,48 @@ Deno.test('unsigned punches from old phones are accepted and flagged low', async
   const f = fakeRepo();
   await ingest(claims(JAKE), [{ kind: 'punch', id: 'p2', crewId: JAKE, jobId: 'j1', type: 'in', at: now }], f.repo, now);
   assertEquals((f.punches[0].risk as { code: string }[])[0].code, 'unsigned');
+});
+
+// M1.2 location consent (docs/PRIVACY.md C1, C5)
+const consent = (o: Record<string, unknown> = {}) => ({ kind: 'consent', id: '00000000-0000-4000-8000-0000000000f1', crewId: JAKE, byCrewId: JAKE,
+  action: 'agree', textVersion: 'loc-v1', at: now - 60000, deviceId: 'dev-1', ...o });
+
+Deno.test('a worker\'s own consent record is stored once, with who, what, which words, when and which phone', async () => {
+  const f = fakeRepo();
+  // deno-lint-ignore no-explicit-any
+  const r = await ingest(claims(JAKE), [consent() as any], f.repo, now);
+  assertEquals(r.accepted, ['00000000-0000-4000-8000-0000000000f1']);
+  assertEquals(f.consents.length, 1);
+  const row = f.consents[0];
+  assertEquals([row.org_id, row.crew_id, row.action, row.text_version, row.device_id], [ORG, JAKE, 'agree', 'loc-v1', 'dev-1']);
+  assertEquals(row.phone_at, new Date(now - 60000).toISOString());
+  assertEquals(row.witness_crew_id, null);
+  // deno-lint-ignore no-explicit-any
+  await ingest(claims(JAKE), [consent() as any], f.repo, now + 5000); // resend over a weak signal
+  assertEquals(f.consents.length, 1);
+});
+
+Deno.test('nobody can agree for someone else, even the boss; bad records are refused', async () => {
+  const f = fakeRepo();
+  const items = [
+    consent({ id: '00000000-0000-4000-8000-0000000000f2', crewId: CODY }),
+    consent({ id: '00000000-0000-4000-8000-0000000000f3', action: 'maybe' }),
+    consent({ id: '00000000-0000-4000-8000-0000000000f4', textVersion: '' }),
+    consent({ id: '00000000-0000-4000-8000-0000000000f5', at: now - 40 * 86400000 }),
+  ];
+  // deno-lint-ignore no-explicit-any
+  const crew = await ingest(claims(JAKE), items as any, f.repo, now);
+  assertEquals(crew.accepted, []);
+  assertEquals(crew.rejected.map((x) => x.reason), ['Only you can agree for yourself', 'Bad consent action', 'Bad consent text version', 'Consent too old']);
+  // deno-lint-ignore no-explicit-any
+  const boss = await ingest(claims(JAKE.replace('b1', 'b0'), 'boss'), [consent({ id: '00000000-0000-4000-8000-0000000000f6' }) as any], f.repo, now);
+  assertEquals(boss.rejected.map((x) => x.reason), ['Only you can agree for yourself']);
+  assertEquals(f.consents.length, 0);
+});
+
+Deno.test('a withdrawal is a new record, never an edit', async () => {
+  const f = fakeRepo();
+  // deno-lint-ignore no-explicit-any
+  await ingest(claims(JAKE), [consent() as any, consent({ id: '00000000-0000-4000-8000-0000000000f7', action: 'withdraw', at: now - 1000 }) as any], f.repo, now);
+  assertEquals(f.consents.map((c) => c.action), ['agree', 'withdraw']);
 });

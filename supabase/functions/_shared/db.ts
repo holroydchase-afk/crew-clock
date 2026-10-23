@@ -65,5 +65,8 @@ export function repo(): Repo {
     },
     upsertJob: (row) => upsertScoped('jobs', row),
     upsertCrew: (row) => upsertScoped('crew', row),
+    async insertConsent(row) {
+      must(await db.from('location_consents').upsert(row, { onConflict: 'id', ignoreDuplicates: true }));
+    },
   };
 }

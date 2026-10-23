@@ -39,6 +39,8 @@ const JOB = { id: '00000000-0000-4000-8000-0000000000c1', name: 'Smith kitchen',
   await page.route(`${SB}/rest/v1/jobs*`, (r) => json(r, [JOB]));
   await page.route(`${SB}/rest/v1/crew*`, (r) => json(r, [JAKE]));
   await page.route(`${SB}/rest/v1/punches*`, (r) => json(r, []));
+  // Jake agreed to location on install day (M1.2), so sign-in goes straight on to the permission primer
+  await page.route(`${SB}/rest/v1/location_consents*`, (r) => json(r, [{ id: 'k-1', crew_id: JAKE.id, action: 'agree', text_version: 'loc-v1', phone_at: '2026-10-01T11:00:00Z' }]));
   await page.route(`${SB}/rest/v1/mls_*`, (r) => (r.request().method() === 'POST' ? r.fulfill({ status: 201, body: '' }) : json(r, [])));
   await page.route(`${SB}/rest/v1/chat_*`, (r) => json(r, []));
   await page.route(`${SB}/functions/v1/photo-upload`, (r) => { seen.upload++; json(r, { ok: true, key: 'org-1/day/p.jpg', url: 'https://b2.test/put-here' }); });

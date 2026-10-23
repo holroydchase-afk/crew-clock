@@ -35,7 +35,7 @@ jobs:
         run: |
           psql -h localhost -U postgres -c 'create database crewclock_test'
           psql -h localhost -U postgres -d crewclock_test -v ON_ERROR_STOP=1 -q \
-            -f tests/sql/supabase_stub.sql -f supabase/migrations/20261022000000_init.sql -f supabase/migrations/20261023000000_auth_hook.sql -f tests/sql/rls_test.sql -f tests/sql/auth_test.sql
+            -f tests/sql/supabase_stub.sql -f supabase/migrations/20261022000000_init.sql -f supabase/migrations/20261023000000_auth_hook.sql -f supabase/migrations/20261023100000_location_consents.sql -f tests/sql/rls_test.sql -f tests/sql/auth_test.sql -f tests/sql/consent_test.sql
 
       - name: Edge Functions (logic + type check)
         run: |

@@ -1,7 +1,7 @@
 // Stand-in for the Apps Script backend, used when no backendUrl is set.
 // Same actions and rules as backend/Code.gs, stored in this browser only.
 (function (root) {
-  const KEY = 'cc.demo.db.v3'; // v2: boss renamed from "Dad"; v3: job pins rounded (SEP-6)
+  const KEY = 'cc.demo.db.v4'; // v2: boss renamed from "Dad"; v3: job pins rounded (SEP-6); v4: location consents (M1.2)
   const H = 3600000;
 
   function seed() {
@@ -34,7 +34,12 @@
       mk('p5', 'c4', 'j3', 'out', t(11.5), 38.44020, -81.90000, 12),
     ];
     punches.forEach((p) => { p.receivedAt = p.at + 30000; });
-    return { jobs, crew, punches, photos: {} };
+    // Everyone agreed to location on install day except Billy S., so a visitor sees the consent screen once.
+    const installDay = day - 20 * 24 * H + 7 * H;
+    const consents = ['c1', 'c2', 'c3', 'c5'].map((crewId, i) => ({
+      id: 'k' + (i + 1), crewId, action: 'agree', textVersion: 'loc-v1', at: installDay + i * 60000, deviceId: null, receivedAt: installDay + i * 60000 + 5000,
+    }));
+    return { jobs, crew, punches, photos: {}, consents };
   }
 
   // Address search answers in the demo: made-up sample places, rounded like the job pins.
@@ -82,6 +87,14 @@
     return me;
   }
 
+  // The newest consent record per worker (withdrawal is a newer record, never an edit).
+  function latestConsents(db) {
+    const out = {};
+    (db.consents || []).forEach((c) => { if (!out[c.crewId] || c.at >= out[c.crewId].at) out[c.crewId] = c; });
+    return out;
+  }
+  const consentView = (c) => (c ? { id: c.id, crewId: c.crewId, action: c.action, textVersion: c.textVersion, at: c.at } : null);
+
   function stripPunch(p) {
     const out = Object.assign({}, p);
     delete out.photo;
@@ -112,6 +125,7 @@
         crew: db.crew.filter((c) => c.active !== false).map(publicCrew),
         last: last ? stripPunch(last) : null,
         punchCount: mine.length,
+        consent: consentView(latestConsents(db)[me.id]),
       };
     },
     sync(db, req) {
@@ -133,6 +147,16 @@
             if (item.photo) db.photos[item.id] = item.photo;
             if (p.type !== 'void') score(db, p);
             db.punches.push(p);
+          }
+          accepted.push(item.id);
+        } else if (item.kind === 'consent') {
+          // Same rules as the real server: only your own, agree or withdraw, never edited (PRIVACY C1).
+          if (item.crewId !== me.id) { refuse(item.id, 'Only you can agree for yourself'); continue; }
+          if (item.action !== 'agree' && item.action !== 'withdraw') { refuse(item.id, 'Bad consent action'); continue; }
+          db.consents = db.consents || [];
+          if (!db.consents.some((c) => c.id === item.id)) {
+            db.consents.push({ id: item.id, crewId: me.id, action: item.action, textVersion: String(item.textVersion || ''),
+              at: Math.min(item.at, Date.now()), deviceId: item.deviceId || null, receivedAt: Date.now() });
           }
           accepted.push(item.id);
         } else if (item.kind === 'job' || item.kind === 'crew') {
@@ -157,6 +181,8 @@
         punches: db.punches.filter((p) => p.at >= since).map(stripPunch),
         crew: db.crew.map(publicCrew),
         jobs: db.jobs,
+        // Status only (latest action and text version), like the real crew_consent_status()
+        consents: Object.values(latestConsents(db)).map((c) => ({ crewId: c.crewId, action: c.action, textVersion: c.textVersion })),
       };
     },
     photo(db, req) {
