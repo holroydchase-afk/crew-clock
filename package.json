@@ -8,7 +8,7 @@
     "test:sql": "sh tests/sql/run.sh",
     "test:edge": "deno test --config supabase/functions/deno.json --no-npm tests/edge/",
     "test:mls": "cd messenger && npm test",
-    "test:e2e": "node tests/e2e.js && node tests/e2e-chat.js && node tests/e2e-supabase.js && node tests/e2e-harden.js && node tests/e2e-demo.js",
+    "test:e2e": "node tests/e2e.js && node tests/e2e-chat.js && node tests/e2e-supabase.js && node tests/e2e-harden.js && node tests/e2e-demo.js && node tests/e2e-consent.js",
     "build:mls": "cd messenger && npm run build",
     "serve": "npx http-server -p 8123 -c-1 ."
   }

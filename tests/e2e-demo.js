@@ -328,6 +328,10 @@ t('SEP-5 the crew app (backend: supabase) shows no demo banner, sample-data labe
   if (await page.evaluate(() => !!(self.Api && self.Api.isDemo))) throw new Error('setup: the supabase build came up in demo mode');
   await noDemoBits(page, 'sign-in', found);
   await pinIn(page, 'Test Worker', '1111', () => noDemoBits(page, 'PIN', found));
+  // No consent on record for Test Worker (M1.2), so the crew app asks first
+  await page.waitForSelector('.consent');
+  await noDemoBits(page, 'location consent', found);
+  await page.getByRole('button', { name: 'I agree', exact: true }).click();
   await page.waitForSelector('.punch, [data-action="prime-location"]');
   if (await page.locator('[data-action="prime-location"]').count()) await page.click('[data-action="prime-location"]');
   await page.waitForSelector('.punch');

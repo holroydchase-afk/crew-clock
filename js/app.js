@@ -49,6 +49,43 @@
   const isBoss = () => state.me && state.me.role === 'boss';
   const isLead = () => state.me && (state.me.role === 'foreman' || state.me.role === 'boss');
 
+  // ---------- location consent (docs/PRIVACY.md "Consent") ----------
+  // A new text version asks everyone again (C4). The words live in screens.consent and PRIVACY.md.
+  const CONSENT_VERSION = 'loc-v1';
+  const agreed = (c) => !!c && c.action === 'agree' && c.textVersion === CONSENT_VERSION;
+  // This phone's newest record per worker, so a worker who agreed offline stays agreed.
+  const knownConsents = () => Store.local.get('consents', {});
+  function rememberConsent(crewId, c) {
+    if (!c) return;
+    const all = knownConsents();
+    if (all[crewId] && all[crewId].at > c.at) return; // newest wins, here or from the server
+    all[crewId] = { id: c.id, action: c.action, textVersion: c.textVersion, at: c.at };
+    Store.local.set('consents', all);
+  }
+  // A record the server refused never counts: forget it, so the worker is asked again and no GPS is read.
+  function forgetConsent(crewId, id) {
+    const all = knownConsents();
+    if (all[crewId] && all[crewId].id === id) { delete all[crewId]; Store.local.set('consents', all); }
+  }
+  // Own record from this phone or the server; a teammate's from the team status (unknown = no).
+  function hasConsent(crewId) {
+    if (state.me && crewId === state.me.id) return agreed(knownConsents()[crewId]);
+    const st = state.team && state.team.consents;
+    return !!st && agreed(st.find((c) => c.crewId === crewId));
+  }
+  async function saveConsent(action) {
+    let deviceId = null;
+    if (self.Device && Device.supported()) {
+      try { const d = await Device.get(); deviceId = d ? d.id : null; } catch (e) { /* recorded without a device id */ }
+    }
+    const item = { kind: 'consent', id: Store.uid(), crewId: state.me.id, byCrewId: state.me.id,
+      action, textVersion: CONSENT_VERSION, at: Date.now(), deviceId };
+    await Store.outbox.add(item); // same offline queue as punches (C5)
+    rememberConsent(state.me.id, item);
+    await countPending();
+    syncNow();
+  }
+
   function chip(status, hasPhoto) {
     const s = STATUS[status] || STATUS.nogps;
     return `<span class="chip ${s.cls}"><i></i>${s.word}${hasPhoto ? ` <span class="chip-cam">${Icons.camera}</span>` : ''}</span>`;
@@ -122,10 +159,17 @@
         const why = {};
         (res.reasons || []).forEach((r) => { why[r.id] = r.reason; });
         const drop = (res.rejected || []).filter((id) => PERMISSION.test(why[id] || ''));
-        await Store.outbox.remove([...(res.accepted || []), ...drop]);
+        // A refused consent record is dropped and forgotten; the consent screen asks again.
+        const refusedConsents = batch.filter((x) => x.kind === 'consent' && (res.rejected || []).includes(x.id));
+        refusedConsents.forEach((x) => forgetConsent(x.crewId, x.id));
+        await Store.outbox.remove([...(res.accepted || []), ...drop, ...refusedConsents.map((x) => x.id)]);
+        if (refusedConsents.length && state.auth === auth) {
+          toast("Your location answer didn't save. You'll be asked again.");
+          if (state.screen === 'home') render();
+        }
         // Any other refusal is permanent: keep only a stub with the reason on screen (HRD-2, PS-2).
         for (const id of res.rejected || []) {
-          const it = !drop.includes(id) && batch.find((x) => x.id === id);
+          const it = !drop.includes(id) && batch.find((x) => x.id === id && x.kind !== 'consent');
           if (it) await Store.outbox.add(toStub(it, why[id] || 'Refused'));
         }
       }
@@ -159,6 +203,7 @@
     Store.local.set('crew', state.crew);
     // Trust the server's last punch only when it is newer than ours.
     if (res.last && (!state.last || res.last.at >= state.last.at)) setLast(res.last);
+    if (res.consent) rememberConsent(res.me.id, res.consent);
     if (isLead()) await loadTeam();
     if (['home', 'boss', 'pick-teammate'].includes(state.screen)) render();
   }
@@ -166,7 +211,8 @@
   async function loadTeam() {
     try {
       const res = await Api.team(state.auth);
-      state.team = { punches: res.punches, crew: res.crew, jobs: res.jobs, at: Date.now() };
+      const keep = state.team && state.team.consents; // an unreadable status keeps the last one
+      state.team = { punches: res.punches, crew: res.crew, jobs: res.jobs, consents: res.consents || keep || null, at: Date.now() };
       Store.local.set('team', state.team);
     } catch (e) { /* keep the cached copy */ }
   }
@@ -224,14 +270,19 @@
 
   function startPunch(type, opts) {
     const o = opts || {};
-    state.flow = { type, crewId: o.crewId || state.me.id, forTeammate: !!o.crewId, fixing: o.fixing || null };
+    const crewId = o.crewId || state.me.id;
+    // No consent, no location (PRIVACY L3): the worker is asked first; a teammate can't be asked
+    // by the foreman, so their clock-in uses a picture. Either way the clock-in still happens.
+    const noLocation = !hasConsent(crewId);
+    if (noLocation && !o.crewId && !o.fixing && !o.consentAsked) return setScreen('consent', { consentNext: { type } });
+    state.flow = { type, crewId, forTeammate: !!o.crewId, fixing: o.fixing || null, noLocation };
     const open = type !== 'out' ? null : o.crewId ? mateOpen(o.crewId) : state.last && state.last.type === 'in' ? state.last : null;
     if (open) {
       state.flow.jobId = open.jobId;
       return locate();
     }
     setScreen('pick-job');
-    sortJobsByDistance();
+    if (!noLocation) sortJobsByDistance();
   }
 
   function sortJobsByDistance() {
@@ -267,6 +318,7 @@
   async function locate() {
     const flow = state.flow; // a late fix must only finish the flow that asked for it (HRD-4)
     flow.at = Date.now();
+    if (flow.noLocation) { flow.fix = null; return afterFix(); }
     flow.liveAccuracy = null;
     setScreen('locating');
     const job = jobById(state.flow.jobId);
@@ -295,7 +347,7 @@
     const job = jobById(state.flow.jobId);
     const check = Geo.checkFix(state.flow.fix, job);
     state.flow.check = check;
-    const photoRequired = state.flow.forTeammate || Geo.needsPhoto(check.status);
+    const photoRequired = state.flow.forTeammate || state.flow.noLocation || Geo.needsPhoto(check.status);
     if (photoRequired && !state.flow.photo) return setScreen('photo');
     finishPunch();
   }
@@ -380,8 +432,10 @@
       Store.local.set('jobs', state.jobs);
       Store.local.set('crew', state.crew);
       setLast(res.last);
+      if (res.consent) rememberConsent(res.me.id, res.consent);
       if (isLead()) loadTeam().then(() => { if (['boss', 'pick-teammate'].includes(state.screen)) render(); });
       goHome();
+      countPending().then(() => syncNow()); // send what this person left queued last time
     } catch (e) {
       state.pinEntry = '';
       state.pinError = e.offline ? 'No signal. The first sign-in needs signal.' : "That PIN didn't work. Try again.";
@@ -398,7 +452,7 @@
     }
     if (Api.signOut) Api.signOut();
     ['auth', 'me', 'last', 'team', 'jobs', 'crew'].forEach((k) => Store.local.remove(k));
-    Object.assign(state, { auth: null, me: null, last: null, team: null, jobs: [], crew: [], matePunches: [] });
+    Object.assign(state, { auth: null, me: null, last: null, team: null, jobs: [], crew: [], matePunches: [], consentAsked: false });
     if (msg) toast(msg);
     setScreen('names');
   }
@@ -406,6 +460,13 @@
   function goHome() {
     if (!state.auth) return setScreen('names');
     if (isBoss()) return setScreen('boss');
+    if (!hasConsent(state.me.id)) {
+      // CON-1: asked before Home, unless they said no to these same words (then only when clocking in)
+      const mine = knownConsents()[state.me.id];
+      const saidNo = mine && mine.action === 'withdraw' && mine.textVersion === CONSENT_VERSION;
+      if (!state.consentAsked && !saidNo) return setScreen('consent', { consentNext: null });
+      return setScreen('home'); // "Not now": no location, so no phone permission to ask for
+    }
     if (!Store.local.get('locPrimed', false)) return setScreen('primer');
     setScreen('home');
   }
@@ -469,6 +530,18 @@
       </main>`;
   };
 
+  // The words a worker agrees to (version loc-v1, docs/PRIVACY.md). Changing them means a new CONSENT_VERSION.
+  screens.consent = () => `
+    <main class="screen center-col consent">
+      ${state.consentNext ? `<button class="back" data-action="consent-back">${Icons.back} Back</button>` : ''}
+      <div class="big-icon blue">${Icons.pin}</div>
+      <h1>Crew Clock uses your location only when you tap Clock in or Clock out.</h1>
+      <p class="lead">The boss sees where and when. It never tracks you in between. You can stop this any time on the home screen.</p>
+      <button class="btn primary xl" data-action="consent-agree">I agree</button>
+      <button class="btn secondary" data-action="consent-later">Not now</button>
+      <p class="muted">Not now? You can still clock in with a picture.</p>
+    </main>`;
+
   screens.primer = () => `
     <main class="screen center-col">
       <div class="big-icon blue">${Icons.pin}</div>
@@ -510,6 +583,9 @@
         ${state.me.role === 'foreman' ? `<button class="btn secondary" data-action="go" data-to="boss">${Icons.map} See the team map</button>` : ''}
         ${self.Messenger ? `<button class="btn secondary" data-action="go" data-to="chat-list">${Icons.chat} Messages <span class="badge" data-unread></span></button>` : ''}
         <div id="push-slot"></div>
+        ${hasConsent(state.me.id)
+          ? '<button class="link" data-action="consent-withdraw">Stop using my location</button>'
+          : '<p class="muted location-off">Location is off. You clock in with a picture.</p><button class="link" data-action="consent-ask">Use my location for clock-ins</button>'}
         ${fake}
       </main>`;
   };
@@ -552,7 +628,7 @@
       <button class="back" data-action="go-home">${Icons.back} Back</button>
       ${who ? `<div class="for-mate">${f.type === 'in' ? 'Clocking in' : 'Clocking out'} <b>${esc(who.name)}</b></div>` : ''}
       <h1>${title}</h1>
-      ${rough ? '<p class="muted">Closest job is on top.</p>' : '<p class="muted">Finding the closest job…</p>'}
+      ${f.noLocation ? '' : rough ? '<p class="muted">Closest job is on top.</p>' : '<p class="muted">Finding the closest job…</p>'}
       <div class="list">${jobs.map(({ j, d }, i) => `
         <button class="job-btn ${i === 0 && d != null ? 'nearest' : ''}" data-action="pick-job" data-id="${esc(j.id)}">
           <span class="job-ico">${Icons.job}</span>
@@ -582,8 +658,11 @@
   screens.photo = () => {
     const f = state.flow;
     const who = f.forTeammate ? crewById(f.crewId) : null;
-    const why = f.forTeammate ? `Take a picture of ${esc(who ? who.name : 'them')} at the job.`
-      : f.check && f.check.status === 'weak' ? 'GPS is weak here.' : "GPS couldn't find you.";
+    const name = esc(who ? who.name : 'They');
+    const why = f.forTeammate && f.noLocation ? `${name} hasn't agreed to use location, so take a picture of them at the job.`
+      : f.forTeammate ? `Take a picture of ${esc(who ? who.name : 'them')} at the job.`
+        : f.noLocation ? 'Location is off for you, so the picture shows where you are.'
+          : f.check && f.check.status === 'weak' ? 'GPS is weak here.' : "GPS couldn't find you.";
     return `<main class="screen center-col">
       <button class="back" data-action="go-home">${Icons.back} Back</button>
       <div class="big-icon amber">${Icons.camera}</div>
@@ -805,6 +884,12 @@
     </div>`;
   }
 
+  // C3: the boss sees who hasn't agreed. Unknown (status not loaded) shows nothing rather than a guess.
+  function consentLine(c) {
+    if (c.role === 'boss' || !state.team || !state.team.consents || hasConsent(c.id)) return '';
+    return `<span class="job-addr no-consent">${Icons.alert} No location consent</span>`;
+  }
+
   function bossCrewHtml() {
     const crew = state.crew.filter((c) => c.active !== false);
     const role = { boss: 'Boss', foreman: 'Foreman', crew: 'Crew' };
@@ -813,7 +898,7 @@
       <div class="list">${crew.map((c) => `
         <button class="job-btn" data-action="crew-edit" data-id="${esc(c.id)}">
           <span class="avatar">${esc(initials(c.name))}</span>
-          <span class="grow"><span class="job-name">${esc(c.name)}</span></span>
+          <span class="grow"><span class="job-name">${esc(c.name)}</span>${consentLine(c)}</span>
           <span class="job-dist">${role[c.role] || 'Crew'}</span>
         </button>`).join('')}</div>
       ${syncFooter()}
@@ -982,6 +1067,26 @@
       if (state.pinEntry.length === 4) tryLogin(state.pinFor, state.pinEntry);
     },
     'pin-del': () => { state.pinEntry = (state.pinEntry || '').slice(0, -1); render(); },
+    'consent-agree': async () => {
+      const next = state.consentNext;
+      await saveConsent('agree');
+      if (next) return startPunch(next.type);
+      goHome();
+    },
+    'consent-later': () => {
+      const next = state.consentNext;
+      state.consentAsked = true;
+      if (next) return startPunch(next.type, { consentAsked: true });
+      goHome();
+    },
+    'consent-back': () => { state.consentAsked = true; state.flow = null; setScreen('home'); },
+    'consent-ask': () => setScreen('consent', { consentNext: null }),
+    'consent-withdraw': async () => {
+      if (!confirm('Stop using your location? You will clock in with a picture instead.')) return;
+      await saveConsent('withdraw');
+      toast('Location is off. You clock in with a picture.');
+      render();
+    },
     'prime-location': () => {
       Store.local.set('locPrimed', true);
       if (navigator.geolocation) {

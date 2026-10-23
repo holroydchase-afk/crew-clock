@@ -65,5 +65,13 @@ export function repo(): Repo {
     },
     upsertJob: (row) => upsertScoped('jobs', row),
     upsertCrew: (row) => upsertScoped('crew', row),
+    async latestConsent(crewId, atMs) {
+      return must(await db.from('location_consents').select('action, text_version').eq('crew_id', crewId)
+        .lte('phone_at', new Date(atMs).toISOString()).order('phone_at', { ascending: false })
+        .order('received_at', { ascending: false }).limit(1).maybeSingle());
+    },
+    async insertConsent(row) {
+      must(await db.from('location_consents').upsert(row, { onConflict: 'id', ignoreDuplicates: true }));
+    },
   };
 }

@@ -35,7 +35,11 @@ Rules:
 - **L2** When the worker backs out of the "Finding you" screen, the GPS watch stops at once.
   [to build, M1.3: today the result is discarded but the watch can run up to 20 s more]
 - **L3** No location is read for a worker with no consent on record (they clock in with a
-  picture instead). This also applies when a foreman clocks them in. [to build, M1.2]
+  picture instead). This also applies when a foreman clocks them in. The sync function checks it
+  too: a punch from someone whose latest record at that time isn't "agree" to the current words is
+  stored without its location (`core.ts` `ingestPunch`), and a consent record the server refuses is
+  forgotten on the phone, so they're asked again. [true] `js/app.js` `startPunch`,
+  tested in `tests/e2e-consent.js` CON-2
 - **L4** Pictures are re-drawn on the phone at 1024 px before upload, which strips the camera's
   EXIF data, including any GPS tag. The stamp says name, job and time, not coordinates.
   [true] `js/app.js` `stampPhoto`
@@ -45,13 +49,16 @@ Rules:
 ## Consent
 
 Each worker agrees in the app, on their own phone, before the app ever reads their location.
-The paper "one-line consent" in the original plan is replaced by this record. [to build, M1.2]
+The paper "one-line consent" in the original plan is replaced by this record. [true, M1.2]
 
 **Consent screen text (version `loc-v1`):**
 
 > **Crew Clock uses your location only when you tap Clock in or Clock out.** The boss sees where
-> and when. It never tracks you in between. You can stop this any time in the menu.
+> and when. It never tracks you in between. You can stop this any time on the home screen.
 > [I agree] [Not now]
+
+(36 words. "On the home screen" replaced "in the menu" before any worker saw `loc-v1`: the app has no menu,
+and Home has the "Stop using my location" link.)
 
 "Not now" lets the worker clock in with a picture instead; nothing is held against them in the app.
 
@@ -70,15 +77,22 @@ The paper "one-line consent" in the original plan is replaced by this record. [t
 Rules:
 - **C1** Only the worker can make their own record, from their own signed-in session; a foreman
   or boss cannot agree on someone's behalf. The witness field is filled from the witness's own
-  sign-in, not typed. [to build, M1.2]
+  sign-in, not typed. [true for the worker's own record: `core.ts` `ingestConsent`, RLS
+  `consents_insert_own`; the witness field is not filled yet (always empty), see HANDOFF]
 - **C2** Row-level security: a worker can insert and read only their own records; the boss can
-  read every record in the company; nobody can update or delete one. [to build, M1.2]
-- **C3** Withdraw: menu > **Stop using my location** adds a `withdraw` record, the app stops
+  read every record in the company; nobody can update or delete one. A foreman sees only each
+  teammate's latest action and text version (`crew_consent_status()`), never the records. [true]
+  `supabase/migrations/20261023100000_location_consents.sql`, tested in `tests/sql/consent_test.sql`
+- **C3** Withdraw: Home > **Stop using my location** adds a `withdraw` record, the app stops
   reading location for that worker, and the boss's Crew tab shows "No location consent".
-  They can agree again later. [to build, M1.2]
-- **C4** When `text_version` changes, everyone is asked again at next sign-in. [to build, M1.2]
+  They can agree again later. After a withdrawal the app asks again only when they tap Clock in,
+  not every time it opens. [true] (Home has the link; there is no menu)
+- **C4** When `text_version` changes, everyone is asked again at next sign-in. [true] `CONSENT_VERSION`
+  in `js/app.js`
 - **C5** The consent record goes through the same offline outbox as punches, so it works with no
-  signal. Demo mode keeps it in the browser. [to build, M1.2]
+  signal. Demo mode keeps it in the browser. The phone remembers each worker's newest record
+  (action, version, time; key `cc.consents`), so someone who agreed offline isn't asked again
+  before it sends. [true]
 - **C6** Consent records are kept as long as the worker is on the crew plus 3 years, the same as
   their hours, so the company can show consent for any GPS it ever had. [to build, M1.4]
 
@@ -102,6 +116,7 @@ federal; West Virginia's own rules are a "needs Chase" check (see the end).
 | Phone keys and user agent | Supabase `devices` | While in use; 90 days after revoked or the worker leaves | Deleted | [to build, M1.4] |
 | Push subscriptions | Supabase `push_subscriptions` | While in use | Deleted when the worker leaves or the browser retires it | [partly true: retired ones are deleted, `_shared/push.ts:28`] |
 | Boss and foreman's team cache | Their phone, localStorage `cc.team` | Last 8 days of punches | Replaced on each refresh; cleared on sign-out | [true] `js/app.js:125-131`, `js/api-supabase.js:163` |
+| Each worker's newest consent record, as this phone knows it | The phone, localStorage `cc.consents` | Until replaced by a newer record | Kept on sign-out so an offline re-sign-in isn't asked again; holds action, text version and time only | [true] `js/app.js` `rememberConsent` |
 | Unsent punches and pictures | Phone IndexedDB outbox | Until sent | Removed when the server accepts them or refuses them for permission. Any other refusal (for example "Punch too old") is final: the phone deletes its GPS, picture, signature and edit data at once and keeps only a stub (who, job, in/out, time, reason) so the sync line can explain it; the stub is never resent. Network, server or picture-upload failures keep the whole punch and retry. | [true] `js/app.js:85-90,112-125`; [stub kept until cleared, no trim yet] |
 | Daily and weekly reports | The boss's Google Sheet | 3 years (hours only, no GPS) | The boss deletes old rows | [manual; no GPS goes to the Sheet today, `report-export` sends shifts only] |
 | Sign-in sessions | Supabase Auth | 1 hour token, refresh until sign-out | Ended on new PIN or deactivation | [true] `20261023000000_auth_hook.sql:32-41` |
@@ -157,7 +172,7 @@ Rules:
 | Reports (Sheet) | No | No | Yes | Google | No |
 
 [true] for punches, pictures, PIN and chat: `init.sql:280-338`, `photo-url/index.ts:10`.
-Consent row is [to build, M1.2].
+Consent row is [true, M1.2]; a foreman sees status only (agreed or not), not the records.
 
 Data that leaves to other services:
 - **OpenStreetMap / USGS map tiles**: the boss's map loads tiles, so those servers see which area

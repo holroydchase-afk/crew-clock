@@ -103,6 +103,10 @@
   }
 
   const job = (j) => ({ id: j.id, name: j.name, address: j.address, lat: j.lat, lng: j.lng, radiusFt: j.radius_ft, active: j.active });
+  const consent = (c) => (c ? { id: c.id, crewId: c.crew_id, action: c.action, textVersion: c.text_version, at: Date.parse(c.phone_at) } : null);
+  // Consent is nice-to-have on a reload: if the read fails, the phone's own copy decides (undefined = unknown).
+  const optional = (p) => p.catch((e) => { if (e.status === 401 || e.signIn) throw e; return undefined; });
+
   const punch = (p) => ({
     id: p.id, crewId: p.crew_id, byCrewId: p.by_crew_id, jobId: p.job_id, type: p.type, voidsId: p.voids_id,
     at: Date.parse(p.phone_at), receivedAt: Date.parse(p.received_at), lat: p.lat, lng: p.lng, accuracy: p.accuracy_m,
@@ -154,12 +158,13 @@
     refresh(auth) {
       return authed(auth, async (t) => {
         const me = session().me;
-        const [jobs, crew, last] = await Promise.all([
+        const [jobs, crew, last, mine] = await Promise.all([
           rest('jobs?active=eq.true&select=*&order=name', t),
           rest('crew?active=eq.true&select=id,name,role,active&order=name', t),
           rest(`punches?crew_id=eq.${me.id}&type=in.(in,out)&status=neq.voided&order=phone_at.desc&limit=1&select=*`, t),
+          optional(rest(`location_consents?crew_id=eq.${me.id}&order=phone_at.desc,received_at.desc&limit=1&select=id,crew_id,action,text_version,phone_at`, t)),
         ]);
-        return { me, jobs: jobs.map(job), crew, last: last[0] ? punch(last[0]) : null };
+        return { me, jobs: jobs.map(job), crew, last: last[0] ? punch(last[0]) : null, consent: mine === undefined ? undefined : consent(mine[0]) };
       });
     },
     sync(auth, items) {
@@ -173,12 +178,15 @@
     team(auth, since) {
       const from = new Date(since || Date.now() - 8 * 86400000).toISOString();
       return authed(auth, async (t) => {
-        const [punches, crew, jobs] = await Promise.all([
+        const [punches, crew, jobs, consents] = await Promise.all([
           rest(`punches?phone_at=gte.${encodeURIComponent(from)}&order=phone_at.asc&limit=3000&select=*`, t),
           rest('crew?select=id,name,role,active', t),
           rest('jobs?select=*', t),
+          // Latest action per worker only (PRIVACY L3); a foreman never reads the records themselves
+          optional(request(`${cfg.supabaseUrl}/rest/v1/rpc/crew_consent_status`, { method: 'POST', headers: headers(t), body: '{}' })),
         ]);
-        return { punches: punches.map(punch), crew, jobs: jobs.map(job) };
+        return { punches: punches.map(punch), crew, jobs: jobs.map(job),
+          consents: Array.isArray(consents) ? consents.map((c) => ({ crewId: c.crew_id, action: c.action, textVersion: c.text_version })) : undefined };
       });
     },
     geocode(auth, address) { return authed(auth, (t) => fn('geocode', { address }, t)); },

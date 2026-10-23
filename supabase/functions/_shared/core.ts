@@ -78,7 +78,9 @@ export type PunchItem = {
 };
 
 export type EditItem = { kind: 'job' | 'crew'; id: string; data: Record<string, unknown> };
-export type Item = PunchItem | EditItem;
+// A worker's location consent (docs/PRIVACY.md "Consent"): agree or withdraw, never edited.
+export type ConsentItem = { kind: 'consent'; id: string; crewId: string; action: string; textVersion: string; at: number; deviceId?: string | null };
+export type Item = PunchItem | EditItem | ConsentItem;
 
 export type Device = { id: string; crew_id: string; org_id: string; public_key: JsonWebKey; last_seq: number; last_hash: string; revoked: boolean };
 
@@ -93,7 +95,13 @@ export interface Repo {
   insertPunch(row: Record<string, unknown>): Promise<{ status: string; distance_ft: number | null }>;
   upsertJob(row: Record<string, unknown>): Promise<void>;
   upsertCrew(row: Record<string, unknown>): Promise<void>;
+  insertConsent(row: Record<string, unknown>): Promise<void>; // ignores a resend of the same id
+  latestConsent(crewId: string, atMs: number): Promise<{ action: string; text_version: string } | null>; // newest at or before atMs
 }
+
+// The consent words a worker must have agreed to before a punch may carry their location.
+// Same as CONSENT_VERSION in js/app.js; a new version asks everyone again (docs/PRIVACY.md C4).
+export const CONSENT_VERSION = 'loc-v1';
 
 export type Alert = { punchId: string; crewId: string; status: string; risk: string[] };
 
@@ -106,6 +114,9 @@ export async function ingest(claims: Claims, items: Item[], repo: Repo, now = Da
       if (item.kind === 'punch') {
         const r = await ingestPunch(claims, item, repo, now);
         if (r.alert) alerts.push(r.alert);
+        accepted.push(item.id);
+      } else if (item.kind === 'consent') {
+        await ingestConsent(claims, item, repo, now);
         accepted.push(item.id);
       } else if (item.kind === 'job' || item.kind === 'crew') {
         if (claims.crew_role !== 'boss') throw new HttpError(403, 'Boss only');
@@ -154,6 +165,11 @@ async function ingestPunch(claims: Claims, p: PunchItem, repo: Repo, now: number
     chain,
   });
 
+  // L3, checked here too: a phone with a stale copy (a foreman's old team list, a refused consent)
+  // must not store GPS for someone who hasn't agreed. The clock-in still counts, without location.
+  const c = await repo.latestConsent(p.crewId, p.at);
+  if (!c || c.action !== 'agree' || c.text_version !== CONSENT_VERSION) { p = { ...p, lat: null, lng: null, accuracy: null }; }
+
   const row = {
     id: p.id, org_id: claims.org_id, crew_id: p.crewId, by_crew_id: claims.crew_id,
     device_id: device ? device.id : null, job_id: p.jobId || null, type: p.type, voids_id: p.voidsId || null,
@@ -168,6 +184,20 @@ async function ingestPunch(claims: Claims, p: PunchItem, repo: Repo, now: number
     return { alert: { punchId: p.id, crewId: p.crewId, status: saved.status, risk: high } };
   }
   return {};
+}
+
+async function ingestConsent(claims: Claims, c: ConsentItem, repo: Repo, now: number) {
+  // C1: only the worker, from their own session. A foreman or the boss can't agree for anyone.
+  if (c.crewId !== claims.crew_id) throw new HttpError(403, 'Only you can agree for yourself');
+  if (!/^[0-9a-f-]{36}$/i.test(String(c.id))) throw new HttpError(400, 'Bad id');
+  if (c.action !== 'agree' && c.action !== 'withdraw') throw new HttpError(400, 'Bad consent action');
+  if (typeof c.textVersion !== 'string' || !/^[\w.-]{1,40}$/.test(c.textVersion)) throw new HttpError(400, 'Bad consent text version');
+  if (typeof c.at !== 'number' || c.at < now - 30 * 86400000) throw new HttpError(400, 'Consent too old');
+  await repo.insertConsent({
+    id: c.id, org_id: claims.org_id, crew_id: claims.crew_id, action: c.action, text_version: c.textVersion,
+    phone_at: new Date(Math.min(c.at, now)).toISOString(), device_id: c.deviceId ? String(c.deviceId).slice(0, 80) : null,
+    witness_crew_id: null,
+  });
 }
 
 async function applyEdit(claims: Claims, item: EditItem, repo: Repo) {

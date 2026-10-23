@@ -73,7 +73,8 @@ const quiet = (page) => page.waitForFunction(() => window.__busy && window.__bus
 async function punches(page) {
   return page.evaluate(async () => {
     const box = await Store.outbox.all(); // outbox first: an item leaves it only after the server has it
-    const db = JSON.parse(localStorage.getItem('cc.demo.db.v3') || '{"punches":[]}');
+    const key = Object.keys(localStorage).find((k) => k.startsWith('cc.demo.db')); // the demo store, whatever its version
+    const db = JSON.parse((key && localStorage.getItem(key)) || '{"punches":[]}');
     const all = new Map();
     db.punches.forEach((p) => all.set(p.id, Object.assign({ where: 'server' }, p)));
     box.filter((i) => i.kind === 'punch').forEach((p) => all.set(p.id, Object.assign({ where: 'outbox' }, p)));

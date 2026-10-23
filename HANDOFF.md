@@ -34,6 +34,19 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
 
 ## In progress
 
+- `M1.2` location consent (branch `m1.2-location-consent`, stacked on M1.1): table
+  `location_consents` (insert-only, RLS own + boss) and `crew_consent_status()` (foreman/boss see
+  latest action only); the sync function takes `kind: 'consent'` items (only your own); the app asks
+  before Home and before the phone permission screen, reads no GPS without consent (foreman for a
+  teammate too: picture instead), Home has "Stop using my location" / "Use my location for
+  clock-ins", the boss's Crew tab says "No location consent", a new `CONSENT_VERSION` asks again.
+  Demo seed v4: everyone agreed except Billy S. Tests: `tests/e2e-consent.js` (12 cases),
+  `tests/sql/consent_test.sql` (CON-4), Edge `core.test.ts`. Done when passes: CON-1..CON-7 green;
+  privacy-security (0 P0, 2 P1 + 4 P2, all fixed: server strips coordinates without a current agree,
+  a refused record is forgotten, column-level insert grant) and ux-reviewer (CON-7 pass after the
+  PRIVACY wording fix; Back buttons 48px, "Location is off" line 17px). PR #8 ready for review. Found on the way: the local
+  `npm run test:sql` never failed on an error (fixed) and CI didn't run newer SQL files (fixed).
+  Edge tests now run locally with `npx deno` (deno.land reachable again).
 - `M1.1` demo separation (branch `m1.1-demo-separation`, stacked on PR #6 with PR #5 merged in):
   SEP-2..SEP-6 tests in `tests/e2e-demo.js` and `tests/demo.test.js`, red first, now green. The demo
   address search uses four made-up sample places instead of Nominatim; `DemoBackend.forgetCrewApp()`
@@ -88,13 +101,40 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
 
 ## Exact next step
 
-Chase merges M0.1 (PR #4), then the stack: PR #5 (demo tap-to-sign-in), PR #6 (M1.5 hardening)
-and the M1.1 PR (branch `m1.1-demo-separation`, which already contains #5 and #6). Next build
-task: `M1.2` location consent, branch `m1.2-location-consent` stacked on `m1.1-demo-separation`:
-qa-tdd writes failing tests for CON-1..CON-6 first (PLAN.md), wording from docs/PRIVACY.md.
+Chase merges M0.1 (PR #4), then PR #6 (M1.5 hardening), the M1.1 PR #7 (branch
+`m1.1-demo-separation`, which already contains #5 and #6), then the M1.2 PR (branch
+`m1.2-location-consent`, stacked on #7). CON-7 (ux-reviewer reads the consent screen at 390x844)
+is the one manual check left in M1.2. Next build task: `M1.3` location read only at the tap
+(branch `m1.3-location-at-tap`, stacked on `m1.2-location-consent`): qa-tdd writes the failing
+test that no screen except the punch flow reads GPS, and that backing out of "Finding you" stops
+the watch at once (PRIVACY L1, L2).
 
 ## Decisions to review
 
+- **Consent (M1.2): a foreman who clocks in a teammate in the first second after sign-in**, before
+  the crew's consent status has loaded, gets the picture path even for a teammate who agreed (the
+  safe side). Found as a CI-only race in the CON-2 guard; the test now waits for the status.
+- **Consent (M1.2): "Not now" is not remembered across app reloads**, so a worker who never agreed
+  is asked again each time the app opens (ux-reviewer P2: may feel like nagging). Simplest fix if Chase
+  agrees: remember "Not now" on the phone and ask again only from CLOCK IN or the link. Check with a real user.
+- **Consent (M1.2): the boss's Crew tab says "No location consent"** for both "never agreed" and
+  "stopped". ux-reviewer suggests "Location off" (plainer). Kept for now because CON-5 names the words;
+  changing them means updating PLAN CON-5 and the tests together.
+- **Consent (M1.2): after "Stop using my location", the app asks again only at Clock in**, not every
+  time it opens; a worker with no record, or one who agreed to older words, is asked at sign-in.
+  "Not now" lasts until they sign out. Undo: ask on every open.
+- **Consent: the phone keeps each worker's newest consent record** (`cc.consents`: action, text
+  version, time) through sign-out, so someone who agreed with no signal isn't asked again before it
+  sends. Undo: clear it on sign-out (they'd be asked again offline).
+- **Consent: the server also drops coordinates** from a punch by a worker whose latest consent at
+  that time isn't "agree" to `loc-v1` (privacy-security P1); the clock-in still counts. The punch's
+  signature covers the original GPS, so a stored row with GPS dropped won't re-verify; nothing
+  re-verifies stored rows today.
+- **Consent: the witness field is not built** (always empty); the install-day helper isn't recorded.
+- **Consent text says "on the home screen"** instead of "in the menu" (the app has no menu), still
+  version `loc-v1` because no worker had seen it.
+- **The app now sends a person's queued items right after they sign in** (before: on the next
+  60-second tick, signal change or app focus).
 - **The demo still loads map tiles** from OpenStreetMap and USGS (no crew data in those requests);
   every other off-site request is gone. Undo: a static map image, at the cost of a real map.
 - **The demo hides on-phone AI** ("Write it up with AI", photo labels), because they download a
