@@ -54,10 +54,11 @@
 
   // Watch GPS for up to timeoutMs and resolve with the most accurate fix,
   // stopping early once it is good enough. Resolves null if nothing came back.
+  // opts.signal (an AbortSignal) stops the watch at once and resolves with the best fix so far.
   function bestFix(geolocation, opts) {
-    const o = Object.assign({ timeoutMs: 20000, goodEnoughM: 20, onUpdate: null }, opts);
+    const o = Object.assign({ timeoutMs: 20000, goodEnoughM: 20, onUpdate: null, signal: null }, opts);
     return new Promise((resolve) => {
-      if (!geolocation) return resolve(null);
+      if (!geolocation || (o.signal && o.signal.aborted)) return resolve(null);
       let best = null;
       let watchId = null;
       let done = false;
@@ -87,6 +88,7 @@
       } catch (e) {
         finish();
       }
+      if (o.signal) o.signal.addEventListener('abort', finish, { once: true });
     });
   }
 

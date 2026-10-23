@@ -34,6 +34,13 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
 
 ## In progress
 
+- `M1.3` location read only at the tap (branch `m1.3-location-at-tap`, stacked on M1.2): every
+  GPS watch now belongs to one screen (`watchGps` in `js/app.js`, `signal` in `Geo.bestFix`) and
+  stops at once when the worker backs out of "Finding you", taps "Take a picture instead", or the
+  app goes to the background; the boss's "Use where I'm standing" stops when they leave the job form.
+  Tests: `tests/location.test.js` (no location read outside the allowed places, none in `sw.js`),
+  `tests/e2e-location.js` LOC-1 (zero reads on Home, teammate list, every boss screen, both sizes)
+  and LOC-2 (red before the fix, green after), 2 `bestFix` unit tests.
 - `M1.2` location consent (branch `m1.2-location-consent`, stacked on M1.1): table
   `location_consents` (insert-only, RLS own + boss) and `crew_consent_status()` (foreman/boss see
   latest action only); the sync function takes `kind: 'consent'` items (only your own); the app asks
@@ -102,15 +109,17 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
 ## Exact next step
 
 Chase merges M0.1 (PR #4), then PR #6 (M1.5 hardening), the M1.1 PR #7 (branch
-`m1.1-demo-separation`, which already contains #5 and #6), then the M1.2 PR (branch
-`m1.2-location-consent`, stacked on #7). CON-7 (ux-reviewer reads the consent screen at 390x844)
-is the one manual check left in M1.2. Next build task: `M1.3` location read only at the tap
-(branch `m1.3-location-at-tap`, stacked on `m1.2-location-consent`): qa-tdd writes the failing
-test that no screen except the punch flow reads GPS, and that backing out of "Finding you" stops
-the watch at once (PRIVACY L1, L2).
+`m1.1-demo-separation`, which already contains #5 and #6), then the M1.2 PR #8 (branch
+`m1.2-location-consent`, stacked on #7, done and ready), then the M1.3 PR (branch
+`m1.3-location-at-tap`, stacked on #8). Next build task: `M1.4` retention and delete rules in code
+(branch `m1.4-retention`): qa-tdd writes failing SQL tests for the retention periods in
+docs/PRIVACY.md, including consent records (C6) and a removed worker's data.
 
 ## Decisions to review
 
+- **Location (M1.3): the GPS watch stops when the app goes to the background** during "Finding
+  you", and the worker clocks in with a picture after. Stricter than "stops when they leave the
+  screen"; if real phones background the app for the permission prompt, revisit.
 - **Consent (M1.2): "Not now" is not remembered across app reloads**, so a worker who never agreed
   is asked again each time the app opens (ux-reviewer P2: may feel like nagging). Simplest fix if Chase
   agrees: remember "Not now" on the phone and ask again only from CLOCK IN or the link. Check with a real user.

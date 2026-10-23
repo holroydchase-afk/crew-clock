@@ -71,6 +71,25 @@ test('bestFix resolves null when GPS never answers', async () => {
   assert.strictEqual(await Geo.bestFix(fake, { timeoutMs: 50 }), null);
 });
 
+test('bestFix stops watching the moment its signal aborts (PRIVACY L2)', async () => {
+  let cleared = 0;
+  const fake = { watchPosition() { return 7; }, clearWatch(id) { if (id === 7) cleared++; } };
+  const ac = new AbortController();
+  const p = Geo.bestFix(fake, { timeoutMs: 60000, signal: ac.signal });
+  ac.abort();
+  assert.strictEqual(cleared, 1);
+  assert.strictEqual(await p, null);
+});
+
+test('bestFix with an already aborted signal never starts a watch', async () => {
+  let started = 0;
+  const fake = { watchPosition() { started++; return 1; }, clearWatch() {} };
+  const ac = new AbortController();
+  ac.abort();
+  assert.strictEqual(await Geo.bestFix(fake, { timeoutMs: 60000, signal: ac.signal }), null);
+  assert.strictEqual(started, 0);
+});
+
 const H = 3600000;
 test('pairShifts: in/out pairs, hours, worst status', () => {
   const s = Report.pairShifts([

@@ -315,6 +315,22 @@
       ? `GPS signal: weak (about ${Geo.formatDistance(Geo.toFeet(accuracyM))})` : 'GPS signal: good';
   }
 
+  // The one GPS watch the app may have open, and the screen it belongs to (PRIVACY L2). Leaving
+  // that screen, or the app going to the background, stops it at once.
+  let gpsWatch = null;
+  function watchGps(geolocation, stillWanted, opts) {
+    stopGps();
+    const ac = new AbortController();
+    const w = { stillWanted, ac };
+    gpsWatch = w;
+    return Geo.bestFix(geolocation, Object.assign({}, opts, { signal: ac.signal }))
+      .finally(() => { if (gpsWatch === w) gpsWatch = null; });
+  }
+  function stopGps() {
+    if (gpsWatch) { gpsWatch.ac.abort(); gpsWatch = null; }
+  }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) stopGps(); });
+
   async function locate() {
     const flow = state.flow; // a late fix must only finish the flow that asked for it (HRD-4)
     flow.at = Date.now();
@@ -327,7 +343,7 @@
       await new Promise((r) => setTimeout(r, 900));
       fix = { lat: job.lat + 0.0002, lng: job.lng - 0.0001, accuracy: 9, at: Date.now() };
     } else {
-      fix = await Geo.bestFix(navigator.geolocation, {
+      fix = await watchGps(navigator.geolocation, () => state.screen === 'locating' && state.flow === flow, {
         timeoutMs: cfg.gpsTimeoutMs || 20000,
         goodEnoughM: 20,
         onUpdate: (best) => {
@@ -1030,6 +1046,7 @@
   }
 
   function render() {
+    if (gpsWatch && !gpsWatch.stillWanted()) stopGps();
     const fn = screens[state.screen] || screens.names;
     paint(fn());
     if (state.screen === 'boss' && state.bossTab === 'map') mountTeamMap();
@@ -1098,7 +1115,7 @@
     'teammate': () => setScreen('pick-teammate'),
     'mate-punch': (el) => startPunch(el.dataset.type, { crewId: el.dataset.id }),
     'pick-job': (el) => pickJob(el.dataset.id),
-    'skip-gps': () => { state.screen = 'skipping'; state.flow.fix = null; afterFix(); },
+    'skip-gps': () => { state.screen = 'skipping'; stopGps(); state.flow.fix = null; afterFix(); },
     'no-photo': () => finishPunch(),
     'photo-anyway': () => {
       state.flow.photoChecked = true;
@@ -1171,7 +1188,10 @@
       keepJobInputs();
       el.disabled = true;
       el.textContent = 'Finding you…';
-      const fix = await Geo.bestFix(navigator.geolocation, { timeoutMs: 15000, goodEnoughM: 15 });
+      const job = state.editJob;
+      const fix = await watchGps(navigator.geolocation,
+        () => state.screen === 'job-form' && state.jobMode === 'here' && state.editJob === job, { timeoutMs: 15000, goodEnoughM: 15 });
+      if (state.editJob !== job || state.screen !== 'job-form' || state.jobMode !== 'here') return; // they left it
       el.disabled = false;
       el.innerHTML = `${Icons.locate} Use where I'm standing`;
       if (!fix) return toast("Couldn't get GPS. Try Drop a pin.");
