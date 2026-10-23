@@ -34,7 +34,8 @@ async function open(browser, mode, pos) {
   const page = await ctx.newPage();
   page.errors = [];
   page.on('pageerror', (e) => page.errors.push(e.message));
-  page.on('dialog', (d) => d.accept());
+  page.dialogs = [];
+  page.on('dialog', (d) => { page.dialogs.push(d.message()); d.accept(); });
   await page.addInitScript(gpsStub, { mode, pos: Object.assign({ acc: 8 }, pos || JOBS.j1) });
   await page.goto(BASE);
   return { ctx, page };
@@ -343,6 +344,114 @@ t('HRD-9 foreman with no camera clocking in a teammate can finish without a phot
   if (!p) throw new Error('no clock-in saved for Cody');
   const level = await page.evaluate((x) => Risk.topLevel(Risk.assess(x, { receivedAt: x.at })), p);
   if (level !== 'high') throw new Error(`teammate punch with no photo flagged ${level}, expected high`);
+  return page;
+});
+
+// ---------- PS-2: a permanent refusal keeps a stub only (no GPS, no photo) and is not resent ----------
+
+// Records every id the app hands to Api.sync; `reply` decides what the "server" says.
+async function recordSync(page, reply) {
+  await page.evaluate((mode) => {
+    window.__sent = [];
+    self.Api.sync = async (auth, items) => {
+      items.forEach((i) => window.__sent.push(i.id));
+      if (mode === 'down') throw Object.assign(new Error('Server error'), { status: 503, offline: true });
+      if (mode === 'photo') return { ok: true, accepted: [], rejected: [], reasons: [] }; // photo upload failed (HRD-6 shape)
+      return { ok: true, accepted: [], rejected: items.map((i) => i.id), reasons: items.map((i) => ({ id: i.id, reason: mode })) };
+    };
+  }, reply);
+}
+// Via all(): Store.outbox.get() of a missing id resolves to the IDB request, not undefined.
+const outboxItem = (page, id) => page.evaluate(async (x) => (await Store.outbox.all()).find((i) => i.id === x) || null, id);
+const FAKE_PHOTO = 'data:image/jpeg;base64,' + Buffer.from('made-up test photo').toString('base64');
+async function givePhoto(page, id) {
+  await page.evaluate(async ({ x, photo }) => { const it = await Store.outbox.get(x); it.photo = photo; await Store.outbox.add(it); }, { x: id, photo: FAKE_PHOTO });
+}
+const PERSONAL = ['lat', 'lng', 'accuracy', 'photo', 'photoKey', 'photoSha256', 'data', 'distanceFt', 'signature', 'deviceId'];
+
+for (const reason of ['Punch too old', 'Bad punch type', 'Bad id', 'unknown kind']) {
+  t(`PS-2 a punch refused as "${reason}" is cut to a stub with no location or photo and is not resent`, async (browser) => {
+    const { ctx, page, id } = await jakeOneUnsent(browser);
+    await givePhoto(page, id);
+    const before = await outboxItem(page, id);
+    if (before.lat == null || !before.photo) throw new Error('setup: punch should start with GPS and a photo');
+    await recordSync(page, reason);
+    await ctx.setOffline(false);
+    await syncAndWait(page);
+    const stub = await outboxItem(page, id);
+    if (!stub) throw new Error('the refused punch left the phone entirely (its stub should stay to explain it)');
+    const kept = PERSONAL.filter((k) => stub[k] != null);
+    if (kept.length) throw new Error(`stub still holds ${kept.join(', ')}: ${JSON.stringify(Object.keys(stub))}`);
+    for (const k of ['id', 'crewId', 'byCrewId', 'type', 'at', 'jobId']) if (stub[k] == null) throw new Error(`stub lost ${k}`);
+    if (!/too old|bad|unknown|couldn't take/i.test(await page.locator('[data-sync-line]').first().innerText())) throw new Error('sync line no longer explains the refusal');
+    const n = await page.evaluate(() => window.__sent.length);
+    await syncAndWait(page);
+    const resent = await page.evaluate(() => window.__sent.length);
+    if (resent !== n) throw new Error(`the refused punch was sent again on the next sync (${n} -> ${resent} sends)`);
+    await ctx.close();
+    return page;
+  });
+}
+
+for (const [mode, label] of [['down', 'server 5xx'], ['photo', 'photo upload failed']]) {
+  t(`PS-2 (guard) a transient failure (${label}) keeps the punch's location and photo and resends it`, async (browser) => {
+    const { ctx, page, id } = await jakeOneUnsent(browser);
+    await givePhoto(page, id);
+    await recordSync(page, mode);
+    await ctx.setOffline(false);
+    await syncAndWait(page);
+    const it = await outboxItem(page, id);
+    if (!it || it.lat == null || !it.photo) throw new Error(`transient failure stripped the punch: ${JSON.stringify(it && Object.keys(it))}`);
+    await syncAndWait(page);
+    const sends = await page.evaluate((x) => window.__sent.filter((s) => s === x).length, id);
+    if (sends < 2) throw new Error(`not resent after a transient failure (sent ${sends} time(s))`);
+    await ctx.close();
+    return page;
+  });
+}
+
+// ---------- PS-7a: "Not you?" must not tell the next person how many the last one left ----------
+
+t('PS-7a the "Not you?" confirm does not show the previous person\'s unsent count', async (browser) => {
+  const { page } = await jakeTwoUnsent(browser);
+  const msg = page.dialogs.find((m) => /not sent|switch/i.test(m));
+  if (!msg) throw new Error(`no confirm was shown; dialogs: ${JSON.stringify(page.dialogs)}`);
+  if (/\d/.test(msg)) throw new Error(`confirm shows a number: ${JSON.stringify(msg)}`);
+  if (!/send when this person signs in again/i.test(msg)) throw new Error(`confirm lost "send when this person signs in again": ${JSON.stringify(msg)}`);
+  return page;
+});
+
+// ---------- PS-7b: a job/crew edit queued before byCrewId existed is sent only by a boss ----------
+
+async function legacyEditQueued(browser, name, pin) {
+  const { ctx, page } = await open(browser, 'auto', JOBS.j1);
+  await signIn(page, name, pin);
+  await page.waitForFunction(() => !self.CrewClock.state.syncing); // no sign-in sync still running
+  await page.evaluate(() => Store.outbox.add({ kind: 'job', id: 'legacy-edit-1', data: { id: 'j-test-legacy', name: 'Made-up test job', radiusFt: 300, active: true } }));
+  await page.evaluate(() => {
+    window.__sent = [];
+    const real = self.Api.sync;
+    self.Api.sync = (auth, items) => { items.forEach((i) => window.__sent.push(i.id)); return real(auth, items); };
+  });
+  await syncAndWait(page);
+  return { ctx, page };
+}
+
+t('PS-7b an old queued job edit with no byCrewId is not sent by a crew member and stays queued', async (browser) => {
+  const { ctx, page } = await legacyEditQueued(browser, 'Jake R.', '1111');
+  const sent = await page.evaluate(() => window.__sent.includes('legacy-edit-1'));
+  if (sent) throw new Error('a crew member\'s sync sent an old boss edit (the server would refuse it "Boss only" and it would be dropped)');
+  if (!(await outboxItem(page, 'legacy-edit-1'))) throw new Error('the old edit was removed from the outbox');
+  await ctx.close();
+  return page;
+});
+
+t('PS-7b (guard) the boss does send an old queued job edit with no byCrewId', async (browser) => {
+  const { ctx, page } = await legacyEditQueued(browser, 'Dad', '1234');
+  const sent = await page.evaluate(() => window.__sent.includes('legacy-edit-1'));
+  if (!sent) throw new Error('the boss\'s sync did not send the old edit');
+  if (await outboxItem(page, 'legacy-edit-1')) throw new Error('the old edit is still queued after the boss sent it');
+  await ctx.close();
   return page;
 });
 

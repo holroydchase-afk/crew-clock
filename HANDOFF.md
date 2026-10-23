@@ -70,12 +70,19 @@ demo screen). Criteria are in PLAN.md. Then `M1.2` location consent.
   punches stay queued until they sign in again; the sync line counts only yours. Job/crew edits now
   carry `byCrewId` too.
 - **HRD-2: only permission refusals are dropped** (Only a foreman / Unknown crew member / Boss only /
-  Not yours). Any other refusal stays queued, is retried, and shows its reason on the sync line.
+  Not yours). Any other refusal stays queued and shows its reason on the sync line.
+- **PS-2: a permanent refusal is cut to a stub and never resent** (supersedes "is retried" above).
+  Every refusal the server returns is a 4xx (`Punch too old`, `Bad punch type`, `Bad id`, `unknown
+  kind`), so the phone keeps only kind, id, crewId, byCrewId, type, at, jobId and the reason; GPS,
+  photo, signature and edit data are deleted. Network, 5xx and photo-upload failures keep the full
+  item and retry. Open: stubs stay until the app gets a "clear" action or a retention trim.
 - **HRD-6: a punch whose photo won't upload stays queued with its photo; the rest send.** A later
   resend can then arrive out of chain order (server marks it `replay_or_old`, no new flag).
 - **HRD-9: a foreman can finish a teammate punch with no picture; it is flagged high**
-  (`teammate_no_photo`). The rule fires only when the punch says it has no photo (`photo`,
-  `photoKey` or `hasPhoto` present and all empty); every phone punch carries `photo`.
+  (`teammate_no_photo`).
+- **PS-6: "no picture" now means no `photoKey`, `photo` or `hasPhoto`**, fields present or not,
+  because the server only ever gets `photoKey`. Before, a server-side foreman punch with no photo
+  was never flagged. `hasPhoto` stays in the check so the boss's team view doesn't false-flag.
 
 ## Blockers
 

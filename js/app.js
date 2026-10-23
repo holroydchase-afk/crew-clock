@@ -77,7 +77,16 @@
   // ---------- sync ----------
   // Only what the signed-in person made is theirs to send. Someone else's queued punches
   // stay on the phone until that person signs in again (HRD-1).
-  const isMine = (it) => !it.byCrewId || (state.me && it.byCrewId === state.me.id);
+  // A job/crew edit queued before edits carried byCrewId is the boss's to send (PS-7b).
+  const isMine = (it) => (it.byCrewId ? !!state.me && it.byCrewId === state.me.id
+    : (it.kind !== 'job' && it.kind !== 'crew') || isBoss());
+  // A refused item's stub: enough for the sync line to explain it, no GPS, photo or edit data (PS-2).
+  const STUB_KEYS = ['kind', 'id', 'crewId', 'byCrewId', 'type', 'at', 'jobId', 'queuedAt'];
+  const toStub = (it, reason) => {
+    const stub = {};
+    STUB_KEYS.forEach((k) => { if (it[k] !== undefined) stub[k] = it[k]; });
+    return Object.assign(stub, { rejected: reason, rejectedAt: Date.now() });
+  };
 
   async function countPending() {
     const items = (await Store.outbox.all()).filter(isMine);
@@ -99,7 +108,8 @@
     state.syncing = true;
     updateSyncLine();
     try {
-      const items = await countPending();
+      // Refused stubs are never resent; only network, server or photo-upload failures retry (PS-2).
+      const items = (await countPending()).filter((it) => !it.rejected);
       // Small batches so a slow one-bar connection still gets punches through.
       for (let i = 0; i < items.length; i += 4) {
         const batch = items.slice(i, i + 4);
@@ -108,10 +118,10 @@
         (res.reasons || []).forEach((r) => { why[r.id] = r.reason; });
         const drop = (res.rejected || []).filter((id) => PERMISSION.test(why[id] || ''));
         await Store.outbox.remove([...(res.accepted || []), ...drop]);
-        // Any other refusal keeps the punch on the phone, marked, with the reason on screen (HRD-2).
+        // Any other refusal is permanent: keep only a stub with the reason on screen (HRD-2, PS-2).
         for (const id of res.rejected || []) {
           const it = !drop.includes(id) && batch.find((x) => x.id === id);
-          if (it) await Store.outbox.add(Object.assign(it, { rejected: why[id] || 'Refused', rejectedAt: Date.now() }));
+          if (it) await Store.outbox.add(toStub(it, why[id] || 'Refused'));
         }
       }
       await countPending();
@@ -344,7 +354,7 @@
   async function signOut(msg) {
     const waiting = await countPending();
     if (waiting.length && !msg) {
-      if (!confirm(`${waiting.length} clock-ins have not sent yet. Switch anyway? They will send when this person signs in again.`)) return;
+      if (!confirm(`Some clock-ins have not sent yet. Switch anyway? They will send when this person signs in again.`)) return;
     }
     if (Api.signOut) Api.signOut();
     ['auth', 'me', 'last', 'team', 'jobs', 'crew'].forEach((k) => Store.local.remove(k));

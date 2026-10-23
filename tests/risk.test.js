@@ -23,7 +23,7 @@ test('frozen GPS: exact same coordinates as yesterday', () => {
 test("buddy punching on someone else's phone, but not foreman clock-ins", () => {
   const other = { id: 'b', crewId: 'c2', byCrewId: 'c2', deviceId: 'd1', at: noon - 3 * 60000 };
   assert.deepStrictEqual(codes(Risk.assess(base, { deviceHistory: [other] })), ['shared_phone']);
-  const lead = Object.assign({}, base, { byCrewId: 'c9' });
+  const lead = Object.assign({}, base, { byCrewId: 'c9', photoKey: 'x' }); // a foreman clock-in with a picture (PS-6)
   assert.deepStrictEqual(Risk.assess(lead, { deviceHistory: [other] }), []);
 });
 test('chain, clock and timing flags', () => {

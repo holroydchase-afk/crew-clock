@@ -89,3 +89,22 @@ test('HRD-9 (guard) a teammate punch with a photo is not flagged high', () => {
 test('HRD-9 (guard) a worker clocking themselves in with no photo is not flagged high', () => {
   assert.notStrictEqual(Risk.topLevel(Risk.assess(mate(Object.assign({ byCrewId: 'cody' }, noPhoto)), { receivedAt: NOON + 30000 })), 'high');
 });
+
+// ---------- PS-6: the server never gets `photo`, so "no picture" means no photoKey ----------
+
+test('PS-6 foreman teammate punch with every photo field omitted (what the server sees) is flagged high', () => {
+  const p = mate({}); // no photo, photoKey or hasPhoto key at all
+  const flags = Risk.assess(p, { receivedAt: NOON + 30000 });
+  assert.ok(flags.some((f) => f.code === 'teammate_no_photo'), `flags were ${JSON.stringify(flags)}`);
+  assert.strictEqual(Risk.topLevel(flags), 'high');
+});
+
+test('PS-6 (guard) foreman teammate punch that arrives with only a photoKey is not flagged teammate_no_photo', () => {
+  const flags = Risk.assess(mate({ photoKey: 'org/day/m1.jpg' }), { receivedAt: NOON + 30000 });
+  assert.ok(!flags.some((f) => f.code === 'teammate_no_photo'), `flags were ${JSON.stringify(flags)}`);
+});
+
+test('PS-6 (guard) a worker clocking themselves in with every photo field omitted is not flagged teammate_no_photo', () => {
+  const flags = Risk.assess(mate({ byCrewId: 'cody' }), { receivedAt: NOON + 30000 });
+  assert.ok(!flags.some((f) => f.code === 'teammate_no_photo'), `flags were ${JSON.stringify(flags)}`);
+});

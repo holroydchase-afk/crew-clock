@@ -24,7 +24,7 @@ The consent screen (below) is the short version of this.
 | Worker taps **Clock in** or **Clock out**, after picking the job | GPS watched for up to 20 s (stops early at 20 m accuracy), best fix kept: latitude, longitude, accuracy, time | Saved with the punch, sent to the server when there is signal | [true] `js/app.js:195-218`, `js/geo.js:57-91` |
 | Worker taps **Clock in** (job list) | One rough, low-accuracy reading to put the nearest job on top | Stays in the app's memory for that screen; never saved or sent | [true] `js/app.js:173-180` |
 | First sign-in, **OK, ask me** | One reading only to make the phone show its permission prompt | Thrown away | [true] `js/app.js:888-893` |
-| Foreman clocks in a teammate | The **foreman's** phone GPS, plus a required picture | Saved on the teammate's punch, marked as made by the foreman | [true] `js/app.js:224`, `supabase/functions/_shared/core.ts:157-159` |
+| Foreman clocks in a teammate | The **foreman's** phone GPS; a picture is asked for, and a punch without one is flagged high for the boss (`teammate_no_photo`) | Saved on the teammate's punch, marked as made by the foreman | [true] `js/app.js:224`, `js/risk.js:58`, `supabase/functions/_shared/core.ts:157-159` |
 | Boss taps **Use where I'm standing** when adding a job | The boss's own GPS | Saved as the job site's pin, not as anyone's punch | [true] `js/app.js:968-976` |
 | Any other time (home screen, chat, boss tabs, app closed, phone locked) | Nothing | — | [true] no other geolocation call in `js/`, none in `sw.js`, no background or periodic sync |
 
@@ -102,7 +102,7 @@ federal; West Virginia's own rules are a "needs Chase" check (see the end).
 | Phone keys and user agent | Supabase `devices` | While in use; 90 days after revoked or the worker leaves | Deleted | [to build, M1.4] |
 | Push subscriptions | Supabase `push_subscriptions` | While in use | Deleted when the worker leaves or the browser retires it | [partly true: retired ones are deleted, `_shared/push.ts:28`] |
 | Boss and foreman's team cache | Their phone, localStorage `cc.team` | Last 8 days of punches | Replaced on each refresh; cleared on sign-out | [true] `js/app.js:125-131`, `js/api-supabase.js:163` |
-| Unsent punches and pictures | Phone IndexedDB outbox | Until sent | Removed when the server accepts or rejects them | [true] `js/app.js:95` |
+| Unsent punches and pictures | Phone IndexedDB outbox | Until sent | Removed when the server accepts them or refuses them for permission. Any other refusal (for example "Punch too old") is final: the phone deletes its GPS, picture, signature and edit data at once and keeps only a stub (who, job, in/out, time, reason) so the sync line can explain it; the stub is never resent. Network, server or picture-upload failures keep the whole punch and retry. | [true] `js/app.js:85-90,112-125`; [stub kept until cleared, no trim yet] |
 | Daily and weekly reports | The boss's Google Sheet | 3 years (hours only, no GPS) | The boss deletes old rows | [manual; no GPS goes to the Sheet today, `report-export` sends shifts only] |
 | Sign-in sessions | Supabase Auth | 1 hour token, refresh until sign-out | Ended on new PIN or deactivation | [true] `20261023000000_auth_hook.sql:32-41` |
 

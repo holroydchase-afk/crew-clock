@@ -53,9 +53,9 @@
         x.byCrewId === x.crewId && Math.abs(x.at - p.at) < 15 * MIN);
       if (other) add('shared_phone');
     }
-    // Only when the punch says it has no picture: every phone punch carries photo (null if none).
-    const saysNoPhoto = ['photo', 'photoKey', 'hasPhoto'].some((k) => k in p) && !p.photo && !p.photoKey && !p.hasPhoto;
-    if (isLeadPunch && saysNoPhoto) add('teammate_no_photo');
+    // The server never gets `photo`, only `photoKey` once it uploaded, so a missing key means no
+    // picture (PS-6). `photo` covers the phone before upload; `hasPhoto` the boss's team view.
+    if (isLeadPunch && !p.photoKey && !p.photo && !p.hasPhoto) add('teammate_no_photo');
 
     if (c.receivedAt) {
       if (p.at - c.receivedAt > 5 * MIN) add('future_time');
