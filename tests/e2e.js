@@ -32,6 +32,8 @@ const { launch } = require('./browser.js');
   await page.waitForSelector('.big-check');
   const offlineNote = await page.locator('.notice').count(); await shot('4-done-offline');
   await page.getByText('OK', { exact: true }).click();
+  // A sync started while online may still be finishing ("Sending…"); the line must settle on "waiting"
+  await page.waitForFunction(() => document.querySelector('.sync-line').textContent.includes('waiting'), null, { timeout: 5000 }).catch(() => {});
   const waiting = await page.textContent('.sync-line');
   await ctx.setOffline(false);
   await page.evaluate(() => window.dispatchEvent(new Event('online')));

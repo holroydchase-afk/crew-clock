@@ -52,6 +52,8 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
   pages, and prints the screen and frame state on failure. `PW_HEADLESS_SHELL=1` runs the e2e
   tests on Playwright's headless shell, the browser CI uses (that is how the races reproduced).
   privacy-security on the sync fix: no P0/P1; two P2 follow-ups under Known limits.
+  `tests/e2e.js` now waits for the sync line to settle on "waiting" after the offline clock-out
+  (CI read it while the earlier online sync still said "Sending…"; the check itself is unchanged).
 - `M0.1` studio setup (branch `claude/project-thread-rewwa2`): CLAUDE.md, PLAN.md, studio agents
   in `.claude/agents/`, `handoff-check`, dependabot, MIT LICENSE, README CI badge and demo link,
   docs/PRIVACY.md and the privacy-security review (15 findings: two P0, four P1), this HANDOFF
