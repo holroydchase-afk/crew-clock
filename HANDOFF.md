@@ -34,13 +34,18 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
 
 ## In progress
 
-- `M1.3` location read only at the tap (branch `m1.3-location-at-tap`, stacked on M1.2): every
+- `M1.3` location read only at the tap, done when tests pass (branch `m1.3-location-at-tap`, stacked on M1.2): every
   GPS watch now belongs to one screen (`watchGps` in `js/app.js`, `signal` in `Geo.bestFix`) and
   stops at once when the worker backs out of "Finding you", taps "Take a picture instead", or the
   app goes to the background; the boss's "Use where I'm standing" stops when they leave the job form.
   Tests: `tests/location.test.js` (no location read outside the allowed places, none in `sw.js`),
   `tests/e2e-location.js` LOC-1 (zero reads on Home, teammate list, every boss screen, both sizes)
-  and LOC-2 (red before the fix, green after), 2 `bestFix` unit tests.
+  and LOC-2 (red before the fix, green after), 4 `bestFix` unit tests. privacy-security: 0 P0,
+  1 P1 (the job list's rough reading and the primer's reading didn't stop on leaving; both now go
+  through `watchGps`, tested), P2s fixed (a stopped reading is thrown away, not used; the static
+  test also scans `js/vendor`, `messenger/src` and pages, and catches any `geolocation` mention).
+  The job list's sort and the primer are now rough watches (not one-shot reads), so the hardening
+  GPS fake answers rough watches on its own as it did the one-shot reads; assertions unchanged.
 - `M1.2` location consent (branch `m1.2-location-consent`, stacked on M1.1): table
   `location_consents` (insert-only, RLS own + boss) and `crew_consent_status()` (foreman/boss see
   latest action only); the sync function takes `kind: 'consent'` items (only your own); the app asks

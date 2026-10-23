@@ -12,7 +12,11 @@ const t = (name, fn) => cases.push({ name, fn });
 // answers, so a watch stays open until the app clears it.
 function gpsSpy(opts) {
   window.__gps = { reads: 0, active: new Set(), next: 1 };
-  const at = () => ({ coords: { latitude: 38.454, longitude: -81.929, accuracy: 8 }, timestamp: Date.now() });
+  if (opts.primed) localStorage.setItem('cc.locPrimed', 'true');
+  // answer 'rough': one reading good enough to count (on site, not weak) but not to stop the
+  // watch early (the punch flow waits for 20 m), then nothing.
+  const acc = opts.answer === 'rough' ? 40 : 8;
+  const at = () => ({ coords: { latitude: 38.454, longitude: -81.929, accuracy: acc }, timestamp: Date.now() });
   navigator.geolocation.watchPosition = (ok) => {
     const id = window.__gps.next++;
     window.__gps.reads++;
@@ -30,7 +34,7 @@ const reads = (page) => page.evaluate(() => window.__gps.reads);
 const watching = (page) => page.evaluate(() => window.__gps.active.size);
 
 let lastPage = null;
-async function open(browser, answer = true, viewport = { width: 390, height: 844 }) {
+async function open(browser, answer = true, viewport = { width: 390, height: 844 }, primed = answer !== true) {
   const ctx = await browser.newContext({ viewport, serviceWorkers: 'block' });
   const page = await ctx.newPage();
   lastPage = page;
@@ -38,7 +42,7 @@ async function open(browser, answer = true, viewport = { width: 390, height: 844
   page.on('pageerror', (e) => page.errors.push(e.message));
   page.on('dialog', (d) => d.accept());
   await ctx.route((u) => u.origin !== ORIGIN, (r) => r.fulfill({ status: 204, body: '' }));
-  await page.addInitScript(gpsSpy, { answer });
+  await page.addInitScript(gpsSpy, { answer, primed });
   await page.goto(BASE);
   await page.waitForSelector('.name-btn');
   return page;
@@ -57,6 +61,20 @@ async function tapPunch(page) {
   await page.waitForSelector('.job-btn, #skip-gps, .big-check, [data-action="photo-file"]', { state: 'attached' });
   if (await page.locator('.job-btn').count()) await page.locator('.job-btn').first().click();
 }
+// Signs in a crew member whose Home shows CLOCK IN, so the job list comes next.
+async function signInClockedOut(page) {
+  for (const name of ['Travis K.', 'Cody M.', 'Jake R.']) {
+    await signIn(page, name);
+    if (await page.locator('.punch.in').count()) return name;
+    await page.getByRole('button', { name: 'Not you?' }).click();
+    await page.waitForSelector('.name-btn');
+  }
+  throw new Error('nobody in the demo seed is clocked out');
+}
+const toBackground = (page) => page.evaluate(() => {
+  Object.defineProperty(document, 'hidden', { value: true, configurable: true });
+  document.dispatchEvent(new Event('visibilitychange'));
+});
 async function noReadsDuring(page, what, fn) {
   const before = await reads(page);
   await fn();
@@ -138,10 +156,49 @@ t('LOC-2 the app going to the background while finding you stops the GPS watch, 
   await signIn(page, 'Ray T.');
   await tapPunch(page);
   await page.waitForSelector('#skip-gps', { state: 'attached' });
-  await page.evaluate(() => { Object.defineProperty(document, 'hidden', { value: true, configurable: true }); document.dispatchEvent(new Event('visibilitychange')); });
+  await toBackground(page);
   const n = await watching(page);
   if (n) throw new Error(`${n} GPS watch(es) still running after the app went to the background`);
   await page.waitForSelector('[data-action="photo-file"]', { state: 'attached' });
+  return page;
+});
+
+t('LOC-2 a rough reading so far is thrown away when the app goes to the background: the worker clocks in with a picture', async (browser) => {
+  const page = await open(browser, 'rough');
+  await signIn(page, 'Ray T.');
+  await tapPunch(page);
+  await page.waitForSelector('#skip-gps', { state: 'attached' });
+  await page.waitForFunction(() => /GPS signal/i.test(document.getElementById('live-acc')?.textContent || ''));
+  await toBackground(page);
+  await page.waitForSelector('[data-action="photo-file"]', { state: 'attached' });
+  if (await page.locator('.big-check').count()) throw new Error('the punch finished on a reading that was stopped');
+  if (await watching(page)) throw new Error('a GPS watch is still running');
+  return page;
+});
+
+t('LOC-2 leaving the job list stops its rough "closest job" reading', async (browser) => {
+  const page = await open(browser, false);
+  await signInClockedOut(page);
+  await page.click('.punch.in');
+  await page.waitForSelector('.job-btn');
+  if (!(await watching(page))) throw new Error('no rough reading for the job list');
+  await page.click('[data-action="go-home"]');
+  await page.waitForSelector('.punch');
+  const n = await watching(page);
+  if (n) throw new Error(`${n} GPS watch(es) still running after leaving the job list`);
+  return page;
+});
+
+t('LOC-2 the permission primer\'s one reading stops when the app goes to the background, and Home follows', async (browser) => {
+  const page = await open(browser, false, undefined, false);
+  await page.getByRole('button', { name: 'Ray T.', exact: false }).first().click();
+  await page.waitForSelector('[data-action="prime-location"]');
+  await page.click('[data-action="prime-location"]');
+  if (!(await watching(page))) throw new Error('the primer did not ask for a reading');
+  await toBackground(page);
+  await page.waitForSelector('.punch');
+  const n = await watching(page);
+  if (n) throw new Error(`${n} GPS watch(es) still running after the primer`);
   return page;
 });
 

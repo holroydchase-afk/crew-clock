@@ -81,6 +81,24 @@ test('bestFix stops watching the moment its signal aborts (PRIVACY L2)', async (
   assert.strictEqual(await p, null);
 });
 
+test('bestFix throws away a reading it was stopped before finishing (PRIVACY L2)', async () => {
+  let cb;
+  const fake = { watchPosition(ok) { cb = ok; return 1; }, clearWatch() {} };
+  const ac = new AbortController();
+  const p = Geo.bestFix(fake, { timeoutMs: 60000, goodEnoughM: 20, signal: ac.signal });
+  cb({ coords: { latitude: 1, longitude: 1, accuracy: 120 }, timestamp: 1 });
+  ac.abort();
+  assert.strictEqual(await p, null);
+});
+
+test('bestFix asks for a rough reading when told to', () => {
+  let asked;
+  const fake = { watchPosition(ok, err, o) { asked = o; return 1; }, clearWatch() {} };
+  Geo.bestFix(fake, { timeoutMs: 10, highAccuracy: false, maximumAgeMs: 120000 });
+  assert.strictEqual(asked.enableHighAccuracy, false);
+  assert.strictEqual(asked.maximumAge, 120000);
+});
+
 test('bestFix with an already aborted signal never starts a watch', async () => {
   let started = 0;
   const fake = { watchPosition() { started++; return 1; }, clearWatch() {} };

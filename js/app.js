@@ -285,13 +285,14 @@
     if (!noLocation) sortJobsByDistance();
   }
 
-  function sortJobsByDistance() {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition((pos) => {
-      if (state.screen !== 'pick-job' || !state.flow) return;
-      state.flow.roughFix = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
-      render();
-    }, () => {}, { enableHighAccuracy: false, maximumAge: 120000, timeout: 8000 });
+  // One rough reading for the job list; it stops when they pick a job or leave the list (L2).
+  async function sortJobsByDistance() {
+    const flow = state.flow;
+    const fix = await watchGps(navigator.geolocation, () => state.screen === 'pick-job' && state.flow === flow,
+      { timeoutMs: 8000, goodEnoughM: Infinity, highAccuracy: false, maximumAgeMs: 120000 });
+    if (!fix || state.screen !== 'pick-job' || state.flow !== flow) return;
+    flow.roughFix = { lat: fix.lat, lng: fix.lng, accuracy: fix.accuracy };
+    render();
   }
 
   function pickJob(jobId) {
@@ -1106,9 +1107,10 @@
     },
     'prime-location': () => {
       Store.local.set('locPrimed', true);
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(() => setScreen('home'), () => setScreen('home'), { timeout: 15000 });
-      } else setScreen('home');
+      // One reading only so the phone shows its permission prompt; the fix is thrown away.
+      watchGps(navigator.geolocation, () => state.screen === 'primer',
+        { timeoutMs: 15000, goodEnoughM: Infinity, highAccuracy: false, maximumAgeMs: 120000 })
+        .then(() => { if (state.screen === 'primer') setScreen('home'); });
     },
     'sign-out': () => signOut(),
     'punch': (el) => startPunch(el.dataset.type),
