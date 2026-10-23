@@ -12,6 +12,14 @@ const PORTFOLIO = /^https:\/\/chaseholroyd\.com(\/|$)/;
 const J1 = { lat: 38.4537, lng: -81.9290, acc: 8 };
 const cases = [];
 const t = (name, fn) => cases.push({ name, fn });
+// A 1x1 PNG, so map tiles load the way real ones do (an empty 204 is a broken image)
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
+const isTile = (u) => TILE_HOSTS.some((h) => u.hostname === h || u.hostname.endsWith('.' + h));
+const answer = (r) => (isTile(new URL(r.request().url())) ? r.fulfill({ status: 200, contentType: 'image/png', body: PNG }) : r.fulfill({ status: 204, body: '' }));
+// Service workers are blocked: Playwright's routes do not see a worker's own fetches, so with one
+// running, tile requests went past the test to the real tile servers. sw.js only fetches this
+// site's files and map tiles.
+const CONTEXT = { viewport: { width: 390, height: 844 }, serviceWorkers: 'block' };
 
 function gpsAt(pos) {
   const at = () => ({ coords: { latitude: pos.lat, longitude: pos.lng, accuracy: pos.acc }, timestamp: Date.now() });
@@ -34,16 +42,16 @@ function staleCrewSession() {
   localStorage.setItem('cc.locPrimed', 'true');
 }
 
+let lastPage = null; // for the failure report
 async function open(browser, opts = {}) {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const ctx = await browser.newContext(CONTEXT);
   const page = await ctx.newPage();
+  lastPage = page;
   page.errors = [];
   page.on('pageerror', (e) => page.errors.push(e.message));
   page.on('dialog', (d) => d.accept());
   page.offOrigin = [];
-  // Context level, so the service worker's own fetches are logged too.
-  ctx.on('request', (q) => { const u = new URL(q.url()); if (u.origin !== ORIGIN && u.protocol.startsWith('http')) page.offOrigin.push(q.url()); });
-  await ctx.route((u) => u.origin !== ORIGIN, (r) => r.fulfill({ status: 204, body: '' }));
+  await ctx.route((u) => u.origin !== ORIGIN, (r) => { page.offOrigin.push(r.request().url()); return answer(r); });
   await page.addInitScript(gpsAt, J1);
   if (opts.stale) await page.addInitScript(staleCrewSession);
   if (opts.init) await page.addInitScript(opts.init);
@@ -93,7 +101,7 @@ async function everyScreen(page, check) {
 }
 
 function assertNoOffOrigin(page) {
-  const bad = page.offOrigin.filter((u) => !TILE_HOSTS.some((h) => new URL(u).hostname === h || new URL(u).hostname.endsWith('.' + h)));
+  const bad = page.offOrigin.filter((u) => !isTile(new URL(u)));
   if (bad.length) throw new Error(`${bad.length} off-origin request(s): ${[...new Set(bad)].slice(0, 5).join(' , ')}`);
 }
 
@@ -177,12 +185,57 @@ t('SEP-2 (PSR-1) the demo never offers the on-phone AI buttons, which would load
   return page;
 });
 
+t('M1.1 (CI flake) the sign-in list is not redrawn when the fresh crew list matches, so a tap on a name is never lost', async (browser) => {
+  const { page } = await open(browser);
+  await page.waitForSelector('.name-btn');
+  await page.evaluate(() => { document.querySelector('.name-btn').dataset.seen = '1'; });
+  await page.waitForTimeout(1500); // the crew list refresh lands well inside this
+  if (!(await page.locator('.name-btn[data-seen="1"]').count())) throw new Error('the name buttons were redrawn after they showed, so a tap during the redraw is lost');
+  // and after "Not you?", the same list must not be redrawn either
+  await signIn(page, 'Travis K.');
+  await signOut(page, 'Not you?');
+  await page.evaluate(() => { document.querySelector('.name-btn').dataset.seen = '2'; });
+  await page.waitForTimeout(1500);
+  if (!(await page.locator('.name-btn[data-seen="2"]').count())) throw new Error('the name buttons were redrawn after "Not you?"');
+  return page;
+});
+
+t('M1.1 (CI flake) "Not you?" while a sync is still running never signs the next person out', async (browser) => {
+  const { page } = await open(browser, { init: () => {
+    // A slow connection, timed so Travis's sync ends while Sam's sign-in is still on its way and
+    // the refresh that follows it answers after Sam is in
+    const slow = { sync: 1200, demoLogin: 2000, refresh: 3500 };
+    let demo;
+    Object.defineProperty(self, 'DemoBackend', { configurable: true, get: () => demo, set: (v) => {
+      const handle = v.handle;
+      demo = Object.assign({}, v, { handle: (a, p) => new Promise((r) => setTimeout(r, slow[a] || 0)).then(() => handle(a, p)) });
+    } });
+  } });
+  await page.waitForSelector('.name-btn');
+  await signIn(page, 'Travis K.');
+  await page.click('.punch.in');
+  await page.waitForSelector('.job-btn');
+  await page.click('.job-btn[data-id="j1"]');
+  await page.waitForSelector('.big-check');
+  await page.getByRole('button', { name: 'OK', exact: true }).click();
+  await page.waitForSelector('.punch.out');
+  await signOut(page, 'Not you?'); // Travis's sync is still waiting on the slow backend
+  await signIn(page, 'Sam W.');
+  await page.waitForSelector('.boss');
+  await page.waitForTimeout(4500); // every slow answer has landed by now
+  if (!(await page.locator('.boss').count())) {
+    const said = await page.locator('#toast').innerText().catch(() => '');
+    throw new Error(`the boss was signed out by Travis's late sync${said ? ` ("${said}")` : ''}`);
+  }
+  return page;
+});
+
 t('SEP-2 (PSR-2) a crew build that falls back to demo mode (empty supabaseUrl) keeps the crew-app session', async (browser) => {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const ctx = await browser.newContext(CONTEXT);
   const page = await ctx.newPage();
   page.errors = [];
   page.on('pageerror', (e) => page.errors.push(e.message));
-  await ctx.route((u) => u.origin !== ORIGIN, (r) => r.fulfill({ status: 204, body: '' }));
+  await ctx.route((u) => u.origin !== ORIGIN, answer);
   await page.route('**/config.js', (r) => r.fulfill({ contentType: 'application/javascript',
     body: "window.APP_CONFIG = { backend: 'supabase', supabaseUrl: '', supabaseAnonKey: '', orgCode: '', gpsTimeoutMs: 1500 };" }));
   await page.addInitScript(() => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('cc.sbSession', JSON.stringify({ refreshToken: 'rt-keep' })); } });
@@ -223,14 +276,15 @@ const CREW = [
 const JOB = { id: '00000000-0000-4000-8000-0000000000c1', name: 'Test job', address: 'Test Rd', lat: 38.45, lng: -81.93, radius_ft: 300, active: true };
 
 async function openCrewApp(browser) {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const ctx = await browser.newContext(CONTEXT);
   const page = await ctx.newPage();
+  lastPage = page;
   page.errors = [];
   page.on('pageerror', (e) => page.errors.push(e.message));
   page.on('dialog', (d) => d.accept());
   await page.addInitScript(gpsAt, J1);
   const json = (r, body, status = 200) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
-  await ctx.route((u) => u.origin !== ORIGIN, (r) => r.fulfill({ status: 204, body: '' }));
+  await ctx.route((u) => u.origin !== ORIGIN, answer);
   await ctx.route('**/config.js', (r) => r.fulfill({ contentType: 'application/javascript', body:
     `window.APP_CONFIG = { backend: 'supabase', supabaseUrl: '${SB}', supabaseAnonKey: 'anon', orgCode: 'TEST', gpsTimeoutMs: 1500 };` }));
   await ctx.route(`${SB}/functions/v1/crew-list`, (r) => json(r, { ok: true, crew: CREW }));
@@ -296,6 +350,19 @@ t('SEP-5 the crew app (backend: supabase) shows no demo banner, sample-data labe
   return page;
 });
 
+// What the screen showed when a case failed, and whether the page still paints frames
+async function pageState(page) {
+  return Promise.race([
+    page.evaluate(() => new Promise((done) => {
+      const h = document.querySelector('#app h1, #app h2, #app .boss-body');
+      const what = `screen "${h ? h.innerText.trim().slice(0, 50) : '?'}", app classes "${[...document.querySelectorAll('#app > *')].map((e) => e.className).join(' | ').slice(0, 120)}"`;
+      requestAnimationFrame(() => done(`${what}, frames painting`));
+      setTimeout(() => done(`${what}, NO animation frame in 2 s`), 2000);
+    })),
+    new Promise((done) => setTimeout(() => done('page did not answer in 5 s (main thread busy?)'), 5000)),
+  ]).catch((e) => `unreadable (${e.message.split('\n')[0]})`);
+}
+
 (async () => {
   const only = process.argv[2];
   const browser = await launch();
@@ -310,9 +377,13 @@ t('SEP-5 the crew app (backend: supabase) shows no demo banner, sample-data labe
     } catch (e) {
       failed++;
       // A few lines of Playwright's call log, so a CI-only failure says what blocked the click
-      console.log(`FAIL   ${c.name}\n       ${e.message.split('\n').slice(0, 6).join('\n       ')}`);
+      console.log(`FAIL   ${c.name}\n       ${e.message.split('\n').slice(0, 14).join('\n       ')}`);
+      if (lastPage) console.log(`       page state: ${await pageState(lastPage)}`);
       if (process.env.DEBUG) console.log(e.stack);
     }
+    // Close every page the case opened, so one case's map and timers never slow the next
+    for (const ctx of browser.contexts()) await ctx.close().catch(() => {});
+    lastPage = null;
   }
   await browser.close();
   console.log(failed ? `${failed} failed` : 'all passed');

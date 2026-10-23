@@ -43,6 +43,15 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
   `backend: 'demo'`; job pins rounded
   to 3 decimals (demo store key now `cc.demo.db.v3`). Hardening tests updated for the merge (boss
   Sam W., tap-to-sign-in, new store key and pins); assertions unchanged.
+  CI-only e2e-demo failures (2026-10-23 morning) were two real app races, both fixed test-first:
+  the sign-in list redrew after the crew list reloaded even when nothing changed (a tap during the
+  redraw was lost), and a sync still running at "Not you?" refreshed with no session and signed the
+  next person out with "Your PIN was changed" (`syncNow` now pins each sync to the session that
+  started it). e2e-demo now blocks service workers (Playwright routes miss a worker's own fetches,
+  so tiles were reaching the real tile servers), answers tiles with a 1x1 PNG, closes each case's
+  pages, and prints the screen and frame state on failure. `PW_HEADLESS_SHELL=1` runs the e2e
+  tests on Playwright's headless shell, the browser CI uses (that is how the races reproduced).
+  privacy-security on the sync fix: no P0/P1; two P2 follow-ups under Known limits.
 - `M0.1` studio setup (branch `claude/project-thread-rewwa2`): CLAUDE.md, PLAN.md, studio agents
   in `.claude/agents/`, `handoff-check`, dependabot, MIT LICENSE, README CI badge and demo link,
   docs/PRIVACY.md and the privacy-security review (15 findings: two P0, four P1), this HANDOFF
@@ -154,6 +163,9 @@ Waiting on Chase, in order (each unblocks an M2 task; nothing in M1 needs these)
 
 ## Known limits
 
+- P2 (privacy-security, 2026-10-23): in the crew app, `refreshSession` in an old sync can finish
+  after the next person signs in and overwrite their saved session (needs a token close to expiry).
+  Needs its own test. Also worth a static test that `sw.js` reads no location and names no hosts.
 - iPhones don't sync web apps in the background; the app tells crew to open it when they get
   signal.
 - A GPS-spoofing app can still fake a location. Photos, addresses and spot checks cover it.

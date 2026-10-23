@@ -105,6 +105,9 @@
   async function syncNow() {
     if (state.syncing) { state.syncAgain = true; return; } // saved mid-sync: send it right after (UX-1)
     if (!state.auth) return;
+    // This sync belongs to whoever is signed in now; if they sign out mid-sync, its answers
+    // (and its errors) must never land on the next person
+    const auth = state.auth;
     state.syncAgain = false;
     if (navigator.onLine === false) { await countPending(); updateSyncLine(); return; }
     state.syncing = true;
@@ -115,7 +118,7 @@
       // Small batches so a slow one-bar connection still gets punches through.
       for (let i = 0; i < items.length; i += 4) {
         const batch = items.slice(i, i + 4);
-        const res = await Api.sync(state.auth, batch);
+        const res = await Api.sync(auth, batch);
         const why = {};
         (res.reasons || []).forEach((r) => { why[r.id] = r.reason; });
         const drop = (res.rejected || []).filter((id) => PERMISSION.test(why[id] || ''));
@@ -127,14 +130,16 @@
         }
       }
       await countPending();
-      if (state.pending === 0) await refreshData();
+      if (state.pending === 0 && state.auth === auth) await refreshData(auth);
       state.sendFailed = false;
       state.lastSyncAt = Date.now();
       Store.local.set('lastSyncAt', state.lastSyncAt);
     } catch (e) {
       state.sendFailed = true;
-      if (e.signIn) signOut('Please sign in again with your PIN.');
-      else if (e.server && /PIN/.test(e.message)) signOut('Your PIN was changed. Ask the boss for the new one.');
+      if (state.auth === auth) { // signed out mid-sync: not the next person's error
+        if (e.signIn) signOut('Please sign in again with your PIN.');
+        else if (e.server && /PIN/.test(e.message)) signOut('Your PIN was changed. Ask the boss for the new one.');
+      }
     } finally {
       await countPending();
       state.syncing = false; // cleared only once the counts are fresh, so the line never shows stale state
@@ -143,8 +148,9 @@
     if (state.syncAgain) return syncNow();
   }
 
-  async function refreshData() {
-    const res = await Api.refresh(state.auth);
+  async function refreshData(auth = state.auth) {
+    const res = await Api.refresh(auth);
+    if (state.auth !== auth) return; // someone else signed in while it was on its way
     state.me = res.me;
     state.jobs = res.jobs || [];
     state.crew = res.crew || [];
@@ -415,8 +421,10 @@
 
   screens.names = () => {
     loadNames().then((list) => {
+      // Redraw only when the list changed: a redraw under a finger swallows the tap
+      const same = JSON.stringify(list) === JSON.stringify(state.names);
       state.names = list;
-      if (state.screen === 'names') paint(namesHtml());
+      if (state.screen === 'names' && !same) paint(namesHtml());
     });
     return namesHtml();
   };
