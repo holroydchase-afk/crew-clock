@@ -2,7 +2,7 @@
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-10-23 (night shift, M1.5)
+Updated: 2026-10-23 (power hour: M0.1 to M1.3 merged)
 
 ## What it is
 
@@ -31,8 +31,6 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 Demo mode runs with nothing configured: `npm run serve`. In the demo you sign in by tapping a
 name (no PIN); `demoPin: true` in `config.js` brings the PIN screen back. The demo boss is "Sam W.",
 never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
-
-## In progress
 
 - `M1.3` location read only at the tap, done when tests pass (branch `m1.3-location-at-tap`, stacked on M1.2): every
   GPS watch now belongs to one screen (`watchGps` in `js/app.js`, `signal` in `Geo.bestFix`) and
@@ -100,6 +98,10 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
   screen, UX-10 "GPS signal: weak (about …)"/"good", UX-16 contrast tokens (all text ≥ 4.5:1).
   HRD-9's browser case now clocks in Travis (Cody is on the clock in the seed, so his row only
   offers "Clock out"); its assertions are unchanged.
+## In progress
+
+- Nothing on a branch. Merged 2026-10-23: M0.1 (#4), M1.5 (#6), M1.1 (#7, with #5), M1.2 (#8),
+  M1.3 (#9); their notes are under Done above.
 - Left from `M1.5` (P2, logged, not fixed): PS-1 punches held for someone who never signs in again
   are invisible to the boss (send a content-free "N unsent on a phone" notice); PS-3 no retry
   backoff for transient failures; PS-4 "Unknown crew member" drops a turned-off worker's last
@@ -113,11 +115,9 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
 
 ## Exact next step
 
-Chase merges M0.1 (PR #4), then PR #6 (M1.5 hardening), the M1.1 PR #7 (branch
-`m1.1-demo-separation`, which already contains #5 and #6), then the M1.2 PR #8 (branch
-`m1.2-location-consent`, stacked on #7, done and ready), then the M1.3 PR (branch
-`m1.3-location-at-tap`, stacked on #8). Next build task: `M1.4` retention and delete rules in code
-(branch `m1.4-retention`): qa-tdd writes failing SQL tests for the retention periods in
+M0.1, M1.5, M1.1, M1.2 and M1.3 are merged to `main` (PRs #4 to #9, 2026-10-23 power hour); new
+work branches from `main`. Next build task: `M1.4` retention and delete rules in code
+(branch `m1.4-retention` from `main`): qa-tdd writes failing SQL tests for the retention periods in
 docs/PRIVACY.md, including consent records (C6) and a removed worker's data.
 
 ## Decisions to review
@@ -159,6 +159,8 @@ docs/PRIVACY.md, including consent records (C6) and a removed worker's data.
   from `pages.yml`, but then recruiters and the crew share one site.
 - **Pages waits for CI** via `workflow_run`, and deploys the exact commit CI tested.
   `workflow_dispatch` still deploys by hand.
+- **handoff-check skips Dependabot PRs** (a version bump doesn't move the work, and Dependabot
+  can't edit HANDOFF.md). Undo: drop the `dependabot[bot]` condition in `handoff-check.yml`.
 - **Dependabot** watches `messenger/` (the only npm dependencies) and Actions. A messenger bump
   also needs `npm run build:mls` committed, or CI's bundle check fails; that's intended.
 - **Retention defaults** (docs/PRIVACY.md): hours 3 years, raw GPS 90 days, photos 60 days,
@@ -211,7 +213,7 @@ Waiting on Chase, in order (each unblocks an M2 task; nothing in M1 needs these)
   address-search places, seeded in `js/demo-backend.js`, kept only in the visitor's browser. Job
   pins rounded to 3 decimals. No real people, accounts or keys.
 - Studio status: https://github.com/holroydchase-afk/pm-tools/blob/main/STUDIO-STATUS.md
-- 2026-10-23 (M1.1, unmerged): every demo screen gets "Sample data, made-up crew, saved only in
+- 2026-10-23 (M1.1, merged): every demo screen gets "Sample data, made-up crew, saved only in
   this browser · Back to chaseholroyd.com"; no AI model downloads in the demo; the demo's address search is local; a stale crew-app session can't carry into
   the demo.
 - 2026-10-23: first Pages deploy from `main` (manual run). M0.1 makes every later deploy wait for
