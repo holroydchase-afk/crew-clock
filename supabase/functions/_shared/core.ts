@@ -96,7 +96,12 @@ export interface Repo {
   upsertJob(row: Record<string, unknown>): Promise<void>;
   upsertCrew(row: Record<string, unknown>): Promise<void>;
   insertConsent(row: Record<string, unknown>): Promise<void>; // ignores a resend of the same id
+  latestConsent(crewId: string, atMs: number): Promise<{ action: string; text_version: string } | null>; // newest at or before atMs
 }
+
+// The consent words a worker must have agreed to before a punch may carry their location.
+// Same as CONSENT_VERSION in js/app.js; a new version asks everyone again (docs/PRIVACY.md C4).
+export const CONSENT_VERSION = 'loc-v1';
 
 export type Alert = { punchId: string; crewId: string; status: string; risk: string[] };
 
@@ -159,6 +164,11 @@ async function ingestPunch(claims: Claims, p: PunchItem, repo: Repo, now: number
     receivedAt: now,
     chain,
   });
+
+  // L3, checked here too: a phone with a stale copy (a foreman's old team list, a refused consent)
+  // must not store GPS for someone who hasn't agreed. The clock-in still counts, without location.
+  const c = await repo.latestConsent(p.crewId, p.at);
+  if (!c || c.action !== 'agree' || c.text_version !== CONSENT_VERSION) { p = { ...p, lat: null, lng: null, accuracy: null }; }
 
   const row = {
     id: p.id, org_id: claims.org_id, crew_id: p.crewId, by_crew_id: claims.crew_id,

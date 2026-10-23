@@ -10,10 +10,11 @@ const now = Date.parse('2026-10-21T12:00:00-04:00');
 const claims = (crew: string, role: Claims['crew_role'] = 'crew'): Claims =>
   ({ sub: crew, role: 'authenticated', aud: 'authenticated', org_id: ORG, crew_id: crew, crew_role: role, iat: 0, exp: 9e9 });
 
-function fakeRepo(devices: Device[] = []) {
+function fakeRepo(devices: Device[] = [], agreed: string[] = [JAKE, CODY]) {
   const punches: Record<string, unknown>[] = [];
   const jobs: Record<string, unknown>[] = [];
-  const consents: Record<string, unknown>[] = [];
+  // Install day: these workers agreed to location long before any test punch (M1.2)
+  const consents: Record<string, unknown>[] = agreed.map((c, i) => ({ id: `seed-${i}`, crew_id: c, action: 'agree', text_version: 'loc-v1', phone_at: '2026-10-01T11:00:00Z' }));
   const repo: Repo = {
     crewInOrg: async (_o, c) => [JAKE, CODY].includes(c),
     punchExists: async (id) => punches.some((p) => p.id === id),
@@ -25,6 +26,11 @@ function fakeRepo(devices: Device[] = []) {
     upsertJob: async (row) => { jobs.push(row); },
     upsertCrew: async () => {},
     insertConsent: async (row) => { if (!consents.some((c) => c.id === row.id)) consents.push(row); },
+    latestConsent: async (crewId, atMs) => {
+      const mine = consents.filter((c) => c.crew_id === crewId && Date.parse(c.phone_at as string) <= atMs);
+      const c = mine.sort((a, b) => Date.parse(a.phone_at as string) - Date.parse(b.phone_at as string)).pop();
+      return c ? { action: c.action as string, text_version: c.text_version as string } : null;
+    },
   };
   return { repo, punches, jobs, devices, consents };
 }
@@ -89,7 +95,7 @@ const consent = (o: Record<string, unknown> = {}) => ({ kind: 'consent', id: '00
   action: 'agree', textVersion: 'loc-v1', at: now - 60000, deviceId: 'dev-1', ...o });
 
 Deno.test('a worker\'s own consent record is stored once, with who, what, which words, when and which phone', async () => {
-  const f = fakeRepo();
+  const f = fakeRepo([], []); // nobody has agreed yet
   // deno-lint-ignore no-explicit-any
   const r = await ingest(claims(JAKE), [consent() as any], f.repo, now);
   assertEquals(r.accepted, ['00000000-0000-4000-8000-0000000000f1']);
@@ -104,7 +110,7 @@ Deno.test('a worker\'s own consent record is stored once, with who, what, which 
 });
 
 Deno.test('nobody can agree for someone else, even the boss; bad records are refused', async () => {
-  const f = fakeRepo();
+  const f = fakeRepo([], []); // nobody has agreed yet
   const items = [
     consent({ id: '00000000-0000-4000-8000-0000000000f2', crewId: CODY }),
     consent({ id: '00000000-0000-4000-8000-0000000000f3', action: 'maybe' }),
@@ -122,8 +128,38 @@ Deno.test('nobody can agree for someone else, even the boss; bad records are ref
 });
 
 Deno.test('a withdrawal is a new record, never an edit', async () => {
-  const f = fakeRepo();
+  const f = fakeRepo([], []); // nobody has agreed yet
   // deno-lint-ignore no-explicit-any
   await ingest(claims(JAKE), [consent() as any, consent({ id: '00000000-0000-4000-8000-0000000000f7', action: 'withdraw', at: now - 1000 }) as any], f.repo, now);
   assertEquals(f.consents.map((c) => c.action), ['agree', 'withdraw']);
+});
+
+Deno.test('a punch from a worker with no current consent is stored without its location (PRIVACY L3)', async () => {
+  const f = fakeRepo([], []);
+  const gps = { kind: 'punch' as const, crewId: JAKE, byCrewId: JAKE, jobId: 'j1', type: 'in' as const, lat: 38.5, lng: -81.9, accuracy: 9 };
+  // no record at all
+  await ingest(claims(JAKE), [{ ...gps, id: 'p-none', at: now - 3000 }], f.repo, now);
+  // agreed, then withdrew before this punch
+  // deno-lint-ignore no-explicit-any
+  await ingest(claims(JAKE), [consent({ at: now - 2900 }) as any, consent({ id: '00000000-0000-4000-8000-0000000000f8', action: 'withdraw', at: now - 2800 }) as any,
+    { ...gps, id: 'p-withdrawn', at: now - 2000 }], f.repo, now);
+  // agreed to older words
+  const g = fakeRepo([], []);
+  // deno-lint-ignore no-explicit-any
+  await ingest(claims(JAKE), [consent({ textVersion: 'loc-v0', at: now - 2900 }) as any, { ...gps, id: 'p-old', at: now - 2000 }], g.repo, now);
+  const stored = [...f.punches, ...g.punches];
+  assertEquals(stored.map((p) => p.id), ['p-none', 'p-withdrawn', 'p-old']);
+  for (const p of stored) assertEquals([p.lat, p.lng, p.accuracy_m], [null, null, null], String(p.id));
+  // a foreman clocking in a teammate who never agreed: the clock-in counts, the foreman's GPS is dropped
+  const h = fakeRepo([], [JAKE]);
+  const r = await ingest(claims(JAKE, 'foreman'), [{ ...gps, id: 'p-mate', crewId: CODY, at: now - 1000 }], h.repo, now);
+  assertEquals(r.accepted, ['p-mate']);
+  assertEquals(h.punches[0].lat, null);
+});
+
+Deno.test('a punch from a worker who agreed keeps its location', async () => {
+  const f = fakeRepo([], []);
+  // deno-lint-ignore no-explicit-any
+  await ingest(claims(JAKE), [consent({ at: now - 5000 }) as any, { kind: 'punch', id: 'p-ok', crewId: JAKE, byCrewId: JAKE, jobId: 'j1', type: 'in', at: now - 1000, lat: 38.5, lng: -81.9, accuracy: 9 }], f.repo, now);
+  assertEquals([f.punches[0].lat, f.punches[0].lng, f.punches[0].accuracy_m], [38.5, -81.9, 9]);
 });

@@ -40,8 +40,11 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
   before Home and before the phone permission screen, reads no GPS without consent (foreman for a
   teammate too: picture instead), Home has "Stop using my location" / "Use my location for
   clock-ins", the boss's Crew tab says "No location consent", a new `CONSENT_VERSION` asks again.
-  Demo seed v4: everyone agreed except Billy S. Tests: `tests/e2e-consent.js` (11 cases),
-  `tests/sql/consent_test.sql` (CON-4), Edge `core.test.ts` (3 cases). Found on the way: the local
+  Demo seed v4: everyone agreed except Billy S. Tests: `tests/e2e-consent.js` (12 cases),
+  `tests/sql/consent_test.sql` (CON-4), Edge `core.test.ts`. Done when passes: CON-1..CON-7 green;
+  privacy-security (0 P0, 2 P1 + 4 P2, all fixed: server strips coordinates without a current agree,
+  a refused record is forgotten, column-level insert grant) and ux-reviewer (CON-7 pass after the
+  PRIVACY wording fix; Back buttons 48px, "Location is off" line 17px). PR #8 ready for review. Found on the way: the local
   `npm run test:sql` never failed on an error (fixed) and CI didn't run newer SQL files (fixed).
   Edge tests now run locally with `npx deno` (deno.land reachable again).
 - `M1.1` demo separation (branch `m1.1-demo-separation`, stacked on PR #6 with PR #5 merged in):
@@ -108,14 +111,22 @@ the watch at once (PRIVACY L1, L2).
 
 ## Decisions to review
 
+- **Consent (M1.2): "Not now" is not remembered across app reloads**, so a worker who never agreed
+  is asked again each time the app opens (ux-reviewer P2: may feel like nagging). Simplest fix if Chase
+  agrees: remember "Not now" on the phone and ask again only from CLOCK IN or the link. Check with a real user.
+- **Consent (M1.2): the boss's Crew tab says "No location consent"** for both "never agreed" and
+  "stopped". ux-reviewer suggests "Location off" (plainer). Kept for now because CON-5 names the words;
+  changing them means updating PLAN CON-5 and the tests together.
 - **Consent (M1.2): after "Stop using my location", the app asks again only at Clock in**, not every
   time it opens; a worker with no record, or one who agreed to older words, is asked at sign-in.
   "Not now" lasts until they sign out. Undo: ask on every open.
 - **Consent: the phone keeps each worker's newest consent record** (`cc.consents`: action, text
   version, time) through sign-out, so someone who agreed with no signal isn't asked again before it
   sends. Undo: clear it on sign-out (they'd be asked again offline).
-- **Consent: the server doesn't strip coordinates** from a punch by a worker with no consent on
-  record; the phone never reads them (L3). A server-side check is a cheap follow-up if wanted.
+- **Consent: the server also drops coordinates** from a punch by a worker whose latest consent at
+  that time isn't "agree" to `loc-v1` (privacy-security P1); the clock-in still counts. The punch's
+  signature covers the original GPS, so a stored row with GPS dropped won't re-verify; nothing
+  re-verifies stored rows today.
 - **Consent: the witness field is not built** (always empty); the install-day helper isn't recorded.
 - **Consent text says "on the home screen"** instead of "in the menu" (the app has no menu), still
   version `loc-v1` because no worker had seen it.

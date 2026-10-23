@@ -198,6 +198,35 @@ t('CON-3 a worker who agreed offline and signed out is not asked again at the ne
   return page;
 });
 
+t('CON-3 (PS) a consent record the server refuses is forgotten on the phone: no location, and the worker is asked again', async (browser) => {
+  const { page } = await open(browser, { init: () => {
+    let demo;
+    Object.defineProperty(self, 'DemoBackend', { configurable: true, get: () => demo, set: (v) => {
+      const handle = v.handle;
+      demo = Object.assign({}, v, { handle: (a, p) => {
+        if (a !== 'sync') return handle(a, p);
+        const refused = (p.items || []).filter((i) => i.kind === 'consent');
+        const rest = (p.items || []).filter((i) => i.kind !== 'consent');
+        return (rest.length ? handle(a, Object.assign({}, p, { items: rest })) : Promise.resolve({ ok: true, accepted: [], rejected: [], reasons: [] }))
+          .then((r) => Object.assign({}, r, { rejected: r.rejected.concat(refused.map((i) => i.id)), reasons: (r.reasons || []).concat(refused.map((i) => ({ id: i.id, reason: 'Consent too old' }))) }));
+      } });
+    } });
+  } });
+  await tapName(page, 'Billy S.');
+  await page.getByRole('button', { name: 'I agree', exact: true }).click();
+  await page.waitForSelector('[data-action="prime-location"], .punch');
+  if (await page.locator('[data-action="prime-location"]').count()) await page.click('[data-action="prime-location"]');
+  await page.waitForSelector('[data-action="consent-ask"]', { timeout: 5000 }).catch(() => {});
+  if (!(await page.locator('[data-action="consent-ask"]').count())) throw new Error('Home still treats Billy as agreed after the server refused his record');
+  const left = (await outbox(page)).filter((x) => x.kind === 'consent');
+  if (left.length) throw new Error(`the refused consent record is still queued: ${JSON.stringify(left)}`);
+  const before = await gpsReads(page);
+  await page.click('.punch.in');
+  await page.waitForSelector('.consent');
+  if ((await gpsReads(page)) - before) throw new Error('location was read after the consent record was refused');
+  return page;
+});
+
 t('CON-5 "Stop using my location" adds a withdraw record, the next clock-in asks again, and the boss sees "No location consent"', async (browser) => {
   const { page } = await open(browser);
   await signIn(page, 'Jake R.');

@@ -25,7 +25,9 @@ create policy consents_insert_own on public.location_consents for insert to auth
   with check (org_id = app.org_id() and crew_id = app.crew_id() and witness_crew_id is null);
 
 revoke all on public.location_consents from anon, authenticated;
-grant select, insert on public.location_consents to authenticated;
+grant select on public.location_consents to authenticated;
+-- received_at is always the server's clock and the witness is never typed: phones can't set either.
+grant insert (id, org_id, crew_id, action, text_version, phone_at, device_id) on public.location_consents to authenticated;
 
 -- A foreman or the boss needs to know whether a teammate agreed before clocking them in (PRIVACY L3),
 -- without reading the records themselves: the latest action and text version per worker, nothing else.

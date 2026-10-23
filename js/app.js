@@ -50,7 +50,7 @@
   const isLead = () => state.me && (state.me.role === 'foreman' || state.me.role === 'boss');
 
   // ---------- location consent (docs/PRIVACY.md "Consent") ----------
-  // A new text version asks everyone again (C4). The words live in consentHtml() and PRIVACY.md.
+  // A new text version asks everyone again (C4). The words live in screens.consent and PRIVACY.md.
   const CONSENT_VERSION = 'loc-v1';
   const agreed = (c) => !!c && c.action === 'agree' && c.textVersion === CONSENT_VERSION;
   // This phone's newest record per worker, so a worker who agreed offline stays agreed.
@@ -61,6 +61,11 @@
     if (all[crewId] && all[crewId].at > c.at) return; // newest wins, here or from the server
     all[crewId] = { id: c.id, action: c.action, textVersion: c.textVersion, at: c.at };
     Store.local.set('consents', all);
+  }
+  // A record the server refused never counts: forget it, so the worker is asked again and no GPS is read.
+  function forgetConsent(crewId, id) {
+    const all = knownConsents();
+    if (all[crewId] && all[crewId].id === id) { delete all[crewId]; Store.local.set('consents', all); }
   }
   // Own record from this phone or the server; a teammate's from the team status (unknown = no).
   function hasConsent(crewId) {
@@ -154,10 +159,17 @@
         const why = {};
         (res.reasons || []).forEach((r) => { why[r.id] = r.reason; });
         const drop = (res.rejected || []).filter((id) => PERMISSION.test(why[id] || ''));
-        await Store.outbox.remove([...(res.accepted || []), ...drop]);
+        // A refused consent record is dropped and forgotten; the consent screen asks again.
+        const refusedConsents = batch.filter((x) => x.kind === 'consent' && (res.rejected || []).includes(x.id));
+        refusedConsents.forEach((x) => forgetConsent(x.crewId, x.id));
+        await Store.outbox.remove([...(res.accepted || []), ...drop, ...refusedConsents.map((x) => x.id)]);
+        if (refusedConsents.length && state.auth === auth) {
+          toast("Your location answer didn't save. You'll be asked again.");
+          if (state.screen === 'home') render();
+        }
         // Any other refusal is permanent: keep only a stub with the reason on screen (HRD-2, PS-2).
         for (const id of res.rejected || []) {
-          const it = !drop.includes(id) && batch.find((x) => x.id === id);
+          const it = !drop.includes(id) && batch.find((x) => x.id === id && x.kind !== 'consent');
           if (it) await Store.outbox.add(toStub(it, why[id] || 'Refused'));
         }
       }
@@ -573,7 +585,7 @@
         <div id="push-slot"></div>
         ${hasConsent(state.me.id)
           ? '<button class="link" data-action="consent-withdraw">Stop using my location</button>'
-          : '<p class="muted small">Location is off. You clock in with a picture.</p><button class="link" data-action="consent-ask">Use my location for clock-ins</button>'}
+          : '<p class="muted location-off">Location is off. You clock in with a picture.</p><button class="link" data-action="consent-ask">Use my location for clock-ins</button>'}
         ${fake}
       </main>`;
   };

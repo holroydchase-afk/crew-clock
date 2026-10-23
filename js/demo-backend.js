@@ -144,6 +144,9 @@
               at: item.at, lat: item.lat, lng: item.lng, accuracy: item.accuracy, voidsId: item.voidsId || null,
               hasPhoto: !!item.photo, receivedAt: Date.now(),
             };
+            // Like the real server: no current consent at the time of the punch, no location stored (L3)
+            const c = (db.consents || []).filter((x) => x.crewId === item.crewId && x.at <= item.at).sort((x, y) => x.at - y.at).pop();
+            if (!c || c.action !== 'agree' || c.textVersion !== 'loc-v1') { p.lat = null; p.lng = null; p.accuracy = null; }
             if (item.photo) db.photos[item.id] = item.photo;
             if (p.type !== 'void') score(db, p);
             db.punches.push(p);

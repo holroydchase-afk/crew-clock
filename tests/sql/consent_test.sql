@@ -41,6 +41,11 @@ do $$ declare n int; begin
     raise exception 'Jake deleted a consent record';
   exception when insufficient_privilege then null; end;
   begin
+    insert into location_consents (org_id, crew_id, action, text_version, phone_at, received_at) values
+      ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000b1', 'agree', 'loc-v1', now(), '2020-01-01');
+    raise exception 'Jake set received_at himself';
+  exception when insufficient_privilege then null; end;
+  begin
     perform * from crew_consent_status();
     raise exception 'crew read everyone''s consent status';
   exception when insufficient_privilege then null; end;

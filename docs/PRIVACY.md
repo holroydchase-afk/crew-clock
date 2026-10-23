@@ -35,7 +35,10 @@ Rules:
 - **L2** When the worker backs out of the "Finding you" screen, the GPS watch stops at once.
   [to build, M1.3: today the result is discarded but the watch can run up to 20 s more]
 - **L3** No location is read for a worker with no consent on record (they clock in with a
-  picture instead). This also applies when a foreman clocks them in. [true] `js/app.js` `startPunch`,
+  picture instead). This also applies when a foreman clocks them in. The sync function checks it
+  too: a punch from someone whose latest record at that time isn't "agree" to the current words is
+  stored without its location (`core.ts` `ingestPunch`), and a consent record the server refuses is
+  forgotten on the phone, so they're asked again. [true] `js/app.js` `startPunch`,
   tested in `tests/e2e-consent.js` CON-2
 - **L4** Pictures are re-drawn on the phone at 1024 px before upload, which strips the camera's
   EXIF data, including any GPS tag. The stamp says name, job and time, not coordinates.
@@ -80,7 +83,7 @@ Rules:
   read every record in the company; nobody can update or delete one. A foreman sees only each
   teammate's latest action and text version (`crew_consent_status()`), never the records. [true]
   `supabase/migrations/20261023100000_location_consents.sql`, tested in `tests/sql/consent_test.sql`
-- **C3** Withdraw: menu > **Stop using my location** adds a `withdraw` record, the app stops
+- **C3** Withdraw: Home > **Stop using my location** adds a `withdraw` record, the app stops
   reading location for that worker, and the boss's Crew tab shows "No location consent".
   They can agree again later. After a withdrawal the app asks again only when they tap Clock in,
   not every time it opens. [true] (Home has the link; there is no menu)
