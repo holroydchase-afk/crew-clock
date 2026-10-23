@@ -36,7 +36,7 @@ jobs:
           node-version: 22
       - name: Build the demo
         run: node scripts/build-site.mjs dist --demo
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
       - id: deployment
