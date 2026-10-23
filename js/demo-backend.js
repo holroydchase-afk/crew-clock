@@ -100,10 +100,12 @@
       const me = authed(db, req.auth);
       const accepted = [];
       const rejected = [];
+      const reasons = []; // same words as the real server (supabase/functions/_shared/core.ts)
+      const refuse = (id, reason) => { rejected.push(id); reasons.push({ id, reason }); };
       for (const item of req.items || []) {
         if (item.kind === 'punch') {
           const forOther = item.crewId !== me.id;
-          if (forOther && me.role === 'crew') { rejected.push(item.id); continue; }
+          if (forOther && me.role === 'crew') { refuse(item.id, 'Only a foreman can clock in a teammate'); continue; }
           if (!db.punches.some((p) => p.id === item.id)) {
             const p = {
               id: item.id, crewId: item.crewId, byCrewId: me.id, jobId: item.jobId, type: item.type,
@@ -116,7 +118,7 @@
           }
           accepted.push(item.id);
         } else if (item.kind === 'job' || item.kind === 'crew') {
-          if (me.role !== 'boss') { rejected.push(item.id); continue; }
+          if (me.role !== 'boss') { refuse(item.id, 'Boss only'); continue; }
           const list = item.kind === 'job' ? db.jobs : db.crew;
           const rec = Object.assign({}, item.data);
           const i = list.findIndex((x) => x.id === rec.id);
@@ -124,10 +126,10 @@
           if (i >= 0) list[i] = Object.assign(list[i], rec); else list.push(rec);
           accepted.push(item.id);
         } else {
-          rejected.push(item.id);
+          refuse(item.id, 'unknown kind');
         }
       }
-      return { accepted, rejected };
+      return { accepted, rejected, reasons };
     },
     team(db, req) {
       const me = authed(db, req.auth);

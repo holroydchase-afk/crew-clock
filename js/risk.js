@@ -10,6 +10,7 @@
     frozen_gps: { level: 'high', words: 'Exact same GPS spot as an earlier day (possible fake location app)' },
     bad_signature: { level: 'high', words: 'Punch was changed after it left the phone' },
     future_time: { level: 'high', words: "Phone's clock is set ahead" },
+    teammate_no_photo: { level: 'high', words: 'A foreman clocked this person in or out with no picture' },
     too_perfect: { level: 'low', words: 'GPS reported perfect accuracy, which real phones rarely do' },
     chain_gap: { level: 'low', words: 'A punch from this phone never arrived' },
     unsigned: { level: 'low', words: 'Old phone, punch not signed' },
@@ -52,6 +53,9 @@
         x.byCrewId === x.crewId && Math.abs(x.at - p.at) < 15 * MIN);
       if (other) add('shared_phone');
     }
+    // Only when the punch says it has no picture: every phone punch carries photo (null if none).
+    const saysNoPhoto = ['photo', 'photoKey', 'hasPhoto'].some((k) => k in p) && !p.photo && !p.photoKey && !p.hasPhoto;
+    if (isLeadPunch && saysNoPhoto) add('teammate_no_photo');
 
     if (c.receivedAt) {
       if (p.at - c.receivedAt > 5 * MIN) add('future_time');

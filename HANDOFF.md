@@ -39,6 +39,8 @@ Demo mode runs with nothing configured: `npm run serve`, PINs in the README.
   only after CI passes on `main` and always builds demo-only (`build-site.mjs --demo` ignores
   backend variables and fails if config.js points at a backend; tested in `tests/site.test.js`).
 - `M1.5` hardening: the 2:15am night shift (2026-10-23) stacks on the M0.1 branch.
+  HRD-1/2/3/4/5/6/9 fixed by engineer against qa-tdd's tests (`tests/harden.test.js`,
+  `tests/e2e-harden.js`); unit and full e2e green locally. Edge tests run in CI only (no deno here).
 
 ## Exact next step
 
@@ -64,6 +66,16 @@ demo screen). Criteria are in PLAN.md. Then `M1.2` location consent.
 - MLS: keep the open-source ts-mls library for the beta (recommended), or swap in Chase's own
   build behind the same interface in `messenger/`.
 - Weekly report: hours only for the beta (recommended), or hours times pay rate.
+- **HRD-1: a queued item sends only under the person who made it** (`byCrewId`). Someone else's
+  punches stay queued until they sign in again; the sync line counts only yours. Job/crew edits now
+  carry `byCrewId` too.
+- **HRD-2: only permission refusals are dropped** (Only a foreman / Unknown crew member / Boss only /
+  Not yours). Any other refusal stays queued, is retried, and shows its reason on the sync line.
+- **HRD-6: a punch whose photo won't upload stays queued with its photo; the rest send.** A later
+  resend can then arrive out of chain order (server marks it `replay_or_old`, no new flag).
+- **HRD-9: a foreman can finish a teammate punch with no picture; it is flagged high**
+  (`teammate_no_photo`). The rule fires only when the punch says it has no photo (`photo`,
+  `photoKey` or `hasPhoto` present and all empty); every phone punch carries `photo`.
 
 ## Blockers
 

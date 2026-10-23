@@ -75,10 +75,22 @@
   }
 
   // ---------- sync ----------
+  // Only what the signed-in person made is theirs to send. Someone else's queued punches
+  // stay on the phone until that person signs in again (HRD-1).
+  const isMine = (it) => !it.byCrewId || (state.me && it.byCrewId === state.me.id);
+
   async function countPending() {
-    const items = await Store.outbox.all();
+    const items = (await Store.outbox.all()).filter(isMine);
     state.pending = items.length;
+    state.stuck = items.filter((it) => it.rejected);
     return items;
+  }
+
+  // Server refusals that mean "this phone may never send this": safe to drop.
+  const PERMISSION = /^(Only a foreman|Unknown crew member|Boss only|Not yours)/i;
+  function rejectWords(reason) {
+    if (/too old/i.test(reason || '')) return "Punch too old. Check the phone's clock and date are right, then tell the boss.";
+    return `The office couldn't take it (${reason || 'no reason given'}). Tell the boss.`;
   }
 
   async function syncNow() {
@@ -92,7 +104,15 @@
       for (let i = 0; i < items.length; i += 4) {
         const batch = items.slice(i, i + 4);
         const res = await Api.sync(state.auth, batch);
-        await Store.outbox.remove([...(res.accepted || []), ...(res.rejected || [])]);
+        const why = {};
+        (res.reasons || []).forEach((r) => { why[r.id] = r.reason; });
+        const drop = (res.rejected || []).filter((id) => PERMISSION.test(why[id] || ''));
+        await Store.outbox.remove([...(res.accepted || []), ...drop]);
+        // Any other refusal keeps the punch on the phone, marked, with the reason on screen (HRD-2).
+        for (const id of res.rejected || []) {
+          const it = !drop.includes(id) && batch.find((x) => x.id === id);
+          if (it) await Store.outbox.add(Object.assign(it, { rejected: why[id] || 'Refused', rejectedAt: Date.now() }));
+        }
       }
       await countPending();
       if (state.pending === 0) await refreshData();
@@ -137,6 +157,9 @@
 
   function syncLineHtml() {
     if (state.syncing) return `<span class="sync busy">${Icons.cloud} Sending…</span>`;
+    if (state.stuck && state.stuck.length) {
+      return `<span class="sync wait">${Icons.alert} ${state.stuck.length} not sent: ${esc(rejectWords(state.stuck[0].rejected))}</span>`;
+    }
     if (state.pending > 0) {
       return `<span class="sync wait">${Icons.cloudOff} ${state.pending} waiting to send. Open the app when you get signal.</span>`;
     }
@@ -180,6 +203,8 @@
   }
 
   function pickJob(jobId) {
+    if (state.flow.picked) return; // a double tap picks once (HRD-3)
+    state.flow.picked = true;
     state.flow.jobId = jobId;
     if (state.flow.fixing) {
       // Same time and place as the original punch, just the right job.
@@ -193,8 +218,9 @@
   }
 
   async function locate() {
-    state.flow.at = Date.now();
-    state.flow.liveAccuracy = null;
+    const flow = state.flow; // a late fix must only finish the flow that asked for it (HRD-4)
+    flow.at = Date.now();
+    flow.liveAccuracy = null;
     setScreen('locating');
     const job = jobById(state.flow.jobId);
     let fix;
@@ -206,13 +232,14 @@
         timeoutMs: cfg.gpsTimeoutMs || 20000,
         goodEnoughM: 20,
         onUpdate: (best) => {
-          state.flow.liveAccuracy = best.accuracy;
+          if (state.flow !== flow) return;
+          flow.liveAccuracy = best.accuracy;
           const el = document.getElementById('live-acc');
           if (el) el.textContent = `Within ${Geo.formatDistance(Geo.toFeet(best.accuracy))}…`;
         },
       });
     }
-    if (state.screen !== 'locating') return; // they backed out
+    if (state.flow !== flow || state.screen !== 'locating') return; // they backed out or moved on
     state.flow.fix = fix;
     afterFix();
   }
@@ -228,6 +255,8 @@
 
   async function finishPunch() {
     const f = state.flow;
+    if (!f || f.finishing) return; // one punch per flow, however many taps (HRD-5)
+    f.finishing = true;
     if (f.fixing) await savePunch({ crewId: f.crewId, type: 'void', voidsId: f.fixing.id, at: Date.now() });
     const fix = f.fix;
     const saved = await savePunch({
@@ -471,10 +500,11 @@
   };
 
   screens.locating = () => {
-    const job = jobById(state.flow.jobId);
+    const flow = state.flow;
+    const job = jobById(flow.jobId);
     setTimeout(() => {
       const b = document.getElementById('skip-gps');
-      if (b && state.screen === 'locating') b.hidden = false;
+      if (b && state.screen === 'locating' && state.flow === flow) b.hidden = false;
     }, 8000);
     return `<main class="screen center-col">
       <div class="spinner" role="status" aria-label="Finding you"></div>
@@ -499,7 +529,7 @@
       </label>
       ${f.photoProblem ? `<p class="notice">${Icons.alert} ${esc(AI.PHOTO_WORDS[f.photoProblem])}</p>
         <button class="link" data-action="photo-anyway">Use that picture anyway</button>` : ''}
-      ${f.forTeammate ? '' : '<button class="link" data-action="no-photo">I can\'t take a picture</button>'}
+      <button class="link" data-action="no-photo">I can't take a picture</button>
     </main>`;
   };
 
@@ -808,7 +838,7 @@
   };
 
   async function queueEdit(kind, data) {
-    await Store.outbox.add({ kind, id: Store.uid(), data });
+    await Store.outbox.add({ kind, id: Store.uid(), byCrewId: state.me.id, data });
     await countPending();
     syncNow();
   }

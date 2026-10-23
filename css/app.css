@@ -165,6 +165,9 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 .demo-toggle { font-size: 15px; color: var(--amber); display: flex; gap: 8px; align-items: center; justify-content: center; }
 .demo-toggle input { width: 22px; height: 22px; }
 
+/* The hidden attribute always wins over a display rule like .btn's (HRD-3). */
+[hidden] { display: none !important; }
+
 /* Buttons */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 10px;
