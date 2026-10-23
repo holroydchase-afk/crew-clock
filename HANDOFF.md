@@ -125,6 +125,9 @@ docs/PRIVACY.md, including consent records (C6) and a removed worker's data.
 - **Location (M1.3): the GPS watch stops when the app goes to the background** during "Finding
   you", and the worker clocks in with a picture after. Stricter than "stops when they leave the
   screen"; if real phones background the app for the permission prompt, revisit.
+- **Consent (M1.2): a foreman who clocks in a teammate in the first second after sign-in**, before
+  the crew's consent status has loaded, gets the picture path even for a teammate who agreed (the
+  safe side). Found as a CI-only race in the CON-2 guard; the test now waits for the status.
 - **Consent (M1.2): "Not now" is not remembered across app reloads**, so a worker who never agreed
   is asked again each time the app opens (ux-reviewer P2: may feel like nagging). Simplest fix if Chase
   agrees: remember "Not now" on the phone and ask again only from CLOCK IN or the link. Check with a real user.
