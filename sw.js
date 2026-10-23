@@ -1,5 +1,6 @@
 // Keeps the app and recently seen map tiles on the phone so it opens with no signal.
-// Bump VERSION whenever any app file changes so phones pick up the new files.
+// scripts/build-site.mjs stamps VERSION with a hash of the app files on every deploy, so phones
+// pick up new files; bump it by hand only when serving the repo folder directly.
 const VERSION = 'v3';
 const SHELL = `shell-${VERSION}`;
 const TILES = 'tiles-v1';

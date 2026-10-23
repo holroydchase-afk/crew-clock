@@ -37,7 +37,7 @@ and a computer with [Deno](https://deno.com) and the [Supabase CLI](https://supa
 2. Create an application key limited to that bucket with read and write. Note the key ID and key.
 3. Allow the app to upload from the browser (B2 CLI):
 
-       b2 bucket update --cors-rules '[{"corsRuleName":"app","allowedOrigins":["https://YOUR-GITHUB-USER.github.io"],
+       b2 bucket update --cors-rules '[{"corsRuleName":"app","allowedOrigins":["https://holroydchase-afk.github.io"],
          "allowedOperations":["s3_put","s3_get"],"allowedHeaders":["content-type"],"maxAgeSeconds":3600}]' crewclock-photos allPrivate
 
 ## 3. Secrets and functions
@@ -49,24 +49,47 @@ Make push keys once: `npx web-push generate-vapid-keys`. Make two random secrets
       B2_KEY_ID=<key id> B2_APPLICATION_KEY=<key> B2_BUCKET=crewclock-photos B2_REGION=us-east-005 \
       VAPID_PUBLIC_KEY=<public> VAPID_PRIVATE_KEY=<private> VAPID_SUBJECT=mailto:you@example.com \
       CRON_SECRET=<random> REPORT_TOKEN=<random> \
-      APP_ORIGIN=https://YOUR-GITHUB-USER.github.io
+      APP_ORIGIN=https://holroydchase-afk.github.io
 
     supabase functions deploy
 
 ## 4. The company and the boss
 
-    deno run scripts/new-company.ts "Holroyd Construction" TEAYS "Dad" 1234
+    deno run scripts/new-company.ts "Example Construction" TEAYS "Dad" 1234
 
 Paste the printed SQL into the Supabase SQL editor and run it. `TEAYS` is the company code.
 Dad adds the crew himself from the app's **Crew** tab after that.
 
-## 5. The app
+## 5. The app (GitHub Pages, free for a public repo)
 
-1. Edit `config.js`: `backend: 'supabase'`, `supabaseUrl`, `supabaseAnonKey`, `orgCode: 'TEAYS'`,
-   `vapidPublicKey`.
-2. Bump `VERSION` in `sw.js` whenever app files change, so phones pick up the new version.
-3. GitHub: **Settings > Pages**, deploy from branch `main`, folder `/`. The app is then at
-   `https://YOUR-GITHUB-USER.github.io/crew-clock/`.
+1. **Settings > Pages**: under Build and deployment, set **Source** to **GitHub Actions**.
+2. **Settings > Secrets and variables > Actions > Variables**, add:
+
+   | Variable | Value |
+   | --- | --- |
+   | `CREW_BACKEND` | `supabase` |
+   | `SUPABASE_URL` | the project URL from step 1.3 |
+   | `SUPABASE_ANON_KEY` | the publishable key from step 1.3 |
+   | `ORG_CODE` | `TEAYS` |
+   | `VAPID_PUBLIC_KEY` | the public push key from step 3 |
+
+   None of them is a secret (phones see them anyway), so they go under Variables, not Secrets.
+   The build writes them into `config.js`, so the repo's copy stays in demo mode.
+3. **Actions > Deploy app > Run workflow** (after that, every push to `main` deploys by itself).
+   The app is at `https://holroydchase-afk.github.io/crew-clock/`.
+
+Your own domain (optional): in **Settings > Pages > Custom domain** type e.g. `clock.example.com`,
+and at Porkbun add a `CNAME` record for `clock` pointing to `holroydchase-afk.github.io`. Then tick
+**Enforce HTTPS** once it offers it, and use `https://clock.example.com` in the CORS rule, in
+`APP_ORIGIN` and in the install link.
+
+`scripts/build-site.mjs` publishes only the phone app (no backend code, tests or docs) and stamps
+the service worker with a hash of the app files, so phones pick up every release without bumping
+`VERSION` by hand.
+
+Hosting on Cloudflare Pages instead (works with a private repo): connect the repo under **Workers &
+Pages > Create > Pages**, build command `node scripts/build-site.mjs`, output directory `dist`, and
+the same variables as above. `_headers` is for Cloudflare.
 
 ## 6. Morning and evening alerts
 
@@ -83,7 +106,7 @@ and run it in the SQL editor. Times are UTC; the file explains the Eastern time 
 
 ## 8. Install day (10 minutes a person)
 
-Send each person `https://YOUR-GITHUB-USER.github.io/crew-clock/?org=TEAYS`. On their phone:
+Send each person `https://holroydchase-afk.github.io/crew-clock/?org=TEAYS`. On their phone:
 
 1. Open the link. iPhone: Share, **Add to Home Screen**. Android: **Install app** or Add to Home screen.
 2. Open it from the home screen, tap their name, type their PIN.
@@ -98,7 +121,7 @@ Send each person `https://YOUR-GITHUB-USER.github.io/crew-clock/?org=TEAYS`. On 
 | --- | --- | --- |
 | Supabase | 500 MB database, 500K function calls a month | Pro is $25/month; needed past a few hundred workers or to stop the free project pausing after a week unused |
 | Backblaze B2 | 10 GB (about 70,000 photos) | $6/TB/month after that |
-| GitHub Pages | Free for public repos; private repos need GitHub Pro ($4/month) to publish Pages | Or host the same files on Cloudflare Pages for free |
+| GitHub Pages | Free for a public repo, 100 GB of traffic a month | Never at this size |
 | Web push | Free | Never |
 | AI models | Run on the phones | Never |
 | Google Sheets | Free | Never |
