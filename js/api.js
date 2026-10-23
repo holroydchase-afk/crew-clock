@@ -41,6 +41,7 @@
     isDemo,
     listCrew: () => call('listCrew', {}),
     login: (crewId, pin) => call('login', { auth: { crewId, pin } }),
+    demoLogin: isDemo ? (crewId) => call('demoLogin', { crewId }) : undefined,
     refresh: (auth) => call('refresh', { auth }),
     sync: (auth, items) => call('sync', { auth, items }),
     team: (auth, since) => call('team', { auth, since }),

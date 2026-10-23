@@ -9,8 +9,10 @@ const { launch } = require('./browser.js');
   page.on('pageerror', (e) => errors.push(e.message));
   const shot = (n) => page.screenshot({ path: `tests/shots/${n}.png` });
   await page.goto('http://localhost:8123/');
+  // Demo default: no PIN, tapping a name signs in. Boss is labeled and isn't called "Dad".
+  const bossLabel = await page.textContent('.name-btn:has-text("Sam W.") .name-role');
+  const saysDad = await page.locator('text=Dad').count();
   await page.getByText('Jake R.').click();
-  for (const k of '1111') await page.click(`.keypad [data-k="${k}"]`);
   await page.getByText('OK, ask me').click();
   await page.waitForSelector('.punch');
   if (await page.locator('.punch.out').count()) { // seeded demo data has Jake on the clock
@@ -36,8 +38,7 @@ const { launch } = require('./browser.js');
   await page.waitForFunction(() => document.querySelector('.sync-line').textContent.includes('All sent'), null, { timeout: 5000 });
   // boss
   await page.getByText('Not you?').click();
-  await page.getByText('Dad').click();
-  for (const k of '1234') await page.click(`.keypad [data-k="${k}"]`);
+  await page.getByText('Sam W.').click();
   await page.waitForSelector('.crew-dot'); await page.waitForTimeout(800); await shot('5-boss-map');
   const dots = await page.locator('.crew-dot').count();
   await page.click('[data-tab="today"]'); await shot('6-boss-today');
@@ -49,7 +50,22 @@ const { launch } = require('./browser.js');
   await page.click('[data-ft="600"]');
   await page.getByText('Save job').click();
   await page.waitForSelector('text=Test job'); await shot('7-jobs');
-  console.log(JSON.stringify({ first, chipIn, offlineNote, waiting, dots, notIn, errors }, null, 1));
+  // demoPin on: the PIN screen comes back and a wrong PIN doesn't get in
+  const pinCtx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const pinPage = await pinCtx.newPage();
+  await pinPage.route('**/config.js', async (route) => {
+    const body = (await (await route.fetch()).text()).replace('demoPin: false', 'demoPin: true');
+    route.fulfill({ body, contentType: 'application/javascript' });
+  });
+  await pinPage.goto('http://localhost:8123/');
+  await pinPage.getByText('Cody M.').click();
+  await pinPage.waitForSelector('.keypad');
+  for (const k of '9999') await pinPage.click(`.keypad [data-k="${k}"]`);
+  await pinPage.waitForSelector('.error');
+  for (const k of '2222') await pinPage.click(`.keypad [data-k="${k}"]`);
+  await pinPage.waitForSelector('.punch, .big-icon');
+  const pinMode = true;
+  console.log(JSON.stringify({ bossLabel, saysDad, first, chipIn, offlineNote, waiting, dots, notIn, pinMode, errors }, null, 1));
   await browser.close();
-  if (errors.length || !chipIn.includes('On site') || !offlineNote || !waiting.includes('waiting') || dots < 1 || !notIn.includes('Not in yet')) process.exit(1);
+  if (errors.length || bossLabel !== 'Boss' || saysDad || !chipIn.includes('On site') || !offlineNote || !waiting.includes('waiting') || dots < 1 || !notIn.includes('Not in yet')) process.exit(1);
 })().catch((e) => { console.error('FAIL', e.message); process.exit(1); });

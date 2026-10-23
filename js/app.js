@@ -359,9 +359,12 @@
     }
   }
 
+  // Demo with PINs turned off (config demoPin): tapping a name signs straight in.
+  const demoNoPin = () => Api.isDemo && !!Api.demoLogin && !cfg.demoPin;
+
   async function tryLogin(crewId, pin) {
     try {
-      const res = await Api.login(crewId, pin);
+      const res = pin == null ? await Api.demoLogin(crewId) : await Api.login(crewId, pin);
       state.auth = res.auth || { crewId, pin };
       Store.local.set('auth', state.auth);
       state.me = res.me;
@@ -421,9 +424,12 @@
     if (list === undefined) body = '<p class="muted center">Loading…</p>';
     else if (!list) body = '<p class="notice">No signal. The first time you sign in, you need signal. Try near the road or in town.</p>';
     else {
-      body = `<div class="name-grid">${list.map((c) => `
+      const role = { boss: 'Boss', foreman: 'Foreman' };
+      body = `${demoNoPin() ? '<p class="muted center">Demo: tap anyone to sign in. Pick the boss to see the team map.</p>' : ''}
+        <div class="name-grid">${list.map((c) => `
         <button class="name-btn" data-action="pick-name" data-id="${esc(c.id)}">
           <span class="avatar">${esc(initials(c.name))}</span><span>${esc(c.name)}</span>
+          ${demoNoPin() && role[c.role] ? `<span class="name-role">${role[c.role]}</span>` : ''}
         </button>`).join('')}</div>`;
     }
     return `${demoBanner()}
@@ -955,7 +961,10 @@
   const handlers = {
     'go': (el) => setScreen(el.dataset.to),
     'go-home': () => { state.flow = null; goHome(); },
-    'pick-name': (el) => setScreen('pin', { pinFor: el.dataset.id, pinEntry: '', pinError: null }),
+    'pick-name': (el) => {
+      if (demoNoPin()) return tryLogin(el.dataset.id, null);
+      setScreen('pin', { pinFor: el.dataset.id, pinEntry: '', pinError: null });
+    },
     'pin-key': (el) => {
       if ((state.pinEntry || '').length >= 4) return;
       state.pinEntry = (state.pinEntry || '') + el.dataset.k;
