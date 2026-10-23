@@ -95,8 +95,10 @@
     const parts = [];
     parts.push(`${people.size} ${people.size === 1 ? 'person' : 'people'} worked ${hours.toFixed(1)} hours across ${Object.keys(byJob).length} ${Object.keys(byJob).length === 1 ? 'job' : 'jobs'}.`);
     if (shifts.length) parts.push(`${onsite} of ${shifts.length} shifts were fully on site${busiest ? `; ${busiest[0]} had the most crew` : ''}.`);
-    if (flagged.length) parts.push(`Check ${flagged.map((s) => names[s.crewId] || 'someone').join(', ')}.`);
-    if (notIn && notIn.length) parts.push(`Didn't clock in: ${notIn.join(', ')}.`);
+    // Each person once, and no ".." when a name ends in a period ("Ray T.") (UX-8).
+    const end = (t) => (/\.$/.test(t) ? t : t + '.');
+    if (flagged.length) parts.push(end(`Check ${[...new Set(flagged.map((s) => names[s.crewId] || 'someone'))].join(', ')}`));
+    if (notIn && notIn.length) parts.push(end(`Didn't clock in: ${notIn.join(', ')}`));
     return parts.join(' ');
   }
 

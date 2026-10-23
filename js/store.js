@@ -29,7 +29,9 @@
       const t = db.transaction(OUTBOX, mode);
       const store = t.objectStore(OUTBOX);
       const out = fn(store);
-      t.oncomplete = () => resolve(out && out.result !== undefined ? out.result : out);
+      // A request resolves to its result, even when that is undefined (a get() that found nothing).
+      const isReq = typeof IDBRequest !== 'undefined' && out instanceof IDBRequest;
+      t.oncomplete = () => resolve(isReq ? out.result : out);
       t.onerror = () => reject(t.error);
     }));
   }

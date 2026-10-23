@@ -2,7 +2,7 @@
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-10-23 (studio onboarding thread, M0.1)
+Updated: 2026-10-23 (night shift, M1.5)
 
 ## What it is
 
@@ -38,11 +38,36 @@ Demo mode runs with nothing configured: `npm run serve`, PINs in the README.
   layout. SETUP no longer names the company code or sends the crew to the demo's address. `pages.yml` now deploys
   only after CI passes on `main` and always builds demo-only (`build-site.mjs --demo` ignores
   backend variables and fails if config.js points at a backend; tested in `tests/site.test.js`).
-- `M1.5` hardening: the 2:15am night shift (2026-10-23) stacks on the M0.1 branch.
+- `M1.5` hardening (PR #6, draft, stacked on M0.1; night shift 2026-10-23). All P0/P1 found are
+  fixed with a test. HRD-1/2/3/4/5/6/9 fixed by engineer against qa-tdd's tests (`tests/harden.test.js`,
+  `tests/e2e-harden.js`), then privacy-security follow-ups PS-2, PS-6, PS-7. Unit (50), SQL/RLS, MLS
+  and full e2e passed 3x locally after one flaky test was root-caused (the sync line was redrawn
+  after `syncing` cleared; fixed in `syncNow`). Edge Function tests run in CI only (no deno here).
+  ux-reviewer findings fixed test-first the same night: UX-1 "Wrong job? Fix it" after sync
+  (`Store.outbox.get` now resolves undefined for a missing id; a punch saved mid-sync is sent right
+  after), UX-2 live "Sent to the boss" line on the done screen, UX-3 foreman clock-out uses the
+  teammate's open job, UX-4 one 112x52 "Clock in"/"Clock out" button per teammate with an
+  "On at … since …"/"Off" line, UX-5 boss tab bar fits under the demo banner, UX-6 map legend clear
+  of the attribution, UX-7 demo seed slides back before ~12:30 PM so shifts have real hours,
+  UX-8 Today summary names each person once with no "..", UX-9 Back on "Finding you" and the photo
+  screen, UX-10 "GPS signal: weak (about …)"/"good", UX-16 contrast tokens (all text ≥ 4.5:1).
+  HRD-9's browser case now clocks in Travis (Cody is on the clock in the seed, so his row only
+  offers "Clock out"); its assertions are unchanged.
+- Left from `M1.5` (P2, logged, not fixed): PS-1 punches held for someone who never signs in again
+  are invisible to the boss (send a content-free "N unsent on a phone" notice); PS-3 no retry
+  backoff for transient failures; PS-4 "Unknown crew member" drops a turned-off worker's last
+  clock-out silently; PS-5 server should check a late `replay_or_old` punch fills the recorded gap
+  and clear the neighbor's `chain_gap`; HRD-7 Today hides a shift that started before midnight;
+  HRD-8 GPS boundary unit tests; HRD-11 worker and foreman both closing one shift offline;
+  HRD-12 empty states (no jobs, no crew); HRD-13 private mode keeps the outbox in memory only;
+  UX-11 mark the current job in the fix picker; UX-12 chat "No groups yet" dead end; UX-13/14 Add
+  job placeholder, inline error, 15px size labels; UX-15 boss header "Sign out" / "Refresh";
+  UX-17 keypad Delete icon and key borders in dark; UX-18 "See photo" label on Today.
 
 ## Exact next step
 
-`M1.1` demo separation in the app (branch `m1.1-demo-separation`): qa-tdd first writes failing
+Chase reviews and merges M0.1 (`claude/project-thread-rewwa2`), then retargets PR #6 to `main`
+and merges it. Then `M1.1` demo separation in the app (branch `m1.1-demo-separation`): qa-tdd first writes failing
 tests for SEP-2 (demo opened with `?org=` or a stale crew session still makes zero off-origin
 requests) and SEP-3/SEP-4 (a "Sample data" label and a link back to chaseholroyd.com on every
 demo screen). Criteria are in PLAN.md. Then `M1.2` location consent.
@@ -64,6 +89,25 @@ demo screen). Criteria are in PLAN.md. Then `M1.2` location consent.
 - MLS: keep the open-source ts-mls library for the beta (recommended), or swap in Chase's own
   build behind the same interface in `messenger/`.
 - Weekly report: hours only for the beta (recommended), or hours times pay rate.
+- **HRD-1: a queued item sends only under the person who made it** (`byCrewId`). Someone else's
+  punches stay queued until they sign in again; the sync line counts only yours. Job/crew edits now
+  carry `byCrewId` too.
+- **HRD-2: only permission refusals are dropped** (Only a foreman / Unknown crew member / Boss only /
+  Not yours). Any other refusal stays queued and shows its reason on the sync line.
+- **PS-2: a permanent refusal is cut to a stub and never resent** (supersedes "is retried" above).
+  Every refusal the server returns is a 4xx (`Punch too old`, `Bad punch type`, `Bad id`, `unknown
+  kind`), so the phone keeps only kind, id, crewId, byCrewId, type, at, jobId and the reason; GPS,
+  photo, signature and edit data are deleted. Network, 5xx and photo-upload failures keep the full
+  item and retry. Open: stubs stay until the app gets a "clear" action or a retention trim.
+- **UX-7: before about 12:30 PM the demo seed slides the seeded day back** so the last punch is an hour old and shifts show real hours;
+  a 1 AM visitor sees shifts that started around 1 AM. Undo in `js/demo-backend.js` seed anchor.
+- **HRD-6: a punch whose photo won't upload stays queued with its photo; the rest send.** A later
+  resend can then arrive out of chain order (server marks it `replay_or_old`, no new flag).
+- **HRD-9: a foreman can finish a teammate punch with no picture; it is flagged high**
+  (`teammate_no_photo`).
+- **PS-6: "no picture" now means no `photoKey`, `photo` or `hasPhoto`**, fields present or not,
+  because the server only ever gets `photoKey`. Before, a server-side foreman punch with no photo
+  was never flagged. `hasPhoto` stays in the check so the boss's team view doesn't false-flag.
 
 ## Blockers
 

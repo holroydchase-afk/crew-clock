@@ -75,37 +75,72 @@
   }
 
   // ---------- sync ----------
+  // Only what the signed-in person made is theirs to send. Someone else's queued punches
+  // stay on the phone until that person signs in again (HRD-1).
+  // A job/crew edit queued before edits carried byCrewId is the boss's to send (PS-7b).
+  const isMine = (it) => (it.byCrewId ? !!state.me && it.byCrewId === state.me.id
+    : (it.kind !== 'job' && it.kind !== 'crew') || isBoss());
+  // A refused item's stub: enough for the sync line to explain it, no GPS, photo or edit data (PS-2).
+  const STUB_KEYS = ['kind', 'id', 'crewId', 'byCrewId', 'type', 'at', 'jobId', 'queuedAt'];
+  const toStub = (it, reason) => {
+    const stub = {};
+    STUB_KEYS.forEach((k) => { if (it[k] !== undefined) stub[k] = it[k]; });
+    return Object.assign(stub, { rejected: reason, rejectedAt: Date.now() });
+  };
+
   async function countPending() {
-    const items = await Store.outbox.all();
+    const items = (await Store.outbox.all()).filter(isMine);
     state.pending = items.length;
+    state.stuck = items.filter((it) => it.rejected);
     return items;
   }
 
+  // Server refusals that mean "this phone may never send this": safe to drop.
+  const PERMISSION = /^(Only a foreman|Unknown crew member|Boss only|Not yours)/i;
+  function rejectWords(reason) {
+    if (/too old/i.test(reason || '')) return "Punch too old. Check the phone's clock and date are right, then tell the boss.";
+    return `The office couldn't take it (${reason || 'no reason given'}). Tell the boss.`;
+  }
+
   async function syncNow() {
-    if (state.syncing || !state.auth) return;
+    if (state.syncing) { state.syncAgain = true; return; } // saved mid-sync: send it right after (UX-1)
+    if (!state.auth) return;
+    state.syncAgain = false;
     if (navigator.onLine === false) { await countPending(); updateSyncLine(); return; }
     state.syncing = true;
     updateSyncLine();
     try {
-      const items = await countPending();
+      // Refused stubs are never resent; only network, server or photo-upload failures retry (PS-2).
+      const items = (await countPending()).filter((it) => !it.rejected);
       // Small batches so a slow one-bar connection still gets punches through.
       for (let i = 0; i < items.length; i += 4) {
         const batch = items.slice(i, i + 4);
         const res = await Api.sync(state.auth, batch);
-        await Store.outbox.remove([...(res.accepted || []), ...(res.rejected || [])]);
+        const why = {};
+        (res.reasons || []).forEach((r) => { why[r.id] = r.reason; });
+        const drop = (res.rejected || []).filter((id) => PERMISSION.test(why[id] || ''));
+        await Store.outbox.remove([...(res.accepted || []), ...drop]);
+        // Any other refusal is permanent: keep only a stub with the reason on screen (HRD-2, PS-2).
+        for (const id of res.rejected || []) {
+          const it = !drop.includes(id) && batch.find((x) => x.id === id);
+          if (it) await Store.outbox.add(toStub(it, why[id] || 'Refused'));
+        }
       }
       await countPending();
       if (state.pending === 0) await refreshData();
+      state.sendFailed = false;
       state.lastSyncAt = Date.now();
       Store.local.set('lastSyncAt', state.lastSyncAt);
     } catch (e) {
+      state.sendFailed = true;
       if (e.signIn) signOut('Please sign in again with your PIN.');
       else if (e.server && /PIN/.test(e.message)) signOut('Your PIN was changed. Ask the boss for the new one.');
     } finally {
-      state.syncing = false;
       await countPending();
+      state.syncing = false; // cleared only once the counts are fresh, so the line never shows stale state
       updateSyncLine();
     }
+    if (state.syncAgain) return syncNow();
   }
 
   async function refreshData() {
@@ -119,7 +154,7 @@
     // Trust the server's last punch only when it is newer than ours.
     if (res.last && (!state.last || res.last.at >= state.last.at)) setLast(res.last);
     if (isLead()) await loadTeam();
-    if (['home', 'boss'].includes(state.screen)) render();
+    if (['home', 'boss', 'pick-teammate'].includes(state.screen)) render();
   }
 
   async function loadTeam() {
@@ -137,13 +172,26 @@
 
   function syncLineHtml() {
     if (state.syncing) return `<span class="sync busy">${Icons.cloud} Sending…</span>`;
+    if (state.stuck && state.stuck.length) {
+      return `<span class="sync wait">${Icons.alert} ${state.stuck.length} not sent: ${esc(rejectWords(state.stuck[0].rejected))}</span>`;
+    }
     if (state.pending > 0) {
       return `<span class="sync wait">${Icons.cloudOff} ${state.pending} waiting to send. Open the app when you get signal.</span>`;
     }
     return `<span class="sync ok">${Icons.cloud} All sent</span>`;
   }
+  // The done screen's line: "Sent" once the outbox is empty; the amber note only offline or after a failed send (UX-2).
+  function doneSyncHtml() {
+    if (state.stuck && state.stuck.length) return `<p class="notice">${Icons.alert} ${esc(rejectWords(state.stuck[0].rejected))}</p>`;
+    if (state.pending === 0 && !state.syncing) return `<p class="sync ok">${Icons.cloud} Sent to the boss</p>`;
+    if (navigator.onLine === false || state.sendFailed) {
+      return `<p class="notice">${Icons.cloudOff} Saved on your phone. It will send itself when you get signal.</p>`;
+    }
+    return `<p class="sync busy">${Icons.cloud} Sending…</p>`;
+  }
   function updateSyncLine() {
     document.querySelectorAll('[data-sync-line]').forEach((el) => { el.innerHTML = syncLineHtml(); });
+    document.querySelectorAll('[data-done-sync]').forEach((el) => { el.innerHTML = doneSyncHtml(); });
   }
 
   // ---------- punches ----------
@@ -154,16 +202,26 @@
     }
     await Store.outbox.add(item);
     if (item.crewId === state.me.id && item.type !== 'void') setLast(item);
+    else if (item.crewId !== state.me.id) {
+      state.matePunches = (state.matePunches || []).concat({ id: item.id, crewId: item.crewId, jobId: item.jobId, type: item.type, at: item.at, voidsId: item.voidsId });
+    }
     await countPending();
     syncNow();
     return item;
   }
 
+  // A teammate's open clock-in, from the team list plus what this phone just saved for them (UX-3).
+  function mateOpen(crewId) {
+    const p = Report.lastPunchByCrew(teamPunches().concat(state.matePunches || []))[crewId];
+    return p && p.type === 'in' ? p : null;
+  }
+
   function startPunch(type, opts) {
     const o = opts || {};
     state.flow = { type, crewId: o.crewId || state.me.id, forTeammate: !!o.crewId, fixing: o.fixing || null };
-    if (type === 'out' && !o.crewId && state.last && state.last.type === 'in') {
-      state.flow.jobId = state.last.jobId;
+    const open = type !== 'out' ? null : o.crewId ? mateOpen(o.crewId) : state.last && state.last.type === 'in' ? state.last : null;
+    if (open) {
+      state.flow.jobId = open.jobId;
       return locate();
     }
     setScreen('pick-job');
@@ -180,6 +238,8 @@
   }
 
   function pickJob(jobId) {
+    if (state.flow.picked) return; // a double tap picks once (HRD-3)
+    state.flow.picked = true;
     state.flow.jobId = jobId;
     if (state.flow.fixing) {
       // Same time and place as the original punch, just the right job.
@@ -192,9 +252,16 @@
     locate();
   }
 
+  // Plain words for the live fix; "weak" is the same line that asks for a photo (UX-10).
+  function gpsWords(accuracyM) {
+    return Geo.fenceStatus(0, accuracyM, 1) === 'weak'
+      ? `GPS signal: weak (about ${Geo.formatDistance(Geo.toFeet(accuracyM))})` : 'GPS signal: good';
+  }
+
   async function locate() {
-    state.flow.at = Date.now();
-    state.flow.liveAccuracy = null;
+    const flow = state.flow; // a late fix must only finish the flow that asked for it (HRD-4)
+    flow.at = Date.now();
+    flow.liveAccuracy = null;
     setScreen('locating');
     const job = jobById(state.flow.jobId);
     let fix;
@@ -206,13 +273,14 @@
         timeoutMs: cfg.gpsTimeoutMs || 20000,
         goodEnoughM: 20,
         onUpdate: (best) => {
-          state.flow.liveAccuracy = best.accuracy;
+          if (state.flow !== flow) return;
+          flow.liveAccuracy = best.accuracy;
           const el = document.getElementById('live-acc');
-          if (el) el.textContent = `Within ${Geo.formatDistance(Geo.toFeet(best.accuracy))}…`;
+          if (el) el.textContent = gpsWords(best.accuracy);
         },
       });
     }
-    if (state.screen !== 'locating') return; // they backed out
+    if (state.flow !== flow || state.screen !== 'locating') return; // they backed out or moved on
     state.flow.fix = fix;
     afterFix();
   }
@@ -228,6 +296,8 @@
 
   async function finishPunch() {
     const f = state.flow;
+    if (!f || f.finishing) return; // one punch per flow, however many taps (HRD-5)
+    f.finishing = true;
     if (f.fixing) await savePunch({ crewId: f.crewId, type: 'void', voidsId: f.fixing.id, at: Date.now() });
     const fix = f.fix;
     const saved = await savePunch({
@@ -301,7 +371,7 @@
       Store.local.set('jobs', state.jobs);
       Store.local.set('crew', state.crew);
       setLast(res.last);
-      if (isLead()) loadTeam().then(() => { if (state.screen === 'boss') render(); });
+      if (isLead()) loadTeam().then(() => { if (['boss', 'pick-teammate'].includes(state.screen)) render(); });
       goHome();
     } catch (e) {
       state.pinEntry = '';
@@ -315,11 +385,11 @@
   async function signOut(msg) {
     const waiting = await countPending();
     if (waiting.length && !msg) {
-      if (!confirm(`${waiting.length} clock-ins have not sent yet. Switch anyway? They will send when this person signs in again.`)) return;
+      if (!confirm(`Some clock-ins have not sent yet. Switch anyway? They will send when this person signs in again.`)) return;
     }
     if (Api.signOut) Api.signOut();
     ['auth', 'me', 'last', 'team', 'jobs', 'crew'].forEach((k) => Store.local.remove(k));
-    Object.assign(state, { auth: null, me: null, last: null, team: null, jobs: [], crew: [] });
+    Object.assign(state, { auth: null, me: null, last: null, team: null, jobs: [], crew: [], matePunches: [] });
     if (msg) toast(msg);
     setScreen('names');
   }
@@ -431,6 +501,12 @@
       </main>`;
   };
 
+  function mateLine(crewId) {
+    const p = mateOpen(crewId);
+    const job = p && jobById(p.jobId);
+    return `<span class="mate-status">${p ? `On at ${esc(job ? job.name : 'a job')} since ${time(p.at)}` : 'Off'}</span>`;
+  }
+
   screens['pick-teammate'] = () => {
     const mates = state.crew.filter((c) => c.id !== state.me.id && c.role !== 'boss');
     return `<main class="screen">
@@ -440,9 +516,10 @@
       <div class="list">${mates.map((c) => `
         <div class="row-card">
           <span class="avatar">${esc(initials(c.name))}</span>
-          <span class="grow">${esc(c.name)}</span>
-          <button class="mini in" data-action="mate-punch" data-id="${esc(c.id)}" data-type="in">In</button>
-          <button class="mini out" data-action="mate-punch" data-id="${esc(c.id)}" data-type="out">Out</button>
+          <span class="grow"><span class="mate-name">${esc(c.name)}</span>${mateLine(c.id)}</span>
+          ${mateOpen(c.id)
+            ? `<button class="mate-btn out" data-action="mate-punch" data-id="${esc(c.id)}" data-type="out">Clock out</button>`
+            : `<button class="mate-btn in" data-action="mate-punch" data-id="${esc(c.id)}" data-type="in">Clock in</button>`}
         </div>`).join('') || '<p class="muted">No teammates yet.</p>'}</div>
     </main>`;
   };
@@ -455,7 +532,9 @@
     }));
     jobs.sort((a, b) => (a.d == null || b.d == null ? a.j.name.localeCompare(b.j.name) : a.d - b.d));
     const who = f.forTeammate ? crewById(f.crewId) : null;
-    const title = f.fixing ? 'Pick the right job' : f.type === 'in' ? 'Which job are you at?' : 'Which job are you leaving?';
+    const title = f.fixing ? 'Pick the right job'
+      : who ? `Which job is ${esc(who.name)} ${f.type === 'in' ? 'at' : 'leaving'}?`
+        : f.type === 'in' ? 'Which job are you at?' : 'Which job are you leaving?';
     return `<main class="screen">
       <button class="back" data-action="go-home">${Icons.back} Back</button>
       ${who ? `<div class="for-mate">${f.type === 'in' ? 'Clocking in' : 'Clocking out'} <b>${esc(who.name)}</b></div>` : ''}
@@ -471,12 +550,14 @@
   };
 
   screens.locating = () => {
-    const job = jobById(state.flow.jobId);
+    const flow = state.flow;
+    const job = jobById(flow.jobId);
     setTimeout(() => {
       const b = document.getElementById('skip-gps');
-      if (b && state.screen === 'locating') b.hidden = false;
+      if (b && state.screen === 'locating' && state.flow === flow) b.hidden = false;
     }, 8000);
     return `<main class="screen center-col">
+      <button class="back" data-action="go-home">${Icons.back} Back</button>
       <div class="spinner" role="status" aria-label="Finding you"></div>
       <h1>Finding you…</h1>
       <p class="lead">${esc(job ? job.name : '')}</p>
@@ -491,6 +572,7 @@
     const why = f.forTeammate ? `Take a picture of ${esc(who ? who.name : 'them')} at the job.`
       : f.check && f.check.status === 'weak' ? 'GPS is weak here.' : "GPS couldn't find you.";
     return `<main class="screen center-col">
+      <button class="back" data-action="go-home">${Icons.back} Back</button>
       <div class="big-icon amber">${Icons.camera}</div>
       <h1>${f.forTeammate ? 'Take a picture' : 'Take a picture of the job'}</h1>
       <p class="lead">${why} ${f.forTeammate ? '' : 'Get the house, the truck, or the work in the picture.'}</p>
@@ -499,7 +581,7 @@
       </label>
       ${f.photoProblem ? `<p class="notice">${Icons.alert} ${esc(AI.PHOTO_WORDS[f.photoProblem])}</p>
         <button class="link" data-action="photo-anyway">Use that picture anyway</button>` : ''}
-      ${f.forTeammate ? '' : '<button class="link" data-action="no-photo">I can\'t take a picture</button>'}
+      <button class="link" data-action="no-photo">I can't take a picture</button>
     </main>`;
   };
 
@@ -511,8 +593,6 @@
     const verb = f.type === 'in' ? 'clocked in' : 'clocked out';
     const subject = who ? `${esc(who.name)} is` : "You're";
     const canFix = f.type === 'in' && !f.forTeammate && Date.now() - f.savedAt < FIX_WINDOW_MS;
-    const offlineNote = state.pending > 0
-      ? `<p class="notice">${Icons.cloudOff} Saved on your phone. It will send itself when you get signal.</p>` : '';
     if (canFix) {
       setTimeout(() => {
         const b = document.getElementById('fix-btn');
@@ -525,7 +605,7 @@
       <p class="lead">${esc(job ? job.name : '')}<br><b>${time(f.at)}</b></p>
       <p>${chip(f.check.status, !!f.photo)}${f.check.distanceFt != null && f.check.status !== 'onsite' ? ` <span class="muted">${Geo.formatDistance(f.check.distanceFt)} from the job</span>` : ''}</p>
       ${s && f.check.status === 'offsite' ? '<p class="muted">The boss will see where you were.</p>' : ''}
-      ${offlineNote}
+      <div class="done-sync" data-done-sync>${doneSyncHtml()}</div>
       <button class="btn primary xl" data-action="go-home">OK</button>
       ${canFix ? `<button class="link" id="fix-btn" data-action="fix-job">Wrong job? Fix it</button>` : ''}
     </main>`;
@@ -549,8 +629,7 @@
     if (tab === 'jobs') body = bossJobsHtml();
     if (tab === 'crew') body = bossCrewHtml();
     if (tab === 'chat' && self.Messenger) body = Messenger.listHtml();
-    return `${demoBanner()}
-      <div class="boss">
+    return `<div class="boss">${demoBanner()}
         <header class="boss-head">
           <div class="brand small">${Icons.job}<span>Crew Clock</span></div>
           <div class="boss-head-right">
@@ -808,7 +887,7 @@
   };
 
   async function queueEdit(kind, data) {
-    await Store.outbox.add({ kind, id: Store.uid(), data });
+    await Store.outbox.add({ kind, id: Store.uid(), byCrewId: state.me.id, data });
     await countPending();
     syncNow();
   }
@@ -1060,6 +1139,7 @@
       const url = URL.createObjectURL(file);
       const q = await AI.photoQuality(url).catch(() => ({}));
       URL.revokeObjectURL(url);
+      if (state.flow !== f) return;
       if (q.problem) {
         f.photoProblem = q.problem;
         f.pendingFile = file;
@@ -1074,6 +1154,7 @@
     } catch (err) {
       return toast("That picture didn't work. Try again.");
     }
+    if (state.flow !== f) return; // they went Back while the picture was stamping (UX-9)
     finishPunch();
   }
 

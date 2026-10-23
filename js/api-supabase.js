@@ -118,16 +118,25 @@
   }
 
   // Photos go straight to Backblaze; the punch then carries only the object key.
+  // Returns the items whose photo did not upload: they stay queued (photo kept) for a
+  // retry, and the rest of the batch still sends (HRD-6).
   async function uploadPhotos(token, items) {
+    const failed = new Set();
     for (const it of items) {
       if (it.kind !== 'punch' || !it.photo || it.photoKey) continue;
-      const up = await fn('photo-upload', { punchId: it.id }, token);
-      const put = await fetch(up.url, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg' }, body: dataUrlToBlob(it.photo) });
-      if (!put.ok) throw Object.assign(new Error('Photo upload failed'), { offline: true });
-      it.photoKey = up.key;
-      delete it.photo;
-      await root.Store.outbox.add(it); // so a retry doesn't upload twice
+      try {
+        const up = await fn('photo-upload', { punchId: it.id }, token);
+        const put = await fetch(up.url, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg' }, body: dataUrlToBlob(it.photo) });
+        if (!put.ok) throw Object.assign(new Error('Photo upload failed'), { offline: true });
+        it.photoKey = up.key;
+        delete it.photo;
+        await root.Store.outbox.add(it); // so a retry doesn't upload twice
+      } catch (e) {
+        if (e.status === 401 || e.signIn) throw e; // let authed() refresh and retry
+        failed.add(it.id);
+      }
     }
+    return failed;
   }
 
   root.SupabaseApi = {
@@ -155,8 +164,10 @@
     },
     sync(auth, items) {
       return authed(auth, async (t) => {
-        await uploadPhotos(t, items);
-        return fn('sync', { items }, t);
+        const failed = await uploadPhotos(t, items);
+        const send = items.filter((it) => !failed.has(it.id));
+        if (!send.length) return { ok: true, accepted: [], rejected: [], reasons: [] };
+        return fn('sync', { items: send }, t);
       });
     },
     team(auth, since) {

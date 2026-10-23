@@ -21,7 +21,10 @@
       { id: 'c4', name: 'Billy S.', role: 'crew', pin: '4444', active: true },
       { id: 'c5', name: 'Travis K.', role: 'crew', pin: '5555', active: true },
     ];
-    const t = (h) => Math.min(day + h * H, now - 60000);
+    // Seed a normal work day (6:54 AM on); before ~12:30 PM slide it back so the last punch is an hour
+    // old and every shift has real hours, not "6:39 AM – 6:39 AM · 0.0 h" (UX-7).
+    const base = Math.max(Math.min(day, now - 12.5 * H), day - 6.5 * H);
+    const t = (h) => Math.min(base + h * H, now - 60000);
     const punches = [
       mk('p1', 'c1', 'j1', 'in', t(6.9), 38.45375, -81.92895, 8),
       mk('p2', 'c2', 'j1', 'in', t(7.05), 38.45402, -81.92860, 15),
@@ -100,10 +103,12 @@
       const me = authed(db, req.auth);
       const accepted = [];
       const rejected = [];
+      const reasons = []; // same words as the real server (supabase/functions/_shared/core.ts)
+      const refuse = (id, reason) => { rejected.push(id); reasons.push({ id, reason }); };
       for (const item of req.items || []) {
         if (item.kind === 'punch') {
           const forOther = item.crewId !== me.id;
-          if (forOther && me.role === 'crew') { rejected.push(item.id); continue; }
+          if (forOther && me.role === 'crew') { refuse(item.id, 'Only a foreman can clock in a teammate'); continue; }
           if (!db.punches.some((p) => p.id === item.id)) {
             const p = {
               id: item.id, crewId: item.crewId, byCrewId: me.id, jobId: item.jobId, type: item.type,
@@ -116,7 +121,7 @@
           }
           accepted.push(item.id);
         } else if (item.kind === 'job' || item.kind === 'crew') {
-          if (me.role !== 'boss') { rejected.push(item.id); continue; }
+          if (me.role !== 'boss') { refuse(item.id, 'Boss only'); continue; }
           const list = item.kind === 'job' ? db.jobs : db.crew;
           const rec = Object.assign({}, item.data);
           const i = list.findIndex((x) => x.id === rec.id);
@@ -124,10 +129,10 @@
           if (i >= 0) list[i] = Object.assign(list[i], rec); else list.push(rec);
           accepted.push(item.id);
         } else {
-          rejected.push(item.id);
+          refuse(item.id, 'unknown kind');
         }
       }
-      return { accepted, rejected };
+      return { accepted, rejected, reasons };
     },
     team(db, req) {
       const me = authed(db, req.auth);
