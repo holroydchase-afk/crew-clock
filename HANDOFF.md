@@ -41,6 +41,16 @@ Demo mode runs with nothing configured: `npm run serve`, PINs in the README.
 - `M1.5` hardening: the 2:15am night shift (2026-10-23) stacks on the M0.1 branch.
   HRD-1/2/3/4/5/6/9 fixed by engineer against qa-tdd's tests (`tests/harden.test.js`,
   `tests/e2e-harden.js`); unit and full e2e green locally. Edge tests run in CI only (no deno here).
+  ux-reviewer findings fixed test-first the same night: UX-1 "Wrong job? Fix it" after sync
+  (`Store.outbox.get` now resolves undefined for a missing id; a punch saved mid-sync is sent right
+  after), UX-2 live "Sent to the boss" line on the done screen, UX-3 foreman clock-out uses the
+  teammate's open job, UX-4 one 112x52 "Clock in"/"Clock out" button per teammate with an
+  "On at … since …"/"Off" line, UX-5 boss tab bar fits under the demo banner, UX-6 map legend clear
+  of the attribution, UX-7 demo seed slides back before ~12:30 PM so shifts have real hours,
+  UX-8 Today summary names each person once with no "..", UX-9 Back on "Finding you" and the photo
+  screen, UX-10 "GPS signal: weak (about …)"/"good", UX-16 contrast tokens (all text ≥ 4.5:1).
+  HRD-9's browser case now clocks in Travis (Cody is on the clock in the seed, so his row only
+  offers "Clock out"); its assertions are unchanged.
 
 ## Exact next step
 

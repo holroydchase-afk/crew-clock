@@ -108,3 +108,88 @@ test('PS-6 (guard) a worker clocking themselves in with every photo field omitte
   const flags = Risk.assess(mate({ byCrewId: 'cody' }), { receivedAt: NOON + 30000 });
   assert.ok(!flags.some((f) => f.code === 'teammate_no_photo'), `flags were ${JSON.stringify(flags)}`);
 });
+
+// ---------- UX-7: the demo seed must read as real shifts at any hour ----------
+
+// Loads the demo backend with the clock stopped at `at` (local time) and returns the seeded punches.
+async function seedAt(at) {
+  const RealDate = Date;
+  class FixedDate extends RealDate {
+    constructor(...a) { super(...(a.length ? a : [at])); }
+    static now() { return at; }
+  }
+  const ls = new Map();
+  const ctx = {
+    Date: FixedDate, Math, JSON, Promise, setTimeout, console, navigator: { onLine: true },
+    localStorage: { getItem: (k) => (ls.has(k) ? ls.get(k) : null), setItem: (k, v) => ls.set(k, String(v)), removeItem: (k) => ls.delete(k) },
+  };
+  ctx.self = ctx;
+  vm.createContext(ctx);
+  for (const f of ['js/report.js', 'js/geo.js', 'js/demo-backend.js']) {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'), ctx, { filename: f });
+  }
+  await ctx.DemoBackend.handle('listCrew', {});
+  return { punches: JSON.parse(ls.get('cc.demo.db')).punches, Report: ctx.Report };
+}
+
+for (const [label, h, m] of [['6:30 AM', 6, 30], ['7:30 AM', 7, 30], ['9:15 AM', 9, 15], ['2:00 PM', 14, 0]]) {
+  test(`UX-7 demo seed at ${label}: every seeded shift lasts more than 1 h and shows on Today`, async () => {
+    const now = new Date(2026, 9, 23, h, m).getTime();
+    const { punches, Report } = await seedAt(now);
+    const shifts = Report.pairShifts(punches);
+    assert.ok(shifts.length >= 4, `only ${shifts.length} shifts seeded`);
+    const today0 = Report.startOfDay(now);
+    for (const s of shifts) {
+      const span = (s.outAt || now) - s.inAt;
+      assert.ok(s.inAt && span > 3600000, `${s.crewId} shift is ${(span / 3600000).toFixed(2)} h (in ${new Date(s.inAt).toTimeString().slice(0, 5)})`);
+      assert.ok(s.inAt >= today0, `${s.crewId} shift starts before today, so Today hides it`);
+      assert.ok((s.outAt || s.inAt) < now, `${s.crewId} shift ends in the future`);
+    }
+  });
+}
+
+// ---------- UX-8: Today summary names each person once, with no ".." after "Ray T." ----------
+
+test('UX-8 Today summary lists a person with two flagged shifts once and never ends a sentence with ".."', () => {
+  const AI = require('../js/ai.js');
+  const s = AI.plainSummary([
+    { crewId: 'c1', jobId: 'j1', status: 'offsite', hours: 2 },
+    { crewId: 'c1', jobId: 'j2', status: 'near', hours: 3 },
+    { crewId: 'c2', jobId: 'j1', status: 'onsite', hours: 8 },
+  ], { c1: 'Ray T.', c2: 'Jake R.' }, { j1: 'Smith kitchen', j2: 'Miller roof' }, ['Travis K.', 'Billy S.']);
+  assert.strictEqual((s.match(/Ray T\./g) || []).length, 1, s);
+  assert.ok(!/\.\./.test(s), s);
+  assert.match(s, /Check Ray T\. /, s);
+  assert.match(s, /Didn't clock in: Travis K\., Billy S\.$/, s);
+});
+
+// ---------- UX-16: text on the muted, green and red-soft tokens meets 4.5:1 in light and dark ----------
+
+function cssTokens() {
+  const css = fs.readFileSync(path.join(__dirname, '../css/app.css'), 'utf8');
+  const block = (src) => Object.fromEntries([...src.matchAll(/--([\w-]+):\s*(#[0-9a-f]{6})/gi)].map((m) => [m[1], m[2]]));
+  const light = block(css.match(/:root\s*\{([^}]*)\}/)[1]);
+  const dark = Object.assign({}, light, block(css.match(/@media \(prefers-color-scheme: dark\)\s*\{\s*:root\s*\{([^}]*)\}/)[1]));
+  return { light, dark };
+}
+function contrast(a, b) {
+  const lum = (hex) => {
+    const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  };
+  const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05);
+}
+
+test('UX-16 muted, white-on-green and red-on-red-soft text meet 4.5:1 in light and dark', () => {
+  const { light, dark } = cssTokens();
+  const pairs = [
+    ['light muted on bg', light.muted, light.bg], ['light muted on card', light.muted, light.card],
+    ['light white on green-bg (CLOCK IN)', '#ffffff', light['green-bg']], ['dark white on green-bg (CLOCK IN)', '#ffffff', dark['green-bg']],
+    ['light red on red-soft', light.red, light['red-soft']], ['dark red on red-soft', dark.red, dark['red-soft']],
+    ['dark ink on red-soft (Not in yet names)', dark.ink, dark['red-soft']],
+    ['dark muted on bg', dark.muted, dark.bg], ['dark muted on card', dark.muted, dark.card],
+  ];
+  const low = pairs.map(([n, fg, bg]) => [n, contrast(fg, bg)]).filter(([, r]) => r < 4.5);
+  assert.deepStrictEqual(low.map(([n, r]) => `${n} ${r.toFixed(2)}:1`), []);
+});

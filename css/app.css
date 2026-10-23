@@ -2,12 +2,12 @@
   --bg: #f4f5f7;
   --card: #ffffff;
   --ink: #111827;
-  --muted: #6b7280;
+  --muted: #5b6472;
   --line: #e5e7eb;
   --blue: #2563eb;
   --blue-soft: #dbeafe;
   --green: #15803d;
-  --green-bg: #16a34a;
+  --green-bg: #15803d;
   --green-soft: #dcfce7;
   --red: #b91c1c;
   --red-bg: #dc2626;
@@ -32,7 +32,7 @@
     --green: #4ade80;
     --green-soft: #14532d;
     --red: #f87171;
-    --red-soft: #7f1d1d;
+    --red-soft: #450a0a;
     --amber: #fbbf24;
     --amber-soft: #713f12;
     --gray: #d1d5db;
@@ -74,13 +74,16 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
   gap: 14px;
 }
 .center-col { align-items: center; justify-content: center; text-align: center; }
+.center-col { position: relative; }
+.center-col > .back:first-child { position: absolute; top: calc(env(safe-area-inset-top) + 12px); left: 20px; margin: 0; }
 .lead { font-size: 21px; margin: 0; }
 
 .demo-banner {
   background: var(--amber-soft); color: var(--amber); text-align: center;
   font-size: 14px; font-weight: 600; padding: calc(env(safe-area-inset-top) + 6px) 12px 6px;
 }
-.demo-banner + .screen, .demo-banner + .boss .boss-head { padding-top: 16px; }
+/* On the boss screen the banner sits inside .boss, so the tab bar still fits in 100dvh (UX-5). */
+.demo-banner + .screen, .boss > .demo-banner + .boss-head { padding-top: 16px; }
 
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 18px; color: var(--blue); }
 .brand svg { width: 26px; height: 26px; }
@@ -184,6 +187,12 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 .mini { background: var(--blue-soft); color: var(--blue); border-radius: 12px; padding: 8px 14px; font-weight: 700; font-size: 16px; display: inline-flex; align-items: center; gap: 6px; }
 .mini.in { background: var(--green-soft); color: var(--green); }
 .mini.out { background: var(--red-soft); color: var(--red); }
+.mate-btn { min-width: 112px; min-height: 52px; border-radius: 14px; padding: 10px 16px; font-weight: 700; font-size: 17px; flex: none; }
+.mate-btn.in { background: var(--green-soft); color: var(--green); }
+.mate-btn.out { background: var(--red-soft); color: var(--red); }
+.mate-name { display: block; font-size: 19px; font-weight: 700; }
+.mate-status { display: block; font-size: 15px; color: var(--muted); }
+.done-sync { min-height: 26px; text-align: center; }
 
 /* Lists */
 .list { display: flex; flex-direction: column; gap: 10px; }
@@ -234,7 +243,7 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 .tabbar button svg { width: 26px; height: 26px; }
 .tabbar button.on { color: var(--blue); }
 .team-map { position: absolute; inset: 0; }
-.map-legend { position: absolute; left: 10px; bottom: 10px; z-index: 500; display: flex; flex-wrap: wrap; gap: 6px; max-width: calc(100% - 20px); }
+.map-legend { position: absolute; left: 10px; bottom: 34px; /* clear of the Leaflet attribution (UX-6) */ z-index: 500; display: flex; flex-wrap: wrap; gap: 6px; max-width: calc(100% - 20px); }
 .map-legend .chip { box-shadow: var(--shadow); font-size: 13px; }
 .crew-dot {
   width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center;

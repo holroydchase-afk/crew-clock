@@ -21,7 +21,10 @@
       { id: 'c4', name: 'Billy S.', role: 'crew', pin: '4444', active: true },
       { id: 'c5', name: 'Travis K.', role: 'crew', pin: '5555', active: true },
     ];
-    const t = (h) => Math.min(day + h * H, now - 60000);
+    // Seed a normal work day (6:54 AM on); before ~12:30 PM slide it back so the last punch is an hour
+    // old and every shift has real hours, not "6:39 AM – 6:39 AM · 0.0 h" (UX-7).
+    const base = Math.max(Math.min(day, now - 12.5 * H), day - 6.5 * H);
+    const t = (h) => Math.min(base + h * H, now - 60000);
     const punches = [
       mk('p1', 'c1', 'j1', 'in', t(6.9), 38.45375, -81.92895, 8),
       mk('p2', 'c2', 'j1', 'in', t(7.05), 38.45402, -81.92860, 15),

@@ -103,7 +103,9 @@
   }
 
   async function syncNow() {
-    if (state.syncing || !state.auth) return;
+    if (state.syncing) { state.syncAgain = true; return; } // saved mid-sync: send it right after (UX-1)
+    if (!state.auth) return;
+    state.syncAgain = false;
     if (navigator.onLine === false) { await countPending(); updateSyncLine(); return; }
     state.syncing = true;
     updateSyncLine();
@@ -126,9 +128,11 @@
       }
       await countPending();
       if (state.pending === 0) await refreshData();
+      state.sendFailed = false;
       state.lastSyncAt = Date.now();
       Store.local.set('lastSyncAt', state.lastSyncAt);
     } catch (e) {
+      state.sendFailed = true;
       if (e.signIn) signOut('Please sign in again with your PIN.');
       else if (e.server && /PIN/.test(e.message)) signOut('Your PIN was changed. Ask the boss for the new one.');
     } finally {
@@ -136,6 +140,7 @@
       await countPending();
       updateSyncLine();
     }
+    if (state.syncAgain) return syncNow();
   }
 
   async function refreshData() {
@@ -149,7 +154,7 @@
     // Trust the server's last punch only when it is newer than ours.
     if (res.last && (!state.last || res.last.at >= state.last.at)) setLast(res.last);
     if (isLead()) await loadTeam();
-    if (['home', 'boss'].includes(state.screen)) render();
+    if (['home', 'boss', 'pick-teammate'].includes(state.screen)) render();
   }
 
   async function loadTeam() {
@@ -175,8 +180,18 @@
     }
     return `<span class="sync ok">${Icons.cloud} All sent</span>`;
   }
+  // The done screen's line: "Sent" once the outbox is empty; the amber note only offline or after a failed send (UX-2).
+  function doneSyncHtml() {
+    if (state.stuck && state.stuck.length) return `<p class="notice">${Icons.alert} ${esc(rejectWords(state.stuck[0].rejected))}</p>`;
+    if (state.pending === 0 && !state.syncing) return `<p class="sync ok">${Icons.cloud} Sent to the boss</p>`;
+    if (navigator.onLine === false || state.sendFailed) {
+      return `<p class="notice">${Icons.cloudOff} Saved on your phone. It will send itself when you get signal.</p>`;
+    }
+    return `<p class="sync busy">${Icons.cloud} Sending…</p>`;
+  }
   function updateSyncLine() {
     document.querySelectorAll('[data-sync-line]').forEach((el) => { el.innerHTML = syncLineHtml(); });
+    document.querySelectorAll('[data-done-sync]').forEach((el) => { el.innerHTML = doneSyncHtml(); });
   }
 
   // ---------- punches ----------
@@ -187,16 +202,26 @@
     }
     await Store.outbox.add(item);
     if (item.crewId === state.me.id && item.type !== 'void') setLast(item);
+    else if (item.crewId !== state.me.id) {
+      state.matePunches = (state.matePunches || []).concat({ id: item.id, crewId: item.crewId, jobId: item.jobId, type: item.type, at: item.at, voidsId: item.voidsId });
+    }
     await countPending();
     syncNow();
     return item;
   }
 
+  // A teammate's open clock-in, from the team list plus what this phone just saved for them (UX-3).
+  function mateOpen(crewId) {
+    const p = Report.lastPunchByCrew(teamPunches().concat(state.matePunches || []))[crewId];
+    return p && p.type === 'in' ? p : null;
+  }
+
   function startPunch(type, opts) {
     const o = opts || {};
     state.flow = { type, crewId: o.crewId || state.me.id, forTeammate: !!o.crewId, fixing: o.fixing || null };
-    if (type === 'out' && !o.crewId && state.last && state.last.type === 'in') {
-      state.flow.jobId = state.last.jobId;
+    const open = type !== 'out' ? null : o.crewId ? mateOpen(o.crewId) : state.last && state.last.type === 'in' ? state.last : null;
+    if (open) {
+      state.flow.jobId = open.jobId;
       return locate();
     }
     setScreen('pick-job');
@@ -227,6 +252,12 @@
     locate();
   }
 
+  // Plain words for the live fix; "weak" is the same line that asks for a photo (UX-10).
+  function gpsWords(accuracyM) {
+    return Geo.fenceStatus(0, accuracyM, 1) === 'weak'
+      ? `GPS signal: weak (about ${Geo.formatDistance(Geo.toFeet(accuracyM))})` : 'GPS signal: good';
+  }
+
   async function locate() {
     const flow = state.flow; // a late fix must only finish the flow that asked for it (HRD-4)
     flow.at = Date.now();
@@ -245,7 +276,7 @@
           if (state.flow !== flow) return;
           flow.liveAccuracy = best.accuracy;
           const el = document.getElementById('live-acc');
-          if (el) el.textContent = `Within ${Geo.formatDistance(Geo.toFeet(best.accuracy))}…`;
+          if (el) el.textContent = gpsWords(best.accuracy);
         },
       });
     }
@@ -340,7 +371,7 @@
       Store.local.set('jobs', state.jobs);
       Store.local.set('crew', state.crew);
       setLast(res.last);
-      if (isLead()) loadTeam().then(() => { if (state.screen === 'boss') render(); });
+      if (isLead()) loadTeam().then(() => { if (['boss', 'pick-teammate'].includes(state.screen)) render(); });
       goHome();
     } catch (e) {
       state.pinEntry = '';
@@ -358,7 +389,7 @@
     }
     if (Api.signOut) Api.signOut();
     ['auth', 'me', 'last', 'team', 'jobs', 'crew'].forEach((k) => Store.local.remove(k));
-    Object.assign(state, { auth: null, me: null, last: null, team: null, jobs: [], crew: [] });
+    Object.assign(state, { auth: null, me: null, last: null, team: null, jobs: [], crew: [], matePunches: [] });
     if (msg) toast(msg);
     setScreen('names');
   }
@@ -470,6 +501,12 @@
       </main>`;
   };
 
+  function mateLine(crewId) {
+    const p = mateOpen(crewId);
+    const job = p && jobById(p.jobId);
+    return `<span class="mate-status">${p ? `On at ${esc(job ? job.name : 'a job')} since ${time(p.at)}` : 'Off'}</span>`;
+  }
+
   screens['pick-teammate'] = () => {
     const mates = state.crew.filter((c) => c.id !== state.me.id && c.role !== 'boss');
     return `<main class="screen">
@@ -479,9 +516,10 @@
       <div class="list">${mates.map((c) => `
         <div class="row-card">
           <span class="avatar">${esc(initials(c.name))}</span>
-          <span class="grow">${esc(c.name)}</span>
-          <button class="mini in" data-action="mate-punch" data-id="${esc(c.id)}" data-type="in">In</button>
-          <button class="mini out" data-action="mate-punch" data-id="${esc(c.id)}" data-type="out">Out</button>
+          <span class="grow"><span class="mate-name">${esc(c.name)}</span>${mateLine(c.id)}</span>
+          ${mateOpen(c.id)
+            ? `<button class="mate-btn out" data-action="mate-punch" data-id="${esc(c.id)}" data-type="out">Clock out</button>`
+            : `<button class="mate-btn in" data-action="mate-punch" data-id="${esc(c.id)}" data-type="in">Clock in</button>`}
         </div>`).join('') || '<p class="muted">No teammates yet.</p>'}</div>
     </main>`;
   };
@@ -494,7 +532,9 @@
     }));
     jobs.sort((a, b) => (a.d == null || b.d == null ? a.j.name.localeCompare(b.j.name) : a.d - b.d));
     const who = f.forTeammate ? crewById(f.crewId) : null;
-    const title = f.fixing ? 'Pick the right job' : f.type === 'in' ? 'Which job are you at?' : 'Which job are you leaving?';
+    const title = f.fixing ? 'Pick the right job'
+      : who ? `Which job is ${esc(who.name)} ${f.type === 'in' ? 'at' : 'leaving'}?`
+        : f.type === 'in' ? 'Which job are you at?' : 'Which job are you leaving?';
     return `<main class="screen">
       <button class="back" data-action="go-home">${Icons.back} Back</button>
       ${who ? `<div class="for-mate">${f.type === 'in' ? 'Clocking in' : 'Clocking out'} <b>${esc(who.name)}</b></div>` : ''}
@@ -517,6 +557,7 @@
       if (b && state.screen === 'locating' && state.flow === flow) b.hidden = false;
     }, 8000);
     return `<main class="screen center-col">
+      <button class="back" data-action="go-home">${Icons.back} Back</button>
       <div class="spinner" role="status" aria-label="Finding you"></div>
       <h1>Finding you…</h1>
       <p class="lead">${esc(job ? job.name : '')}</p>
@@ -531,6 +572,7 @@
     const why = f.forTeammate ? `Take a picture of ${esc(who ? who.name : 'them')} at the job.`
       : f.check && f.check.status === 'weak' ? 'GPS is weak here.' : "GPS couldn't find you.";
     return `<main class="screen center-col">
+      <button class="back" data-action="go-home">${Icons.back} Back</button>
       <div class="big-icon amber">${Icons.camera}</div>
       <h1>${f.forTeammate ? 'Take a picture' : 'Take a picture of the job'}</h1>
       <p class="lead">${why} ${f.forTeammate ? '' : 'Get the house, the truck, or the work in the picture.'}</p>
@@ -551,8 +593,6 @@
     const verb = f.type === 'in' ? 'clocked in' : 'clocked out';
     const subject = who ? `${esc(who.name)} is` : "You're";
     const canFix = f.type === 'in' && !f.forTeammate && Date.now() - f.savedAt < FIX_WINDOW_MS;
-    const offlineNote = state.pending > 0
-      ? `<p class="notice">${Icons.cloudOff} Saved on your phone. It will send itself when you get signal.</p>` : '';
     if (canFix) {
       setTimeout(() => {
         const b = document.getElementById('fix-btn');
@@ -565,7 +605,7 @@
       <p class="lead">${esc(job ? job.name : '')}<br><b>${time(f.at)}</b></p>
       <p>${chip(f.check.status, !!f.photo)}${f.check.distanceFt != null && f.check.status !== 'onsite' ? ` <span class="muted">${Geo.formatDistance(f.check.distanceFt)} from the job</span>` : ''}</p>
       ${s && f.check.status === 'offsite' ? '<p class="muted">The boss will see where you were.</p>' : ''}
-      ${offlineNote}
+      <div class="done-sync" data-done-sync>${doneSyncHtml()}</div>
       <button class="btn primary xl" data-action="go-home">OK</button>
       ${canFix ? `<button class="link" id="fix-btn" data-action="fix-job">Wrong job? Fix it</button>` : ''}
     </main>`;
@@ -589,8 +629,7 @@
     if (tab === 'jobs') body = bossJobsHtml();
     if (tab === 'crew') body = bossCrewHtml();
     if (tab === 'chat' && self.Messenger) body = Messenger.listHtml();
-    return `${demoBanner()}
-      <div class="boss">
+    return `<div class="boss">${demoBanner()}
         <header class="boss-head">
           <div class="brand small">${Icons.job}<span>Crew Clock</span></div>
           <div class="boss-head-right">
@@ -1100,6 +1139,7 @@
       const url = URL.createObjectURL(file);
       const q = await AI.photoQuality(url).catch(() => ({}));
       URL.revokeObjectURL(url);
+      if (state.flow !== f) return;
       if (q.problem) {
         f.photoProblem = q.problem;
         f.pendingFile = file;
@@ -1114,6 +1154,7 @@
     } catch (err) {
       return toast("That picture didn't work. Try again.");
     }
+    if (state.flow !== f) return; // they went Back while the picture was stamping (UX-9)
     finishPunch();
   }
 

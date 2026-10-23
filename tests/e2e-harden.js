@@ -253,7 +253,7 @@ t('HRD-3 (guard) double-tap CLOCK OUT: one punch', async (browser) => {
   return page;
 });
 
-// "Finding you" has no Back button; the way out is "Take a picture instead" (shown after 8 s).
+// Leaves "Finding you" through "Take a picture instead" (shown after 8 s); since UX-9 there is also a Back button.
 t('HRD-4 leave "Finding you", start a new punch, then the old GPS fix arrives: it does not finish the new punch', async (browser) => {
   const { page } = await open(browser, 'manual');
   await signIn(page, 'Jake R.', '1111');
@@ -329,7 +329,8 @@ t('HRD-9 foreman with no camera clocking in a teammate can finish without a phot
   const { page } = await open(browser, 'deny');
   await signIn(page, 'Ray T.', '3333');
   await page.getByRole('button', { name: /teammate/ }).click();
-  await page.locator('.row-card', { hasText: 'Cody M.' }).getByRole('button', { name: 'In' }).click();
+  // Travis is off the clock in the seed (Cody is on, so since UX-4 his row only offers "Clock out").
+  await page.locator('.row-card', { hasText: 'Travis K.' }).getByRole('button', { name: 'Clock in' }).click();
   await page.click('.job-btn[data-id="j2"]');
   await page.waitForSelector('input[data-action="photo-file"]', { state: 'attached' });
   const way = page.getByRole('button', { name: /can.t take a picture/i });
@@ -340,8 +341,8 @@ t('HRD-9 foreman with no camera clocking in a teammate can finish without a phot
   await way.click();
   await page.waitForSelector('.big-check');
   await quiet(page);
-  const p = (await punches(page)).find((x) => x.crewId === 'c3' && x.byCrewId === 'c1' && x.type === 'in');
-  if (!p) throw new Error('no clock-in saved for Cody');
+  const p = (await punches(page)).find((x) => x.crewId === 'c5' && x.byCrewId === 'c1' && x.type === 'in');
+  if (!p) throw new Error('no clock-in saved for Travis');
   const level = await page.evaluate((x) => Risk.topLevel(Risk.assess(x, { receivedAt: x.at })), p);
   if (level !== 'high') throw new Error(`teammate punch with no photo flagged ${level}, expected high`);
   return page;
@@ -361,7 +362,7 @@ async function recordSync(page, reply) {
     };
   }, reply);
 }
-// Via all(): Store.outbox.get() of a missing id resolves to the IDB request, not undefined.
+// Via all(), so a missing id is null here (Store.outbox.get() resolves undefined since UX-1).
 const outboxItem = (page, id) => page.evaluate(async (x) => (await Store.outbox.all()).find((i) => i.id === x) || null, id);
 const FAKE_PHOTO = 'data:image/jpeg;base64,' + Buffer.from('made-up test photo').toString('base64');
 async function givePhoto(page, id) {
@@ -452,6 +453,227 @@ t('PS-7b (guard) the boss does send an old queued job edit with no byCrewId', as
   if (!sent) throw new Error('the boss\'s sync did not send the old edit');
   if (await outboxItem(page, 'legacy-edit-1')) throw new Error('the old edit is still queued after the boss sent it');
   await ctx.close();
+  return page;
+});
+
+// ---------- M1.5 ux-reviewer findings ----------
+
+const outboxCount = (page) => page.evaluate(async () => (await Store.outbox.all()).length);
+async function drained(page, ms = 5000) {
+  const end = Date.now() + ms;
+  for (;;) {
+    if (await page.evaluate(async () => !self.CrewClock.state.syncing && (await Store.outbox.all()).length === 0)) return;
+    if (Date.now() > end) throw new Error(`outbox did not drain in ${ms} ms: ${await outboxCount(page)} left`);
+    await page.waitForTimeout(100);
+  }
+}
+
+// Jake is standing at Miller roof (j2) but taps Smith kitchen (j1), waits for "All sent", then fixes it.
+t('UX-1 "Wrong job? Fix it" after the clock-in already synced keeps its time and GPS, one void for it, outbox drains', async (browser) => {
+  const { page } = await open(browser, 'auto', JOBS.j2);
+  await signIn(page, 'Jake R.', '1111');
+  await page.click('.punch.out');
+  await page.waitForSelector('.big-check');
+  await tapOk(page);
+  await page.click('.punch.in');
+  await page.click('.job-btn[data-id="j1"]');
+  await page.waitForSelector('.big-check');
+  await quiet(page);
+  await drained(page).catch((e) => { throw new Error('setup: ' + e.message); });
+  const orig = (await punches(page)).filter((p) => p.type === 'in' && p.crewId === 'c2').sort((a, b) => b.at - a.at)[0];
+  if (!orig || orig.where !== 'server') throw new Error('setup: the clock-in did not reach the server: ' + JSON.stringify((await punches(page)).map((p) => [p.crewId, p.type, p.at, p.where])));
+  const lead = await page.locator('main .lead').innerText();
+  await page.getByRole('button', { name: 'Wrong job? Fix it' }).click();
+  await page.click('.job-btn[data-id="j2"]');
+  await page.waitForSelector('.big-check, [data-action="no-photo"]');
+  if (await page.locator('[data-action="no-photo"]').count()) throw new Error('fixing the job jumped to the photo screen ("GPS couldn\'t find you")');
+  await quiet(page);
+  const timeBefore = lead.split('\n').pop().trim();
+  const leadAfter = await page.locator('main .lead').innerText();
+  if (!leadAfter.includes(timeBefore)) throw new Error(`done screen time changed: ${JSON.stringify(lead)} -> ${JSON.stringify(leadAfter)}`);
+  const all = await punches(page);
+  const voids = all.filter((p) => p.type === 'void' && p.crewId === 'c2');
+  if (voids.length !== 1 || voids[0].voidsId !== orig.id) throw new Error(`expected 1 void of ${orig.id}, got ${JSON.stringify(voids.map((v) => v.voidsId))}`);
+  const fixed = all.find((p) => p.type === 'in' && p.jobId === 'j2' && p.crewId === 'c2');
+  if (orig.status !== 'offsite') throw new Error(`setup: wrong-job clock-in should be offsite, was ${orig.status}`);
+  if (!fixed || fixed.at !== orig.at || fixed.lat !== orig.lat || fixed.status !== 'onsite') {
+    throw new Error(`fixed punch lost the original time/GPS: ${JSON.stringify(fixed && [fixed.at, fixed.lat, fixed.status])} vs ${JSON.stringify([orig.at, orig.lat])}, expected onsite`);
+  }
+  if (!/on site/i.test(await page.locator('main').innerText())) throw new Error('done screen does not show the on-site status');
+  await drained(page);
+  await tapOk(page);
+  const sub = await page.locator('.status-sub').innerText();
+  if (!/since \d/.test(sub)) throw new Error(`Home status line: ${JSON.stringify(sub)}`);
+  return page;
+});
+
+async function jakeClocksIn(browser, offline) {
+  const { ctx, page } = await open(browser, 'auto', JOBS.j1);
+  await signIn(page, 'Jake R.', '1111');
+  await page.click('.punch.out');
+  await page.waitForSelector('.big-check');
+  await tapOk(page);
+  await drained(page);
+  if (offline) await ctx.setOffline(true);
+  await page.click('.punch.in');
+  await page.click('.job-btn[data-id="j1"]');
+  await page.waitForSelector('.big-check');
+  return { ctx, page };
+}
+
+t('UX-2 online clock-in: the done screen shows "Sent" within 3 s and no "saved on your phone" note', async (browser) => {
+  const { ctx, page } = await jakeClocksIn(browser, false);
+  await page.waitForFunction(() => /sent to the boss/i.test(document.querySelector('main').innerText), null, { timeout: 3000 })
+    .catch(async () => { throw new Error(`no "Sent" on the done screen after 3 s; it says ${JSON.stringify(await page.locator('main').innerText())}`); });
+  const note = await page.locator('main .notice').count();
+  if (note) throw new Error(`amber note shown online: ${JSON.stringify(await page.locator('main .notice').innerText())}`);
+  await ctx.close();
+  return page;
+});
+
+t('UX-2 (guard) offline clock-in: the done screen shows the amber "saved on your phone" note', async (browser) => {
+  const { ctx, page } = await jakeClocksIn(browser, true);
+  await quiet(page);
+  await page.waitForTimeout(300);
+  const note = page.locator('main .notice');
+  if (!(await note.count()) || !/saved on your phone/i.test(await note.innerText())) throw new Error('no amber note offline');
+  if (/sent to the boss/i.test(await page.locator('main').innerText())) throw new Error('says "Sent" while offline');
+  await ctx.close();
+  return page;
+});
+
+// Seed: Ray (foreman) is on at Smith kitchen (j1, where he stands); Cody is on at Miller roof (j2).
+t('UX-3 foreman clocks a teammate out: the punch uses the teammate\'s open job, not the foreman\'s nearest', async (browser) => {
+  const { page } = await open(browser, 'auto', JOBS.j1);
+  await signIn(page, 'Ray T.', '3333');
+  await page.getByRole('button', { name: /teammate/ }).click();
+  await page.locator('.row-card', { hasText: 'Cody M.' }).locator('[data-action="mate-punch"][data-type="out"]').click();
+  await page.waitForSelector('.job-btn.nearest, [data-action="no-photo"]');
+  let picker = null;
+  if (await page.locator('.job-btn.nearest').count()) { // what a foreman does: tap the top job
+    picker = await page.locator('.job-btn.nearest .job-name').innerText();
+    await page.click('.job-btn.nearest');
+    await page.waitForSelector('[data-action="no-photo"]');
+  }
+  await page.click('[data-action="no-photo"]');
+  await page.waitForSelector('.big-check');
+  await quiet(page);
+  const out = (await punches(page)).find((p) => p.crewId === 'c3' && p.type === 'out');
+  if (!out) throw new Error('no clock-out saved for Cody');
+  if (out.jobId !== 'j2') throw new Error(`Cody's clock-out went to ${out.jobId} (picker opened with "${picker}" on top), his open job is j2`);
+  return page;
+});
+
+t('UX-3 foreman clocking a teammate in sees "Which job is <name> at?"', async (browser) => {
+  const { page } = await open(browser, 'auto', JOBS.j1);
+  await signIn(page, 'Ray T.', '3333');
+  await page.getByRole('button', { name: /teammate/ }).click();
+  await page.locator('.row-card', { hasText: 'Billy S.' }).locator('[data-action="mate-punch"][data-type="in"]').click();
+  const h = await page.locator('main h1').innerText();
+  if (h !== 'Which job is Billy S. at?') throw new Error(`title is ${JSON.stringify(h)}`);
+  return page;
+});
+
+t('UX-4 pick-teammate: one button per row, at least 96x48, "Clock in" when off and "Clock out" when on, with a status line', async (browser) => {
+  const { page } = await open(browser, 'auto', JOBS.j1);
+  await signIn(page, 'Ray T.', '3333');
+  await page.getByRole('button', { name: /teammate/ }).click();
+  await page.waitForSelector('.row-card');
+  await page.waitForFunction(() => self.CrewClock.state.team); // the team list arrives after sign-in; the rows redraw
+  await page.waitForTimeout(50);
+  const rows = await page.$$eval('.row-card', (els) => els.map((r) => ({
+    text: r.innerText,
+    buttons: [...r.querySelectorAll('button')].map((b) => { const x = b.getBoundingClientRect(); return { label: b.innerText.trim(), w: x.width, h: x.height }; }),
+  })));
+  const want = { 'Jake R.': ['Clock out', /On at Smith kitchen since \d/], 'Cody M.': ['Clock out', /On at Miller roof since \d/], 'Billy S.': ['Clock in', /\bOff\b/], 'Travis K.': ['Clock in', /\bOff\b/] };
+  for (const [name, [label, line]] of Object.entries(want)) {
+    const r = rows.find((x) => x.text.includes(name));
+    if (!r) throw new Error(`no row for ${name}`);
+    if (r.buttons.length !== 1) throw new Error(`${name}: ${r.buttons.length} buttons (${r.buttons.map((b) => `${b.label} ${b.w}x${b.h}`).join(', ')})`);
+    const b = r.buttons[0];
+    if (b.label !== label) throw new Error(`${name}: button says ${JSON.stringify(b.label)}, expected ${label}; row ${JSON.stringify(r.text)}`);
+    if (b.w < 96 || b.h < 48) throw new Error(`${name}: button is ${b.w}x${b.h}, needs at least 96x48`);
+    if (!line.test(r.text)) throw new Error(`${name}: status line missing; row says ${JSON.stringify(r.text)}`);
+  }
+  return page;
+});
+
+async function bossOnMap(browser) {
+  const { page } = await open(browser, 'auto', JOBS.j1);
+  await signIn(page, 'Dad', '1234');
+  await page.click('[data-tab="map"]');
+  await page.waitForSelector('.leaflet-control-attribution');
+  return page;
+}
+
+for (const [w, h] of [[390, 844], [1280, 800]]) {
+  t(`UX-5 boss Map tab at ${w}x${h}: the whole tab bar is on screen under the demo banner`, async (browser) => {
+    const page = await bossOnMap(browser);
+    await page.setViewportSize({ width: w, height: h });
+    await page.waitForTimeout(100);
+    const r = await page.evaluate(() => (window.scrollTo(0, 0), { scrollY, scrollH: document.scrollingElement.scrollHeight, bottom: document.querySelector('.tabbar').getBoundingClientRect().bottom, labels: [...document.querySelectorAll('.tabbar span')].map((s) => s.getBoundingClientRect().bottom), ih: innerHeight }));
+    if (r.bottom > r.ih + 0.5 || r.labels.some((b) => b > r.ih + 0.5) || r.scrollH > r.ih) {
+      throw new Error(`tab bar bottom ${r.bottom}, labels ${r.labels.map(Math.round)}, window ${r.ih}, page height ${r.scrollH} (scrollY ${r.scrollY})`);
+    }
+    return page;
+  });
+}
+
+t('UX-6 boss Map at 390: the legend does not sit under the map attribution', async (browser) => {
+  const page = await bossOnMap(browser);
+  const [a, b] = await page.evaluate(() => ['.map-legend', '.leaflet-control-attribution'].map((q) => {
+    const x = document.querySelector(q).getBoundingClientRect(); return { l: x.left, r: x.right, t: x.top, b: x.bottom };
+  }));
+  const hit = a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
+  if (hit) throw new Error(`legend ${JSON.stringify(a)} overlaps attribution ${JSON.stringify(b)}`);
+  return page;
+});
+
+t('UX-9 "Finding you" has a Back button; backing out then a late GPS fix saves nothing', async (browser) => {
+  const { page } = await open(browser, 'manual');
+  await signIn(page, 'Jake R.', '1111');
+  const start = await now(page);
+  await page.click('.punch.out');
+  await page.waitForSelector('[aria-label="Finding you"]');
+  const back = page.getByRole('button', { name: 'Back' });
+  if (!(await back.count()) || !(await back.isVisible())) throw new Error('no visible Back on "Finding you"');
+  await back.click();
+  await page.waitForSelector('.punch.out');
+  await page.evaluate((p) => __fire(0, p), Object.assign({ acc: 5 }, JOBS.j1));
+  await page.waitForTimeout(300);
+  await quiet(page);
+  const outs = (await punches(page)).filter((p) => p.type === 'out' && p.at >= start);
+  if (outs.length) throw new Error(`backing out still saved ${outs.length} clock-out(s)`);
+  return page;
+});
+
+t('UX-9 the photo screen has a Back button that goes home without saving', async (browser) => {
+  const { page, start } = await jakeOnPhotoScreen(browser);
+  const back = page.getByRole('button', { name: 'Back' });
+  if (!(await back.count())) throw new Error('no Back on the photo screen');
+  await back.click();
+  await page.waitForSelector('.punch.out');
+  await quiet(page);
+  const outs = (await punches(page)).filter((p) => p.type === 'out' && p.at >= start);
+  if (outs.length) throw new Error(`Back from the photo screen saved ${outs.length} clock-out(s)`);
+  return page;
+});
+
+t('UX-10 "Finding you" says "GPS signal: weak (about 1.2 mi)" for a rough fix and "GPS signal: good" for a close one', async (browser) => {
+  const { page } = await open(browser, 'manual');
+  await signIn(page, 'Jake R.', '1111');
+  await page.click('.punch.out');
+  await page.waitForFunction(() => __gps.watches.length === 1);
+  await page.evaluate((p) => __fire(0, p), Object.assign({}, JOBS.j1, { acc: 1931 })); // about 1.2 mi
+  const weak = await page.locator('#live-acc').innerText();
+  if (weak !== 'GPS signal: weak (about 1.2 mi)') throw new Error(`rough fix reads ${JSON.stringify(weak)}`);
+  await page.evaluate((p) => __fire(0, p), Object.assign({}, JOBS.j1, { acc: 200 })); // still worse than the 152 m "weak" line
+  const mid = await page.locator('#live-acc').innerText();
+  if (mid !== 'GPS signal: weak (about 660 ft)') throw new Error(`200 m fix reads ${JSON.stringify(mid)}`);
+  // 30 m is good enough to judge the geofence (no photo needed), while the phone keeps refining toward 20 m.
+  await page.evaluate((p) => __fire(0, p), Object.assign({}, JOBS.j1, { acc: 30 }));
+  const good = await page.locator('#live-acc').innerText();
+  if (good !== 'GPS signal: good') throw new Error(`30 m fix reads ${JSON.stringify(good)}`);
   return page;
 });
 
