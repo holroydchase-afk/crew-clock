@@ -99,6 +99,15 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
   offers "Clock out"); its assertions are unchanged.
 ## In progress
 
+- `M1.7` README for recruiters (branch `m1.7-readme`, stacked on M1.6): positioning's rewrite.
+  Leads with what it is, "Try the demo", three screenshots from the demo build
+  (`docs/screenshots/`, 390x844 at 2x, 1:30 PM page clock), a "Why I built it", a 90-second
+  walkthrough, the product decisions, and a table of what the demo shows versus what only the crew
+  app does (push alerts, Sheets reports and on-phone AI are crew-app only; the crew app isn't live
+  yet). Fixed claims the demo couldn't back up (alerts, Sheets, AI labels, "server sees only
+  ciphertext" in the demo, Pages hosting for the crew app, `Code.gs` "still works").
+  `tests/readme.test.js` fails if a README link or image is missing, the live link, badge or
+  license goes, or the walkthrough names someone who isn't in the demo crew.
 - `M1.6` showcase polish (branch `m1.6-showcase-polish`, night shift 2026-10-24, Chase's steer:
   recruiter readiness first). `tests/e2e-showcase.js` runs axe-core (WCAG 2.2 A/AA) on every demo
   screen at 390x844 and 1280x800, light and dark, and fails on any same-origin console error;
@@ -239,6 +248,9 @@ Waiting on Chase, in order (each unblocks an M2 task; nothing in M1 needs these)
 
 ## Portfolio / public presence
 
+- 2026-10-24 (M1.6, M1.7 night shift): the demo opens with what it is and a "Start here" name,
+  never reads a visitor's location, keeps the sample crew in daytime hours, and passes axe on every
+  screen; the README now matches what the demo shows, with screenshots.
 - Portfolio page: not yet; Product Studio adds the card once the demo passes the recruiter-ready
   bar (`M1.8`).
 - Live demo: https://chaseholroyd.com/crew-clock/ (GitHub Pages, deployed by
