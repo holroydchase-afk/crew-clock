@@ -110,7 +110,13 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
   `crew_offboard`). `public.erase_crew_data(crew)` is the boss's "delete their data" action (GPS,
   pictures, phones, push, key packages, sent chat; hours and consent kept). FKs `punches.voids_id`
   and `punches.device_id` are now `on delete set null` so old rows can go. Tests:
-  `tests/sql/retention_test.sql` (qa-tdd, 16 cases, red then green). Demo: "Reset sample data" in
+  `tests/sql/retention_test.sql` (qa-tdd, 16 cases, red then green). privacy-security on M1.4:
+  1 P1 and 3 P2, all fixed test-first: GPS removal now also removes the punch's hash, signature and
+  the next punch's `prev_hash` (they cover the location, so it could be brute-forced back); a worker
+  is anonymized 3 years after `deactivated_at`, not at the next run; rows revoked or claimed before
+  this migration get `revoked_at`/`claimed_at` of today. Residual (logged, not fixed): the next
+  punch's own hash still covers that pointer until it is trimmed too (days), and `devices.last_hash`
+  holds the newest hash; a per-punch random salt in `js/chain.js` (chain v2) would close both. Demo: "Reset sample data" in
   the demo banner clears the visit and reloads the sample crew (`tests/e2e-demo.js` RST-1; SEP-4 now
   also checks the banner's two controls never cover each other; SEP-5 checks the crew app has no
   reset). Left for later: the B2 purge Edge Function that drains `app.photo_purge` (M2.3), deleting
@@ -179,9 +185,10 @@ sign-in and server hardening (F-03, F-06, F-12, F-13, F-15), failing tests first
   anonymized (name "Former crew member", no PIN) instead of deleted, because the records point at
   it. Chase's call: keep it, or change the hard rule so consents go at crew + 3 years (staff-pm
   recommends yes, wording by privacy-security).
-- **M1.4: GPS removal ends re-checking old signatures.** Each punch's signature covers its
-  location, so after 90 days it can't be re-verified; `sig_ok` keeps the result from when the
-  punch arrived.
+- **M1.4: GPS removal also removes the punch's hash and signature**, because they cover the
+  location and would let it be guessed back. Old punches can't be re-verified; `sig_ok` keeps the
+  result from when the punch arrived. Proposed next: chain v2 with a per-punch random salt (M1.9
+  or M2), so the residual guess through the next punch's hash goes away.
 - **M1.4: "Reset sample data" sits in the demo banner** (every screen) and asks once before
   clearing. It clears only `cc.*` keys and the app's own IndexedDB stores, then reloads.
 

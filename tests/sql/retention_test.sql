@@ -52,6 +52,14 @@ insert into punches (id, org_id, crew_id, by_crew_id, device_id, job_id, type, p
 insert into punches (id, org_id, crew_id, by_crew_id, type, voids_id, phone_at) values
   ('00000000-0000-0000-0003-000000000003', '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0001-0000000000b4', '00000000-0000-0000-0001-0000000000b4', 'void',
    '00000000-0000-0000-0003-000000000002', timestamptz '2030-06-01 12:00Z' - interval '3 years' + interval '1 day');
+-- Signed chain on Test Active D's punches: 5 (GPS goes) then 6 (GPS stays), 6 pointing at 5. The hash
+-- and signature cover the location, so they must go with it or the GPS can be guessed back.
+update punches set hash = 'h-test-5', signature = 's-test-5', prev_hash = 'h-test-4' where id = '00000000-0000-0000-0003-000000000005';
+update punches set hash = 'h-test-6', signature = 's-test-6', prev_hash = 'h-test-5' where id = '00000000-0000-0000-0003-000000000006';
+-- A worker turned off yesterday who never punched: anonymized only 3 years after leaving.
+insert into crew (id, org_id, name, role, active, deactivated_at, pin_hash) values
+  ('00000000-0000-0000-0001-0000000000be', '00000000-0000-0000-0000-0000000000a1', 'Test Recent Leaver K', 'crew', false,
+   timestamptz '2030-06-01 12:00Z' - interval '1 day', 'pbkdf2$test');
 create temp table _punches_before as select id, status, distance_ft, photo_sha256 from punches;
 
 -- Photo deletions already queued: done 31 days ago (goes), done 29 days ago (stays), never done (stays).
@@ -139,6 +147,13 @@ do $$ declare p record; b record; begin
       raise exception 'GPS inside 90 days was removed from punch %', p.id;
     end if;
   end loop;
+  select * into p from punches where id = '00000000-0000-0000-0003-000000000005';
+  if p.hash is not null or p.signature is not null or p.prev_hash is not null then
+    raise exception 'hash, signature or prev_hash kept on a punch whose GPS was removed (they let it be guessed back)';
+  end if;
+  select * into p from punches where id = '00000000-0000-0000-0003-000000000006';
+  if p.prev_hash is not null then raise exception 'next punch still holds the removed punch''s hash'; end if;
+  if p.hash is distinct from 'h-test-6' or p.signature is distinct from 's-test-6' then raise exception 'a punch inside 90 days lost its own hash or signature'; end if;
   raise notice 'OK RET-2b GPS nulled after 90 days, status and distance kept';
 end $$;
 
@@ -197,7 +212,9 @@ do $$ declare c record; begin
   if c.name <> 'Test Active C' then raise exception 'active worker without punches lost their name (%)', c.name; end if;
   select * into c from crew where id = '00000000-0000-0000-0000-0000000000b0';
   if c.name <> 'Dad' then raise exception 'the boss lost their name (%)', c.name; end if;
-  raise notice 'OK RET-2f inactive crew with no hours left anonymized';
+  select * into c from crew where id = '00000000-0000-0000-0001-0000000000be';
+  if c.name <> 'Test Recent Leaver K' or c.pin_hash is null then raise exception 'worker who left yesterday was anonymized at once (%)', c.name; end if;
+  raise notice 'OK RET-2f inactive crew with no hours left anonymized 3 years after leaving';
 end $$;
 
 do $$ declare n int; begin

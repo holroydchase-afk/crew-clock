@@ -116,7 +116,7 @@ federal; West Virginia's own rules are a "needs Chase" check (see the end).
 | Data | Where | Kept | Then | Status |
 | --- | --- | --- | --- | --- |
 | Hours: punch time, type, job, worker, status, distance in feet, who made it | Supabase `punches` | **3 years** after the punch | Row deleted | [built, M1.4: `app.apply_retention`, `20261024000000_retention.sql`; runs daily from M2.4] |
-| Raw GPS on a punch: `lat`, `lng`, `accuracy_m`, `address` | Supabase `punches` | **90 days** | Set to null; status and distance stay, so hours still make sense. The punch's signature covers its location, so it can't be re-checked after this; `sig_ok` keeps the result from arrival | [built, M1.4] |
+| Raw GPS on a punch: `lat`, `lng`, `accuracy_m`, `address` | Supabase `punches` | **90 days** | Set to null; status and distance stay, so hours still make sense. The punch's hash and signature cover its location, so they are removed too, with the next punch's pointer to that hash (`sig_ok` keeps the check from arrival). The next punch's own hash still covers that pointer, so until it is trimmed too (at most days later) the old location could in theory be guessed back from it; a per-punch random salt in the chain would close this (logged in HANDOFF) | [built, M1.4] |
 | Clock-in pictures | Backblaze B2 (private bucket), key on the punch | **60 days** | Object deleted, `photo_key` set to null, `photo_sha256` kept | [partly built, M1.4: key queued in `app.photo_purge` and nulled; the Edge Function that deletes the B2 object is M2.3; B2 lifecycle rule can back it up] |
 | Picture-delete queue: company and B2 key, when queued and done | Supabase `app.photo_purge` (no phone can read it) | 30 days after the object is deleted | Deleted | [built, M1.4] |
 | Chat ciphertext | Supabase `mls_messages` | **30 days** | Deleted. Phones keep their own decrypted copy. | [built, M1.4] |
@@ -149,8 +149,8 @@ Rules:
   removed from chat groups, unclaimed key packages deleted. [built, M1.4: trigger `crew_offboard`]
 - After that, normal retention runs: GPS gone at 90 days, pictures at 60, hours kept 3 years
   under their name because payroll law needs it.
-- 3 years after their last punch: punches deleted and the crew row anonymized ("Former crew
-  member", no PIN). The row stays because consent records, kept for good, point at it. [built,
+- 3 years after their last punch, the punches are deleted; once that's done and they left over 3
+  years ago (`deactivated_at`), the crew row is anonymized ("Former crew member", no PIN). The row stays because consent records, kept for good, point at it. [built,
   M1.4] The Supabase Auth user (`<id>@crew.invalid`) is deleted then too. [to build, M2: needs the
   Auth admin API]
 

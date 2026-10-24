@@ -9,6 +9,22 @@
 alter table public.devices add column revoked_at timestamptz;
 -- When a key package was used, so it can go 30 days later.
 alter table public.mls_key_packages add column claimed_at timestamptz;
+-- When a worker was turned off, so their name and PIN go 3 years later (not at the next run).
+alter table public.crew add column deactivated_at timestamptz;
+-- Rows from before this migration count from today, so none is kept forever or cut early.
+update public.devices set revoked_at = now() where revoked and revoked_at is null;
+update public.mls_key_packages set claimed_at = now() where claimed and claimed_at is null;
+update public.crew set deactivated_at = now() where not active and deactivated_at is null;
+
+create or replace function app.stamp_deactivated() returns trigger
+language plpgsql as $$
+begin
+  if new.active then new.deactivated_at := null;
+  elsif new.deactivated_at is null then new.deactivated_at := now(); end if;
+  return new;
+end $$;
+create trigger crew_stamp_deactivated before insert or update of active on public.crew
+  for each row execute function app.stamp_deactivated();
 
 create or replace function app.stamp_revoked() returns trigger
 language plpgsql as $$
@@ -50,6 +66,13 @@ revoke all on sequence app.photo_purge_id_seq from public, anon, authenticated;
 
 -- ---------- R1: the daily run ----------
 
+-- The next punch in a phone's chain names the one before it by hash; drop those pointers.
+create or replace function app.unlink_hashes(p_hashes text[]) returns void
+language sql security definer set search_path = '' as $$
+  update public.punches set prev_hash = null where prev_hash = any(p_hashes)
+$$;
+revoke all on function app.unlink_hashes(text[]) from public, anon, authenticated;
+
 create or replace function app.apply_retention(p_now timestamptz default now()) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -70,10 +93,16 @@ begin
   get diagnostics k = row_count;
   n := n || jsonb_build_object('punches_deleted', k);
 
-  -- Raw GPS at 90 days; status and distance stay so the hours still make sense
-  update public.punches set lat = null, lng = null, accuracy_m = null, address = null
+  -- Raw GPS at 90 days; status and distance stay so the hours still make sense. The hash and
+  -- signature cover the location, so they go too (or the GPS could be guessed back from them),
+  -- and so does the next punch's pointer to that hash.
+  perform app.unlink_hashes(array(select hash from public.punches
+    where phone_at < p_now - interval '90 days' and hash is not null));
+  update public.punches set lat = null, lng = null, accuracy_m = null, address = null,
+      hash = null, signature = null, prev_hash = null
     where phone_at < p_now - interval '90 days'
-      and (lat is not null or lng is not null or accuracy_m is not null or address is not null);
+      and (lat is not null or lng is not null or accuracy_m is not null or address is not null
+           or hash is not null or signature is not null or prev_hash is not null);
   get diagnostics k = row_count;
   n := n || jsonb_build_object('gps_cleared', k);
 
@@ -93,10 +122,11 @@ begin
   get diagnostics k = row_count;
   n := n || jsonb_build_object('devices_deleted', k);
 
-  -- A worker who left and whose last punch is past 3 years keeps no name or PIN. The row stays,
+  -- A worker who left over 3 years ago and has no hours left keeps no name or PIN. The row stays,
   -- because their consent records (kept for good) point at it.
   update public.crew c set name = 'Former crew member', pin_hash = null
-    where not c.active and (c.name <> 'Former crew member' or c.pin_hash is not null)
+    where not c.active and c.deactivated_at < p_now - interval '3 years'
+      and (c.name <> 'Former crew member' or c.pin_hash is not null)
       and not exists (select 1 from public.punches p where p.crew_id = c.id or p.by_crew_id = c.id);
   get diagnostics k = row_count;
   n := n || jsonb_build_object('crew_anonymized', k);
@@ -140,7 +170,9 @@ begin
     select org_id, photo_key from public.punches where crew_id = p_crew and photo_key is not null;
   get diagnostics k = row_count;
   n := n || jsonb_build_object('photos_queued', k);
-  update public.punches set lat = null, lng = null, accuracy_m = null, address = null, photo_key = null
+  perform app.unlink_hashes(array(select hash from public.punches where crew_id = p_crew and hash is not null));
+  update public.punches set lat = null, lng = null, accuracy_m = null, address = null, photo_key = null,
+      hash = null, signature = null, prev_hash = null
     where crew_id = p_crew;
   get diagnostics k = row_count;
   n := n || jsonb_build_object('punches_cleared', k);
