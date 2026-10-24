@@ -83,10 +83,10 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 /* Ink on amber-soft: 15.9:1 light, 7.9:1 dark. */
 .demo-banner {
   background: var(--amber-soft); color: var(--ink); text-align: center;
-  font-size: 13px; font-weight: 600; line-height: 1.35; padding: calc(env(safe-area-inset-top) + 6px) 12px 6px;
+  font-size: 15px; font-weight: 600; line-height: 1.35; padding: calc(env(safe-area-inset-top) + 12px) 12px 12px;
 }
 /* The link's hit area fills the banner's own padding, never past its edge, so it can't cover "Not you?" below */
-.demo-banner a { color: inherit; text-decoration: underline; white-space: nowrap; display: inline-block; padding: 6px; margin: -6px 0; }
+.demo-banner a { color: inherit; text-decoration: underline; white-space: nowrap; display: inline-block; padding: 12px 6px; margin: -12px 0; }
 /* On the boss screen the banner sits inside .boss, so the tab bar still fits in 100dvh (UX-5). */
 .demo-banner + .screen, .boss > .demo-banner + .boss-head { padding-top: 16px; }
 
@@ -210,7 +210,7 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 .job-ico { width: 44px; height: 44px; border-radius: 12px; background: var(--blue-soft); color: var(--blue-ink); display: flex; align-items: center; justify-content: center; flex: none; }
 .job-ico svg { width: 26px; height: 26px; }
 .job-name { display: block; font-size: 20px; font-weight: 700; }
-.job-addr { display: block; font-size: 15px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.job-addr { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 15px; color: var(--muted); overflow: hidden; }
 .job-dist { font-weight: 700; color: var(--muted); font-size: 16px; white-space: nowrap; }
 .for-mate { background: var(--amber-soft); color: var(--amber); border-radius: 12px; padding: 10px 14px; font-size: 17px; }
 .notice { background: var(--amber-soft); color: var(--amber); border-radius: 14px; padding: 14px 16px; display: flex; gap: 8px; align-items: center; margin: 0; font-weight: 500; text-align: left; }
@@ -239,7 +239,7 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 .boss { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
 .boss-head { display: flex; justify-content: space-between; align-items: center; padding: calc(env(safe-area-inset-top) + 8px) 16px 8px; background: var(--card); border-bottom: 1px solid var(--line); }
 .boss-head-right { display: flex; gap: 4px; align-items: center; }
-.boss-head-right .link { font-size: 15px; padding: 8px; }
+.boss-head-right .link { font-size: 15px; padding: 8px; min-height: 44px; display: inline-flex; align-items: center; }
 .boss-body { flex: 1; overflow-y: auto; position: relative; }
 .boss-body.tab-map { overflow: hidden; }
 .pad { padding: 16px; max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
@@ -260,7 +260,7 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 .crew-dot.s-offsite { background: #dc2626; color: #fff; }
 .crew-dot.s-weak, .crew-dot.s-nogps { background: #6b7280; color: #fff; }
 .crew-dot.is-out { border-style: dashed; }
-.crew-dot.stale { opacity: 0.55; }
+.crew-dot.stale { border-color: #9ca3af; box-shadow: none; } /* not today: grey ring, text keeps its contrast (no opacity) */
 .job-pin { width: 30px; height: 30px; border-radius: 9px; background: #2563eb; color: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,.3); }
 .job-pin svg { width: 18px; height: 18px; }
 .popup { font-size: 15px; line-height: 1.5; }
@@ -278,10 +278,11 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 .field { display: flex; flex-direction: column; gap: 8px; font-weight: 600; font-size: 17px; }
 .field input { border: 2px solid var(--line); background: var(--card); border-radius: 14px; padding: 14px 16px; font-size: 19px; font-weight: 400; width: 100%; }
 .field input:focus { outline: none; border-color: var(--blue); }
+.field input:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; background: var(--gray-soft); padding: 4px; border-radius: 14px; }
 .seg button { border-radius: 11px; padding: 12px 6px; font-weight: 600; font-size: 16px; display: flex; flex-direction: column; align-items: center; }
 .seg button.on { background: var(--card); box-shadow: var(--shadow); color: var(--blue); }
-.seg.fences small { font-weight: 400; font-size: 12px; color: var(--gray); }
+.seg.fences small { font-weight: 400; font-size: 14px; color: var(--gray); }
 .search-row { display: flex; gap: 8px; }
 .results { display: flex; flex-direction: column; background: var(--card); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; }
 .results button { display: flex; gap: 10px; align-items: flex-start; text-align: left; padding: 14px; border-bottom: 1px solid var(--line); font-weight: 400; font-size: 16px; }
@@ -333,3 +334,9 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 .location-off { font-size: 17px; }
 /* Leaflet's attribution link: underlined and dark enough to read next to its text (axe link-in-text-block) */
 .leaflet-control-attribution a { color: #1d4ed8; text-decoration: underline; }
+.demo-intro { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; margin: 0 0 16px; font-size: 17px; }
+.demo-intro p { margin: 0 0 8px; }
+.demo-intro p:last-child { margin: 0; }
+/* Leaflet's zoom buttons at a 44px touch size (showcase SC-6) */
+.leaflet-touch .leaflet-bar a { width: 44px; height: 44px; line-height: 44px; font-size: 24px; }
+.name-role.start { background: var(--green-soft); color: var(--green); padding: 2px 8px; border-radius: 999px; margin-top: 0; }

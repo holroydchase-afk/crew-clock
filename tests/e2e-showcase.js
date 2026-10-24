@@ -146,6 +146,100 @@ async function walk(browser, viewport, colorScheme) {
   return found;
 }
 
+// The first 90 seconds of a recruiter's visit (ux-reviewer showcase SC-1..SC-3).
+const firstVisit = [];
+const fv = (name, fn) => firstVisit.push({ name, fn });
+
+async function freshVisitor(browser, at) {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+  const page = await ctx.newPage();
+  page.problems = [];
+  page.on('pageerror', (e) => page.problems.push(e.message));
+  page.on('dialog', (d) => d.accept());
+  await ctx.route((u) => u.origin !== ORIGIN, (r) => r.fulfill({ status: 204, body: '' }));
+  if (at) await page.clock.install({ time: at });
+  // A visitor far from West Virginia; counts every location read.
+  await page.addInitScript(() => {
+    window.__reads = 0;
+    const far = () => ({ coords: { latitude: 40.71, longitude: -74.0, accuracy: 20 }, timestamp: Date.now() });
+    navigator.geolocation.watchPosition = (ok) => { window.__reads++; setTimeout(() => ok(far()), 0); return 1; };
+    navigator.geolocation.clearWatch = () => {};
+    navigator.geolocation.getCurrentPosition = (ok) => { window.__reads++; setTimeout(() => ok(far()), 0); };
+  });
+  await page.goto(BASE);
+  await page.waitForSelector('.name-btn');
+  return page;
+}
+const localAt = (h, m = 0) => { const d = new Date(); d.setHours(h, m, 0, 0); return d; };
+
+fv('SHOW-2 a first-time visitor clocks in without the demo reading their real location, and lands "On site"', async (browser) => {
+  const page = await freshVisitor(browser);
+  await page.getByRole('button', { name: 'Travis K.' }).first().click();
+  await page.waitForSelector('.punch');
+  await page.click('.punch');
+  await page.waitForSelector('.job-btn, .big-check', { state: 'attached' });
+  if (await page.locator('.job-btn').count()) await page.locator('.job-btn').first().click();
+  await page.waitForSelector('.big-check, [data-action="photo-file"]', { state: 'attached', timeout: 15000 });
+  const reads = await page.evaluate(() => window.__reads);
+  if (reads) throw new Error(`the demo read the visitor's location ${reads} time(s)`);
+  const text = await page.locator('main').innerText();
+  if (!/on site/i.test(text)) throw new Error(`the first clock-in did not land on site: ${JSON.stringify(text.slice(0, 160))}`);
+  return page;
+});
+
+for (const [h, m] of [[2, 15], [7, 30], [10, 0], [15, 0], [21, 0]]) {
+  fv(`SHOW-3 opened at ${h}:${String(m).padStart(2, '0')}, the sample crew works daytime hours and the boss sees a full day`, async (browser) => {
+    const page = await freshVisitor(browser, localAt(h, m));
+    const hours = await page.evaluate(() => {
+      const k = Object.keys(localStorage).find((x) => x.startsWith('cc.demo.db'));
+      return JSON.parse(localStorage.getItem(k)).punches.map((p) => { const d = new Date(p.at); return d.getHours() + d.getMinutes() / 60; });
+    });
+    const odd = hours.filter((x) => x < 6 || x > 18);
+    if (odd.length) throw new Error(`sample punches at night: ${odd.map((x) => x.toFixed(2)).join(', ')}`);
+    await page.getByRole('button', { name: 'Sam W.' }).first().click();
+    await page.waitForSelector('.boss');
+    await page.click('[data-action="boss-tab"][data-tab="today"]');
+    await page.waitForSelector('.shift', { timeout: 5000 }).catch(() => {});
+    const rows = await page.locator('.shift').count();
+    if (rows < 3) throw new Error(`the boss's day list shows ${rows} shift(s)`);
+    return page;
+  });
+}
+
+fv('SHOW-5 with "pretend I\'m at the job" on (the demo default), a worker who said "Not now" still clocks in with no location', async (browser) => {
+  const page = await freshVisitor(browser);
+  await page.getByRole('button', { name: 'Billy S.' }).first().click();
+  await page.getByRole('button', { name: 'Not now', exact: true }).click();
+  await page.waitForSelector('.punch');
+  await page.click('.punch');
+  await page.waitForSelector('.consent');
+  await page.getByRole('button', { name: 'Not now', exact: true }).click();
+  await page.waitForSelector('.job-btn');
+  await page.locator('.job-btn').first().click();
+  await page.waitForSelector('[data-action="photo-file"]', { state: 'attached' });
+  await page.click('[data-action="no-photo"]');
+  await page.waitForSelector('.big-check');
+  await page.waitForTimeout(800);
+  const p = await page.evaluate(() => {
+    const k = Object.keys(localStorage).find((x) => x.startsWith('cc.demo.db'));
+    return JSON.parse(localStorage.getItem(k)).punches.filter((x) => x.crewId === 'c4').pop();
+  });
+  if (!p || p.lat != null || p.lng != null) throw new Error(`Billy's punch carries a location: ${JSON.stringify(p)}`);
+  if (await page.evaluate(() => window.__reads)) throw new Error('the demo read the visitor\'s location');
+  return page;
+});
+
+fv('SHOW-4 the demo\'s first screen says what this is and what to try', async (browser) => {
+  const page = await freshVisitor(browser);
+  const text = await page.locator('main').innerText();
+  const start = await page.locator('.name-btn', { hasText: 'Start here' }).innerText().catch(() => '');
+  if (!/Travis K\./.test(start)) throw new Error(`"Start here" is not on a crew member who is off the clock: ${JSON.stringify(start)}`);
+  for (const want of [/construction crew/i, /no signal/i, /Start here/, /boss/i]) {
+    if (!want.test(text)) throw new Error(`the sign-in screen does not mention ${want}: ${JSON.stringify(text.slice(0, 240))}`);
+  }
+  return page;
+});
+
 (async () => {
   const only = process.argv[2];
   const browser = await launch();
@@ -153,7 +247,7 @@ async function walk(browser, viewport, colorScheme) {
   for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 800 }]) {
     for (const scheme of ['light', 'dark']) {
       const name = `${viewport.width}-${scheme}`;
-      if (only && name !== only) continue;
+      if (only && name !== only && !`SHOW-1 ${name}`.startsWith(only)) continue;
       try {
         const found = await walk(browser, viewport, scheme);
         if (!found.length) { console.log(`ok     SHOW-1 ${name}: no axe violations or console errors on any screen`); continue; }
@@ -165,6 +259,17 @@ async function walk(browser, viewport, colorScheme) {
         console.log(`FAIL   SHOW-1 ${name}: ${e.message.split('\n')[0]}`);
       }
     }
+  }
+  for (const c of firstVisit.filter((x) => !only || x.name.startsWith(only))) {
+    try {
+      const page = await c.fn(browser);
+      if (page.problems.length) throw new Error('page errors: ' + page.problems.join('; '));
+      console.log(`ok     ${c.name}`);
+    } catch (e) {
+      failed++;
+      console.log(`FAIL   ${c.name}\n       ${e.message.split('\n')[0]}`);
+    }
+    for (const ctx of browser.contexts()) await ctx.close().catch(() => {});
   }
   await browser.close();
   console.log(failed ? `${failed} failed` : 'all passed');
