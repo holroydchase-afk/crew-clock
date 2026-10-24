@@ -11,6 +11,8 @@ const t = (name, fn) => cases.push({ name, fn });
 // Counts every location read and every watch still running. With answer: false the GPS never
 // answers, so a watch stays open until the app clears it.
 function gpsSpy(opts) {
+  // The demo starts with "pretend I'm at the job" on (M1.6); these tests drive the real GPS path.
+  try { localStorage.setItem('cc.demoFake', 'false'); } catch (e) { /* ok */ }
   window.__gps = { reads: 0, active: new Set(), next: 1 };
   if (opts.primed) localStorage.setItem('cc.locPrimed', 'true');
   // answer 'rough': one reading good enough to count (on site, not weak) but not to stop the

@@ -22,6 +22,8 @@ const answer = (r) => (isTile(new URL(r.request().url())) ? r.fulfill({ status: 
 const CONTEXT = { viewport: { width: 390, height: 844 }, serviceWorkers: 'block' };
 
 function gpsAt(pos) {
+  // The demo starts with "pretend I'm at the job" on (M1.6); these tests drive the real GPS path.
+  try { localStorage.setItem('cc.demoFake', 'false'); } catch (e) { /* ok */ }
   const at = () => ({ coords: { latitude: pos.lat, longitude: pos.lng, accuracy: pos.acc }, timestamp: Date.now() });
   navigator.geolocation.watchPosition = (ok) => { setTimeout(() => ok(at()), 0); return 1; };
   navigator.geolocation.clearWatch = () => {};

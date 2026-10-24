@@ -47,7 +47,7 @@ jobs:
 
       - name: Browser tests
         run: |
-          npm install --no-save playwright@1.56.1 http-server@14.1.1
+          npm install --no-save playwright@1.56.1 http-server@14.1.1 axe-core@4.11.3
           npx playwright install --with-deps chromium
           # Test the site exactly as Cloudflare Pages publishes it
           node scripts/build-site.mjs

@@ -285,8 +285,13 @@
     if (!noLocation) sortJobsByDistance();
   }
 
+  // In the demo, "pretend I'm at the job" starts on, so a visitor's own location is never read
+  // unless they turn it off (M1.6, showcase SC-1).
+  function fakeGps() { return Api.isDemo && cfg.backend === 'demo' && Store.local.get('demoFake', true); } // never in a crew build that fell back to demo
+
   // One rough reading for the job list; it stops when they pick a job or leave the list (L2).
   async function sortJobsByDistance() {
+    if (fakeGps()) return;
     const flow = state.flow;
     const fix = await watchGps(navigator.geolocation, () => state.screen === 'pick-job' && state.flow === flow,
       { timeoutMs: 8000, goodEnoughM: Infinity, highAccuracy: false, maximumAgeMs: 120000 });
@@ -340,7 +345,7 @@
     setScreen('locating');
     const job = jobById(state.flow.jobId);
     let fix;
-    if (Api.isDemo && Store.local.get('demoFake', false) && job) {
+    if (fakeGps() && job) {
       await new Promise((r) => setTimeout(r, 900));
       fix = { lat: job.lat + 0.0002, lng: job.lng - 0.0001, accuracy: 9, at: Date.now() };
     } else {
@@ -484,7 +489,7 @@
       if (!state.consentAsked && !saidNo) return setScreen('consent', { consentNext: null });
       return setScreen('home'); // "Not now": no location, so no phone permission to ask for
     }
-    if (!Store.local.get('locPrimed', false)) return setScreen('primer');
+    if (!Store.local.get('locPrimed', false) && !fakeGps()) return setScreen('primer');
     setScreen('home');
   }
 
@@ -506,6 +511,7 @@
     });
     return namesHtml();
   };
+  const DEMO_START = 'c5'; // the sample crew member who is never on the clock when the demo opens
   function namesHtml() {
     const list = state.names;
     let body;
@@ -513,11 +519,13 @@
     else if (!list) body = '<p class="notice">No signal. The first time you sign in, you need signal. Try near the road or in town.</p>';
     else {
       const role = { boss: 'Boss', foreman: 'Foreman' };
-      body = `${demoNoPin() ? '<p class="muted center">Demo: tap anyone to sign in. Pick the boss to see the team map.</p>' : ''}
+      body = `${demoNoPin() ? `<div class="demo-intro"><p><b>A GPS time clock for a small construction crew.</b> Three taps to clock in, and it works with no signal.</p>
+        <p>Try it: tap the name marked <b>Start here</b> to clock in, then the boss for the team map.</p></div>` : ''}
         <div class="name-grid">${list.map((c) => `
         <button class="name-btn" data-action="pick-name" data-id="${esc(c.id)}">
           <span class="avatar">${esc(initials(c.name))}</span><span>${esc(c.name)}</span>
           ${demoNoPin() && role[c.role] ? `<span class="name-role">${role[c.role]}</span>` : ''}
+          ${demoNoPin() && c.id === DEMO_START ? '<span class="name-role start">Start here</span>' : ''}
         </button>`).join('')}</div>`;
     }
     return `<main class="screen">
@@ -586,7 +594,7 @@
       ? `<button class="punch out" data-action="punch" data-type="out">${Icons.out}<span>CLOCK OUT</span></button>`
       : `<button class="punch in" data-action="punch" data-type="in">${Icons.in}<span>CLOCK IN</span></button>`;
     const fake = Api.isDemo
-      ? `<label class="demo-toggle"><input type="checkbox" data-action="demo-fake" ${Store.local.get('demoFake', false) ? 'checked' : ''}> Demo: pretend I'm at the job</label>`
+      ? `<label class="demo-toggle"><input type="checkbox" data-action="demo-fake" ${fakeGps() ? 'checked' : ''}> Demo: pretend I'm at the job</label>`
       : '';
     return `<main class="screen home">
         <header class="home-head">
@@ -731,7 +739,7 @@
       ...(isBoss() ? [['jobs', 'Jobs', Icons.job], ['crew', 'Crew', Icons.people]] : []),
       ...(self.Messenger ? [['chat', 'Chat', Icons.chat]] : []),
     ];
-    const updated = state.team ? `Updated ${time(state.team.at)}` : 'Not loaded yet';
+    const updated = state.team ? `Refresh · ${time(state.team.at)}` : 'Refresh';
     let body = '';
     if (tab === 'map') body = bossMapHtml();
     if (tab === 'today') body = bossTodayHtml();
@@ -785,25 +793,37 @@
     const jobs = (state.team && state.team.jobs) || state.jobs;
     jobs.filter((j) => j.active !== false && j.lat != null).forEach((j) => {
       L.circle([j.lat, j.lng], { radius: Geo.toMeters(j.radiusFt || 300), color: '#2563eb', weight: 2, fillOpacity: 0.08 }).addTo(leafletMap);
-      L.marker([j.lat, j.lng], { icon: jobIcon() }).addTo(leafletMap).bindPopup(`<b>${esc(j.name)}</b><br>${esc(j.address || '')}`);
+      L.marker([j.lat, j.lng], { icon: jobIcon(), title: j.name, alt: j.name }).addTo(leafletMap).bindPopup(`<b>${esc(j.name)}</b><br>${esc(j.address || '')}`);
       pts.push([j.lat, j.lng]);
     });
     const last = Report.lastPunchByCrew(teamPunches());
-    const today0 = Report.startOfDay(Date.now());
-    teamCrew().forEach((c) => {
+    let today0 = Report.startOfDay(Date.now());
+    if (Api.isDemo && !teamPunches().some((p) => p.at >= today0)) today0 = Report.startOfDay(today0 - 1); // the sample day (M1.6)
+    // Everyone whose last punch counts as at a job (not off site) sits in one row above that job's
+    // pin, so the dots never cover each other or the pin; an off-site punch sits where it was.
+    const rows = {};
+    const placed = teamCrew().map((c) => {
       const p = last[c.id];
-      if (!p) return;
+      if (!p) return null;
       const job = jobById(p.jobId);
-      let ll = p.lat != null ? [p.lat, p.lng] : job ? [job.lat, job.lng] : null;
-      if (!ll) return;
+      const atJob = job && job.lat != null && p.status !== 'offsite';
+      const ll = atJob ? [job.lat, job.lng] : p.lat != null ? [p.lat, p.lng] : job ? [job.lat, job.lng] : null;
+      if (!ll) return null;
+      const row = atJob ? (rows[job.id] = rows[job.id] || []) : null;
+      if (row) row.push(c.id);
+      return { c, p, job, ll, row };
+    }).filter(Boolean);
+    placed.forEach(({ c, p, job, ll, row }) => {
       const stale = p.at < today0;
       const s = STATUS[p.status] || STATUS.nogps;
+      const shift = row ? (row.indexOf(c.id) - (row.length - 1) / 2) * 46 : 0;
       const icon = L.divIcon({
         className: '',
         html: `<div class="crew-dot ${s.cls} ${stale ? 'stale' : ''} ${p.type === 'out' ? 'is-out' : ''}">${esc(initials(c.name))}</div>`,
-        iconSize: [40, 40], iconAnchor: [20, 20], popupAnchor: [0, -18],
+        iconSize: [40, 40], iconAnchor: [20 - shift, row ? 62 : 20], popupAnchor: [shift, row ? -60 : -18],
       });
-      L.marker(ll, { icon, zIndexOffset: 1000 }).addTo(leafletMap).bindPopup(punchPopup(c, p, job));
+      const label = `${c.name}, ${s.word}`;
+      L.marker(ll, { icon, zIndexOffset: 1000, title: label, alt: label }).addTo(leafletMap).bindPopup(punchPopup(c, p, job));
       pts.push(ll);
     });
     if (pts.length) leafletMap.fitBounds(pts, { padding: [40, 40], maxZoom: 16 });
@@ -841,7 +861,10 @@
   }
 
   function bossTodayHtml() {
-    const today0 = Report.startOfDay(Date.now());
+    let today0 = Report.startOfDay(Date.now());
+    // The demo's sample day is yesterday when it's opened before the crew's day has started (M1.6).
+    const sampleYesterday = Api.isDemo && !teamPunches().some((p) => p.at >= today0);
+    if (sampleYesterday) today0 = Report.startOfDay(today0 - 1);
     const punches = teamPunches().filter((p) => p.at >= today0 || (p.type === 'void'));
     const shifts = Report.pairShifts(punches).filter((s) => (s.inAt || s.outAt) >= today0);
     const crew = teamCrew();
@@ -877,9 +900,9 @@
         ${state.aiSummary ? '<div class="muted small">Written by an AI model running on this phone.</div>' : ''}</div>`;
     }
     return `<div class="pad">
-      <h2>Today</h2>
+      <h2>${sampleYesterday ? 'Yesterday (sample day)' : 'Today'}</h2>
       ${summary}
-      ${notIn.length ? `<div class="not-in"><div class="not-in-title">${Icons.alert} Not in yet (${notIn.length})</div>
+      ${notIn.length ? `<div class="not-in"><div class="not-in-title">${Icons.alert} ${sampleYesterday ? 'Not in' : 'Not in yet'} (${notIn.length})</div>
         <div>${notIn.map((c) => `<span class="pill">${esc(c.name)}</span>`).join('')}</div></div>` : ''}
       <div class="list">${rows || '<p class="muted">No one has clocked in today.</p>'}</div>
       <div id="push-slot"></div>
@@ -938,7 +961,7 @@
         <div class="seg">${[['address', 'Address'], ['pin', 'Drop a pin'], ['here', "I'm here"]].map(([k, l]) =>
           `<button class="${mode === k ? 'on' : ''}" data-action="job-mode" data-mode="${k}">${l}</button>`).join('')}</div></div>
       ${mode === 'address' ? `<div class="field"><div class="search-row">
-          <input id="job-address" value="${esc(state.addressQuery != null ? state.addressQuery : j.address)}" placeholder="123 Main St, Hurricane WV" autocomplete="street-address" enterkeyhint="search">
+          <input id="job-address" value="${esc(state.addressQuery != null ? state.addressQuery : j.address)}" placeholder="Street and town" autocomplete="street-address" enterkeyhint="search">
           <button class="btn primary sm" data-action="geo-search">Find</button></div>
           ${results ? `<div class="results">${results.length ? results.map((r, i) =>
             `<button data-action="geo-pick" data-i="${i}">${Icons.pin}<span>${esc(r.label)}</span></button>`).join('')
