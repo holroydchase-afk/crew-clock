@@ -85,8 +85,11 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
   background: var(--amber-soft); color: var(--ink); text-align: center;
   font-size: 15px; font-weight: 600; line-height: 1.35; padding: calc(env(safe-area-inset-top) + 12px) 12px 12px;
 }
-/* The link's hit area fills the banner's own padding, never past its edge, so it can't cover "Not you?" below */
-.demo-banner a { color: inherit; text-decoration: underline; white-space: nowrap; display: inline-block; padding: 12px 6px; margin: -12px 0; }
+/* The two controls sit on their own row; each hit area is 44px tall and fills the banner's bottom
+   padding, never past its edge, so neither can cover "Not you?" below or the other control */
+.demo-actions { display: flex; flex-wrap: wrap; justify-content: center; column-gap: 12px; margin: 2px 0 -12px; }
+.demo-actions a, .demo-actions button { font: inherit; color: inherit; background: none; border: 0; text-decoration: underline;
+  white-space: nowrap; cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; padding: 0 6px; }
 /* On the boss screen the banner sits inside .boss, so the tab bar still fits in 100dvh (UX-5). */
 .demo-banner + .screen, .boss > .demo-banner + .boss-head { padding-top: 16px; }
 

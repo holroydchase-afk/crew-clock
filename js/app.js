@@ -499,7 +499,8 @@
   // One line on every demo screen (SEP-3, SEP-4); the crew app never shows it (SEP-5).
   function demoBanner() {
     return Api.isDemo ? `<div class="demo-banner" role="note"><span>Sample data, made-up crew, saved only in this browser</span>
-      · <a href="https://chaseholroyd.com/">Back to chaseholroyd.com</a></div>` : '';
+      <span class="demo-actions"><button type="button" data-action="demo-reset">Reset sample data</button>
+      <a href="https://chaseholroyd.com/">Back to chaseholroyd.com</a></span></div>` : '';
   }
 
   screens.names = () => {
@@ -1151,6 +1152,14 @@
       startPunch('in', { fixing: Object.assign({}, orig, { photo: state.flow.photo }) });
     },
     'demo-fake': (el) => Store.local.set('demoFake', el.checked),
+    // Demo only (M1.4): forget this visit and start again from the sample crew.
+    'demo-reset': () => {
+      if (!Api.isDemo || !confirm('Start over with the sample crew? Everything you did in this demo is cleared.')) return;
+      try { Object.keys(localStorage).filter((k) => k.startsWith('cc.')).forEach((k) => localStorage.removeItem(k)); } catch (e) { /* private mode */ }
+      if (window.DemoBackend) window.DemoBackend.reset();
+      ['crewclock', 'crewclock-chat', 'crewclock-keys'].forEach((db) => { try { indexedDB.deleteDatabase(db); } catch (e) { /* ok */ } });
+      location.reload();
+    },
     'boss-tab': (el) => {
       state.bossTab = el.dataset.tab;
       Store.local.set('bossTab', state.bossTab);

@@ -2,7 +2,7 @@
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-10-23 (power hour: M0.1 to M1.3 merged)
+Updated: 2026-10-24 (morning shift: M1.4 retention)
 
 ## What it is
 
@@ -99,6 +99,24 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
   offers "Clock out"); its assertions are unchanged.
 ## In progress
 
+- `M1.4` retention and delete rules, done when tests pass (branch `m1.4-retention`, stacked on M1.8;
+  morning shift 2026-10-24). Migration `20261024000000_retention.sql`: `app.apply_retention(p_now)`
+  does every server-side row of PRIVACY's retention table (hours deleted at 3 years, GPS nulled at
+  90 days with status and distance kept, picture keys queued in `app.photo_purge` and nulled at 60
+  days, chat ciphertext at 30 days, used key packages 30 days after `claimed_at`, phones 90 days
+  after `revoked_at`, a worker who left anonymized to "Former crew member" once no hours are left).
+  Only the owner can run it (pg_cron, M2.4): phones get 42501. Turning a worker off in the Crew
+  tab now also revokes their phones, drops push, chat membership and unused key packages (trigger
+  `crew_offboard`). `public.erase_crew_data(crew)` is the boss's "delete their data" action (GPS,
+  pictures, phones, push, key packages, sent chat; hours and consent kept). FKs `punches.voids_id`
+  and `punches.device_id` are now `on delete set null` so old rows can go. Tests:
+  `tests/sql/retention_test.sql` (qa-tdd, 16 cases, red then green). Demo: "Reset sample data" in
+  the demo banner clears the visit and reloads the sample crew (`tests/e2e-demo.js` RST-1; SEP-4 now
+  also checks the banner's two controls never cover each other; SEP-5 checks the crew app has no
+  reset). Left for later: the B2 purge Edge Function that drains `app.photo_purge` (M2.3), deleting
+  the Supabase Auth user at 3 years, the phone's 90-day chat trim, the delete-company script, the
+  boss's "Erase their data" button in the Crew tab (the SQL is ready), and `hold_until` (R3).
+
 - `M1.8` recruiter-ready review (branch `m1.8-recruiter-review`, stacked on M1.7):
   `docs/reviews/2026-10-24-recruiter-ready.md`, staff-pm's ranked findings from tonight's
   ux-reviewer, qa-tdd, privacy-security and positioning runs. Verdict: go with conditions. No P0/P1
@@ -148,12 +166,24 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
 ## Exact next step
 
 Chase: the three steps in `docs/reviews/2026-10-24-recruiter-ready.md` (confirm the demo pins and
-names are made up, merge #18 then #19 then the M1.8 PR, open the live demo on his phone). Next
-build task: `M1.4` retention and delete rules (branch `m1.4-retention` from `main`): qa-tdd writes
-failing SQL tests for the retention periods in docs/PRIVACY.md, including consent records (C6) and
-a removed worker's data, plus the demo's "Reset sample data".
+names are made up, merge #18 then #19 then #20, open the live demo on his phone), then review the
+M1.4 PR and decide on consent-record retention (Decisions to review). Next build task: `M1.9` crew
+sign-in and server hardening (F-03, F-06, F-12, F-13, F-15), failing tests first; or the boss's
+"Erase their data" button and the B2 purge function if Chase wants M1.4's leftovers first.
 
 ## Decisions to review
+
+- **M1.4: consent records are kept for good.** PRIVACY C6 said "on the crew + 3 years, then
+  deleted", but CLAUDE.md's hard rule says consent records are never edited or deleted, and the
+  hard rule wins. So a worker who left keeps their consent records, and their crew row is
+  anonymized (name "Former crew member", no PIN) instead of deleted, because the records point at
+  it. Chase's call: keep it, or change the hard rule so consents go at crew + 3 years (staff-pm
+  recommends yes, wording by privacy-security).
+- **M1.4: GPS removal ends re-checking old signatures.** Each punch's signature covers its
+  location, so after 90 days it can't be re-verified; `sig_ok` keeps the result from when the
+  punch arrived.
+- **M1.4: "Reset sample data" sits in the demo banner** (every screen) and asks once before
+  clearing. It clears only `cc.*` keys and the app's own IndexedDB stores, then reloads.
 
 - **Demo (M1.6): "pretend I'm at the job" starts on**, so the demo never asks for or reads a
   visitor's location (a recruiter in another state would otherwise see "Off site, 444 mi"). The
