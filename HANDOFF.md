@@ -99,7 +99,7 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
   offers "Clock out"); its assertions are unchanged.
 ## In progress
 
-- `M1.6` showcase polish (branch `m1.6-showcase-polish`, night shift 2026-10-24, Chase's steer:
+- `M1.6` showcase polish, done when tests pass, PR #18 ready (branch `m1.6-showcase-polish`, night shift 2026-10-24, Chase's steer:
   recruiter readiness first). `tests/e2e-showcase.js` runs axe-core (WCAG 2.2 A/AA) on every demo
   screen at 390x844 and 1280x800, light and dark, and fails on any same-origin console error;
   `tests/showcase.test.js` fails on TODO/"coming soon" in the shipped demo, broken same-site links,
