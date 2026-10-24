@@ -785,25 +785,36 @@
     const jobs = (state.team && state.team.jobs) || state.jobs;
     jobs.filter((j) => j.active !== false && j.lat != null).forEach((j) => {
       L.circle([j.lat, j.lng], { radius: Geo.toMeters(j.radiusFt || 300), color: '#2563eb', weight: 2, fillOpacity: 0.08 }).addTo(leafletMap);
-      L.marker([j.lat, j.lng], { icon: jobIcon() }).addTo(leafletMap).bindPopup(`<b>${esc(j.name)}</b><br>${esc(j.address || '')}`);
+      L.marker([j.lat, j.lng], { icon: jobIcon(), title: j.name, alt: j.name }).addTo(leafletMap).bindPopup(`<b>${esc(j.name)}</b><br>${esc(j.address || '')}`);
       pts.push([j.lat, j.lng]);
     });
     const last = Report.lastPunchByCrew(teamPunches());
     const today0 = Report.startOfDay(Date.now());
-    teamCrew().forEach((c) => {
+    // Everyone whose last punch counts as at a job (not off site) sits in one row above that job's
+    // pin, so the dots never cover each other or the pin; an off-site punch sits where it was.
+    const rows = {};
+    const placed = teamCrew().map((c) => {
       const p = last[c.id];
-      if (!p) return;
+      if (!p) return null;
       const job = jobById(p.jobId);
-      let ll = p.lat != null ? [p.lat, p.lng] : job ? [job.lat, job.lng] : null;
-      if (!ll) return;
+      const atJob = job && job.lat != null && p.status !== 'offsite';
+      const ll = atJob ? [job.lat, job.lng] : p.lat != null ? [p.lat, p.lng] : job ? [job.lat, job.lng] : null;
+      if (!ll) return null;
+      const row = atJob ? (rows[job.id] = rows[job.id] || []) : null;
+      if (row) row.push(c.id);
+      return { c, p, job, ll, row };
+    }).filter(Boolean);
+    placed.forEach(({ c, p, job, ll, row }) => {
       const stale = p.at < today0;
       const s = STATUS[p.status] || STATUS.nogps;
+      const shift = row ? (row.indexOf(c.id) - (row.length - 1) / 2) * 46 : 0;
       const icon = L.divIcon({
         className: '',
         html: `<div class="crew-dot ${s.cls} ${stale ? 'stale' : ''} ${p.type === 'out' ? 'is-out' : ''}">${esc(initials(c.name))}</div>`,
-        iconSize: [40, 40], iconAnchor: [20, 20], popupAnchor: [0, -18],
+        iconSize: [40, 40], iconAnchor: [20 - shift, row ? 62 : 20], popupAnchor: [shift, row ? -60 : -18],
       });
-      L.marker(ll, { icon, zIndexOffset: 1000 }).addTo(leafletMap).bindPopup(punchPopup(c, p, job));
+      const label = `${c.name}, ${s.word}`;
+      L.marker(ll, { icon, zIndexOffset: 1000, title: label, alt: label }).addTo(leafletMap).bindPopup(punchPopup(c, p, job));
       pts.push(ll);
     });
     if (pts.length) leafletMap.fitBounds(pts, { padding: [40, 40], maxZoom: 16 });

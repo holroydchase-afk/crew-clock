@@ -100,8 +100,18 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
   offers "Clock out"); its assertions are unchanged.
 ## In progress
 
-- Nothing on a branch. Merged 2026-10-23: M0.1 (#4), M1.5 (#6), M1.1 (#7, with #5), M1.2 (#8),
-  M1.3 (#9); their notes are under Done above.
+- `M1.6` showcase polish (branch `m1.6-showcase-polish`, night shift 2026-10-24, Chase's steer:
+  recruiter readiness first). `tests/e2e-showcase.js` runs axe-core (WCAG 2.2 A/AA) on every demo
+  screen at 390x844 and 1280x800, light and dark, and fails on any same-origin console error;
+  `tests/showcase.test.js` fails on TODO/"coming soon" in the shipped demo, broken same-site links,
+  or an outside link that isn't chaseholroyd.com or this repo. Red first (38 violations), now green.
+  Fixed: text on light-blue chips (`--blue-ink`), amber text (`--amber` #854d0e), the on-site map
+  dot, dark fence hints, Leaflet's attribution link, map markers now named ("Jake R., On site")
+  and laid out in a row above their job's pin so they never cover each other. Demo job "Scott
+  Depot deck" moved so the four jobs don't overlap on a phone. CI installs `axe-core@4.11.3`
+  (test only, `--no-save`, never shipped).
+- Merged 2026-10-23: M0.1 (#4), M1.5 (#6), M1.1 (#7, with #5), M1.2 (#8), M1.3 (#9); their notes
+  are under Done above.
 - Left from `M1.5` (P2, logged, not fixed): PS-1 punches held for someone who never signs in again
   are invisible to the boss (send a content-free "N unsent on a phone" notice); PS-3 no retry
   backoff for transient failures; PS-4 "Unknown crew member" drops a turned-off worker's last
@@ -115,13 +125,16 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
 
 ## Exact next step
 
-M0.1, M1.5, M1.1, M1.2 and M1.3 are merged to `main` (PRs #4 to #9, 2026-10-23 power hour); new
-work branches from `main`. Next build task: `M1.4` retention and delete rules in code
-(branch `m1.4-retention` from `main`): qa-tdd writes failing SQL tests for the retention periods in
-docs/PRIVACY.md, including consent records (C6) and a removed worker's data.
+Finish the recruiter-ready track (Chase's steer for 2026-10-24): `M1.6` showcase polish PR (fix the
+ux-reviewer showcase findings), then `M1.7` README for recruiters (branch `m1.7-readme`, stacked:
+positioning's audit found 8 claims the demo can't back up), then `M1.8` review doc. After that,
+`M1.4` retention and delete rules (branch `m1.4-retention` from `main`).
 
 ## Decisions to review
 
+- **Demo (M1.6): on the boss map, everyone at a job sits in a row above that job's pin**, not at
+  their exact GPS point, so dots never cover each other on a phone (WCAG target size). Off-site
+  punches still sit where they were. The popup still shows distance and accuracy.
 - **Location (M1.3): the GPS watch stops when the app goes to the background** during "Finding
   you", and the worker clocks in with a picture after. Stricter than "stops when they leave the
   screen"; if real phones background the app for the permission prompt, revisit.

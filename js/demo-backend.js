@@ -7,11 +7,12 @@
   function seed() {
     const now = Date.now();
     const day = root.Report.startOfDay(now);
-    // Made-up jobs. Pins are rounded to 3 decimals (about 100 m), so none marks any one house (SEP-6).
+    // Made-up jobs. Pins are rounded to 3 decimals (about 100 m), so none marks any one house (SEP-6),
+    // and spread out so the boss map stays readable on a phone (M1.6).
     const jobs = [
       { id: 'j1', name: 'Smith kitchen', address: 'Teays Valley Rd, Hurricane, WV', lat: 38.454, lng: -81.929, radiusFt: 300, active: true },
       { id: 'j2', name: 'Miller roof', address: 'Cross Lanes, WV', lat: 38.420, lng: -81.791, radiusFt: 300, active: true },
-      { id: 'j3', name: 'Scott Depot deck', address: 'Scott Depot, WV', lat: 38.440, lng: -81.900, radiusFt: 150, active: true },
+      { id: 'j3', name: 'Scott Depot deck', address: 'Scott Depot, WV', lat: 38.478, lng: -81.858, radiusFt: 150, active: true },
       { id: 'j4', name: 'Hurricane addition', address: 'Main St, Hurricane, WV', lat: 38.433, lng: -82.020, radiusFt: 600, active: true },
     ];
     const crew = [
@@ -31,7 +32,7 @@
       mk('p2', 'c2', 'j1', 'in', t(7.05), 38.45432, -81.92860, 15),
       mk('p3', 'c3', 'j2', 'in', t(7.2), 38.42160, -81.79340, 25),
       mk('p4', 'c4', 'j3', 'in', t(7.5), null, null, null),
-      mk('p5', 'c4', 'j3', 'out', t(11.5), 38.44020, -81.90000, 12),
+      mk('p5', 'c4', 'j3', 'out', t(11.5), 38.47820, -81.85800, 12),
     ];
     punches.forEach((p) => { p.receivedAt = p.at + 30000; });
     // Everyone agreed to location on install day except Billy S., so a visitor sees the consent screen once.
@@ -46,7 +47,7 @@
   const SAMPLE_PLACES = [
     { label: 'Main St, Hurricane, WV (sample)', lat: 38.433, lng: -82.020 },
     { label: 'Teays Valley Rd, Hurricane, WV (sample)', lat: 38.454, lng: -81.929 },
-    { label: 'Scott Depot, WV (sample)', lat: 38.440, lng: -81.900 },
+    { label: 'Scott Depot, WV (sample)', lat: 38.478, lng: -81.858 },
     { label: 'Cross Lanes, WV (sample)', lat: 38.420, lng: -81.791 },
   ];
 
