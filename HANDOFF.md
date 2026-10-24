@@ -99,6 +99,12 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
   offers "Clock out"); its assertions are unchanged.
 ## In progress
 
+- `M1.8` recruiter-ready review (branch `m1.8-recruiter-review`, stacked on M1.7):
+  `docs/reviews/2026-10-24-recruiter-ready.md`, staff-pm's ranked findings from tonight's
+  ux-reviewer, qa-tdd, privacy-security and positioning runs. Verdict: go with conditions. No P0/P1
+  open in code; the two "P0 if true" rows are Chase's checks (demo pins, SEP-6 names). Done when
+  Chase does the doc's three steps: confirm the demo data is made up, merge #18 then #19, open the
+  live demo on his phone, then add the portfolio card (draft in the doc).
 - `M1.7` README for recruiters (branch `m1.7-readme`, stacked on M1.6): positioning's rewrite.
   Leads with what it is, "Try the demo", three screenshots from the demo build
   (`docs/screenshots/`, 390x844 at 2x, 1:30 PM page clock), a "Why I built it", a 90-second
@@ -141,11 +147,11 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
 
 ## Exact next step
 
-Chase merges PR #18 (M1.6) then the M1.7 README PR (stacked). Next build task: `M1.8`
-recruiter-ready review (branch `m1.8-recruiter-review`): staff-pm ranks tonight's ux-reviewer,
-qa-tdd and privacy-security findings in `docs/reviews/2026-10-24-recruiter-ready.md`, verdict
-"go with conditions" (Chase opens the live demo on his phone; Blockers 7, the demo pins). Then
-`M1.4` retention and delete rules (branch `m1.4-retention` from `main`).
+Chase: the three steps in `docs/reviews/2026-10-24-recruiter-ready.md` (confirm the demo pins and
+names are made up, merge #18 then #19 then the M1.8 PR, open the live demo on his phone). Next
+build task: `M1.4` retention and delete rules (branch `m1.4-retention` from `main`): qa-tdd writes
+failing SQL tests for the retention periods in docs/PRIVACY.md, including consent records (C6) and
+a removed worker's data, plus the demo's "Reset sample data".
 
 ## Decisions to review
 
