@@ -108,7 +108,7 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
   ciphertext" in the demo, Pages hosting for the crew app, `Code.gs` "still works").
   `tests/readme.test.js` fails if a README link or image is missing, the live link, badge or
   license goes, or the walkthrough names someone who isn't in the demo crew.
-- `M1.6` showcase polish (branch `m1.6-showcase-polish`, night shift 2026-10-24, Chase's steer:
+- `M1.6` showcase polish, done when tests pass, PR #18 ready (branch `m1.6-showcase-polish`, night shift 2026-10-24, Chase's steer:
   recruiter readiness first). `tests/e2e-showcase.js` runs axe-core (WCAG 2.2 A/AA) on every demo
   screen at 390x844 and 1280x800, light and dark, and fails on any same-origin console error;
   `tests/showcase.test.js` fails on TODO/"coming soon" in the shipped demo, broken same-site links,
@@ -141,9 +141,10 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
 
 ## Exact next step
 
-Finish the recruiter-ready track (Chase's steer for 2026-10-24): `M1.6` showcase polish PR (fix the
-ux-reviewer showcase findings), then `M1.7` README for recruiters (branch `m1.7-readme`, stacked:
-positioning's audit found 8 claims the demo can't back up), then `M1.8` review doc. After that,
+Chase merges PR #18 (M1.6) then the M1.7 README PR (stacked). Next build task: `M1.8`
+recruiter-ready review (branch `m1.8-recruiter-review`): staff-pm ranks tonight's ux-reviewer,
+qa-tdd and privacy-security findings in `docs/reviews/2026-10-24-recruiter-ready.md`, verdict
+"go with conditions" (Chase opens the live demo on his phone; Blockers 7, the demo pins). Then
 `M1.4` retention and delete rules (branch `m1.4-retention` from `main`).
 
 ## Decisions to review
