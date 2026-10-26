@@ -100,8 +100,10 @@ Rules:
   signal. Demo mode keeps it in the browser. The phone remembers each worker's newest record
   (action, version, time; key `cc.consents`), so someone who agreed offline isn't asked again
   before it sends. [true]
-- **C6** Consent records are kept as long as the worker is on the crew plus 3 years, the same as
-  their hours, so the company can show consent for any GPS it ever had. [to build, M1.4]
+- **C6** Consent records are kept for good: nothing edits or deletes them (CLAUDE.md hard rule),
+  so the company can show consent for any GPS it ever had. The plan was "on the crew plus 3 years,
+  the same as their hours"; that waits on Chase changing the hard rule. [true since M1.4: tested in
+  `tests/sql/retention_test.sql` RET-2g and DEL-3]
 
 The phone's own location permission ("Allow While Using App") is separate and still needed. The
 app asks for consent first, then shows the existing permission primer.
@@ -113,14 +115,15 @@ federal; West Virginia's own rules are a "needs Chase" check (see the end).
 
 | Data | Where | Kept | Then | Status |
 | --- | --- | --- | --- | --- |
-| Hours: punch time, type, job, worker, status, distance in feet, who made it | Supabase `punches` | **3 years** after the punch | Row deleted | [to build, M1.4] |
-| Raw GPS on a punch: `lat`, `lng`, `accuracy_m`, `address` | Supabase `punches` | **90 days** | Set to null; status and distance stay, so hours still make sense | [to build, M1.4] |
-| Clock-in pictures | Backblaze B2 (private bucket), key on the punch | **60 days** | Object deleted, `photo_key` set to null, `photo_sha256` kept | [to build, M1.4; B2 lifecycle rule can back it up] |
-| Chat ciphertext | Supabase `mls_messages` | **30 days** | Deleted. Phones keep their own decrypted copy. | [to build, M1.4] |
-| Used MLS key packages | Supabase `mls_key_packages` | **30 days** after claimed | Deleted | [to build, M1.4] |
+| Hours: punch time, type, job, worker, status, distance in feet, who made it | Supabase `punches` | **3 years** after the punch | Row deleted | [built, M1.4: `app.apply_retention`, `20261024000000_retention.sql`; runs daily from M2.4] |
+| Raw GPS on a punch: `lat`, `lng`, `accuracy_m`, `address` | Supabase `punches` | **90 days** | Set to null; status and distance stay, so hours still make sense. The punch's hash and signature cover its location, so they are removed too, with the next punch's pointer to that hash (`sig_ok` keeps the check from arrival). The next punch's own hash still covers that pointer, so until it is trimmed too (at most days later) the old location could in theory be guessed back from it; a per-punch random salt in the chain would close this (logged in HANDOFF) | [built, M1.4] |
+| Clock-in pictures | Backblaze B2 (private bucket), key on the punch | **60 days** | Object deleted, `photo_key` set to null, `photo_sha256` kept | [partly built, M1.4: key queued in `app.photo_purge` and nulled; the Edge Function that deletes the B2 object is M2.3; B2 lifecycle rule can back it up] |
+| Picture-delete queue: company and B2 key, when queued and done | Supabase `app.photo_purge` (no phone can read it) | 30 days after the object is deleted | Deleted | [built, M1.4] |
+| Chat ciphertext | Supabase `mls_messages` | **30 days** | Deleted. Phones keep their own decrypted copy. | [built, M1.4] |
+| Used MLS key packages | Supabase `mls_key_packages` | **30 days** after claimed (`claimed_at`) | Deleted | [built, M1.4] |
 | Chat on the phone (decrypted) | Phone IndexedDB `crewclock-chat` | **90 days** | Trimmed by the app | [to build, M1.4; today kept forever] |
-| Consent records | Supabase `location_consents` | On the crew + 3 years | Deleted | [to build, M1.4] |
-| Phone keys and user agent | Supabase `devices` | While in use; 90 days after revoked or the worker leaves | Deleted | [to build, M1.4] |
+| Consent records | Supabase `location_consents` | For good | Never edited or deleted (CLAUDE.md hard rule). Was "on the crew + 3 years"; that needs Chase to change the hard rule (HANDOFF, Decisions to review) | [true: nothing deletes them; tested in `tests/sql/retention_test.sql` RET-2g, DEL-3] |
+| Phone keys and user agent | Supabase `devices` | While in use; 90 days after revoked (`revoked_at`) or the worker leaves | Deleted | [built, M1.4] |
 | Push subscriptions | Supabase `push_subscriptions` | While in use | Deleted when the worker leaves or the browser retires it | [partly true: retired ones are deleted, `_shared/push.ts:28`] |
 | Boss and foreman's team cache | Their phone, localStorage `cc.team` | Last 8 days of punches | Replaced on each refresh; cleared on sign-out | [true] `js/app.js:125-131`, `js/api-supabase.js:163` |
 | Each worker's newest consent record, as this phone knows it | The phone, localStorage `cc.consents` | Until replaced by a newer record | Kept on sign-out so an offline re-sign-in isn't asked again; holds action, text version and time only | [true] `js/app.js` `rememberConsent` |
@@ -130,11 +133,12 @@ federal; West Virginia's own rules are a "needs Chase" check (see the end).
 
 Rules:
 - **R1** One SQL function (`app.apply_retention()`) does every server-side row above, runs daily
-  from `pg_cron`, and has local tests with rows on both sides of each cutoff. [to build, M1.4;
-  scheduled live in M2.4]
+  from `pg_cron`, and has local tests with rows on both sides of each cutoff. Phones can't run it.
+  [built, M1.4: `tests/sql/retention_test.sql`; scheduled live in M2.4]
 - **R2** Photo deletion lists B2 keys from the punches being trimmed and deletes those objects
   through an Edge Function holding the B2 key; a bucket lifecycle rule (hide and delete after 60
-  days) is the backstop. [to build, M1.4 / M2.3]
+  days) is the backstop. [half built, M1.4: keys are queued in `app.photo_purge`; the Edge Function
+  that deletes them is M2.3]
 - **R3** A punch that is part of an open dispute can be put on hold by the boss (`hold_until`), and
   retention skips it until then. [scheduled; not needed for the beta]
 
@@ -142,27 +146,31 @@ Rules:
 
 **A worker leaves (boss turns them off in the Crew tab):**
 - At once: sessions ended on every phone [true], devices revoked, push subscriptions deleted,
-  removed from chat groups, unclaimed key packages deleted. [to build, M1.4]
+  removed from chat groups, unclaimed key packages deleted. [built, M1.4: trigger `crew_offboard`]
 - After that, normal retention runs: GPS gone at 90 days, pictures at 60, hours kept 3 years
   under their name because payroll law needs it.
-- 3 years after their last punch: punches and consent records deleted, crew row and Supabase Auth
-  user (`<id>@crew.invalid`) deleted. [to build, M1.4]
+- 3 years after their last punch, the punches are deleted; once that's done and they left over 3
+  years ago (`deactivated_at`), the crew row is anonymized ("Former crew member", no PIN). The row stays because consent records, kept for good, point at it. [built,
+  M1.4] The Supabase Auth user (`<id>@crew.invalid`) is deleted then too. [to build, M2: needs the
+  Auth admin API]
 
 **A worker asks for their data to be deleted:**
 - The boss can delete right away, with one action: GPS on all their punches, all their
   pictures, their devices, push subscriptions, key packages and chat messages they sent.
 - Hours (time in, time out, job) are kept until the 3-year payroll minimum, then deleted. The app
-  tells the boss this in plain words. [to build, M1.4]
+  tells the boss this in plain words. [SQL built, M1.4: `public.erase_crew_data`, boss of the same
+  company only; consent records stay. The Crew tab button and its wording are to build.]
 - A worker can see their own punches and consent records in the app today (RLS allows it); an
   export button is scheduled after the beta.
 
 **The boss deletes the company:**
 - The boss exports the Sheet first (it is theirs; the app does not touch it).
 - One owner-run script deletes the org (every table cascades on `org_id`), every B2 object under
-  the `<org_id>/` prefix, and every Auth user for that crew. [to build, M1.4; today
+  the `<org_id>/` prefix, and every Auth user for that crew. [to build, M2. Today
   `punches.crew_id`, `punches.by_crew_id`, `mls_messages.sender_crew_id` and
   `chat_groups.created_by` have no `on delete` rule, so a crew row with punches cannot be deleted
-  at all: `20261022000000_init.sql:85-86,138,152`]
+  at all (`20261022000000_init.sql:85-86,138,152`), and `location_consents.org_id` has none either,
+  so the script has to decide what happens to consent records first]
 
 ## Who sees what
 
