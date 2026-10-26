@@ -6,8 +6,7 @@ Updated: 2026-10-23 (power hour: M0.1 to M1.3 merged)
 
 ## What it is
 
-A GPS clock-in and clock-out phone app for a small construction crew in Putnam and Kanawha
-counties, WV. Low-tech crew, cheap phones, weak signal. Beta is one team of 5 for two weeks,
+A GPS clock-in and clock-out phone app for a small construction crew in rural West Virginia. Low-tech crew, cheap phones, weak signal. Beta is one team of 5 for two weeks,
 then all 10 if the beta gate passes. Budget is $0, so everything runs on free tiers. It is also
 a portfolio piece: a public demo on sample data at chaseholroyd.com/crew-clock/.
 
@@ -100,8 +99,26 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
   offers "Clock out"); its assertions are unchanged.
 ## In progress
 
-- Nothing on a branch. Merged 2026-10-23: M0.1 (#4), M1.5 (#6), M1.1 (#7, with #5), M1.2 (#8),
-  M1.3 (#9); their notes are under Done above.
+- `M1.6` showcase polish, done when tests pass, PR #18 ready (branch `m1.6-showcase-polish`, night shift 2026-10-24, Chase's steer:
+  recruiter readiness first). `tests/e2e-showcase.js` runs axe-core (WCAG 2.2 A/AA) on every demo
+  screen at 390x844 and 1280x800, light and dark, and fails on any same-origin console error;
+  `tests/showcase.test.js` fails on TODO/"coming soon" in the shipped demo, broken same-site links,
+  or an outside link that isn't chaseholroyd.com or this repo. Red first (38 violations), now green.
+  Fixed: text on light-blue chips (`--blue-ink`), amber text (`--amber` #854d0e), the on-site map
+  dot, dark fence hints, Leaflet's attribution link, map markers now named ("Jake R., On site")
+  and laid out in a row above their job's pin so they never cover each other. Demo job "Scott
+  Depot deck" moved so the four jobs don't overlap on a phone. CI installs `axe-core@4.11.3`
+  (test only, `--no-save`, never shipped).
+  ux-reviewer showcase sweep (22 screens x 4 setups): 0 P0, 3 P1, 9 P2. P1s fixed test-first
+  (`tests/e2e-showcase.js` SHOW-2..4): the demo starts with "pretend I'm at the job" on, so it never
+  reads a visitor's real location and the first clock-in lands "On site"; the sample day always
+  runs in daytime hours (before 9 AM it's yesterday's, shown as "Yesterday (sample day)", store key
+  v5); the first screen says what this is and marks Travis K. "Start here". P2s fixed: 15px banner
+  with a 44px link, 44px boss-header buttons ("Refresh · time"), 44px map zoom buttons, 14px fence
+  hints, focus outlines on inputs, job addresses wrap to two lines, stale map dots keep contrast.
+  The harden suite runs on a 1:30 PM page clock because the seed now depends on the hour.
+- Merged 2026-10-23: M0.1 (#4), M1.5 (#6), M1.1 (#7, with #5), M1.2 (#8), M1.3 (#9); their notes
+  are under Done above.
 - Left from `M1.5` (P2, logged, not fixed): PS-1 punches held for someone who never signs in again
   are invisible to the boss (send a content-free "N unsent on a phone" notice); PS-3 no retry
   backoff for transient failures; PS-4 "Unknown crew member" drops a turned-off worker's last
@@ -115,13 +132,25 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
 
 ## Exact next step
 
-M0.1, M1.5, M1.1, M1.2 and M1.3 are merged to `main` (PRs #4 to #9, 2026-10-23 power hour); new
-work branches from `main`. Next build task: `M1.4` retention and delete rules in code
-(branch `m1.4-retention` from `main`): qa-tdd writes failing SQL tests for the retention periods in
-docs/PRIVACY.md, including consent records (C6) and a removed worker's data.
+Finish the recruiter-ready track (Chase's steer for 2026-10-24): `M1.6` showcase polish PR (fix the
+ux-reviewer showcase findings), then `M1.7` README for recruiters (branch `m1.7-readme`, stacked:
+positioning's audit found 8 claims the demo can't back up), then `M1.8` review doc. After that,
+`M1.4` retention and delete rules (branch `m1.4-retention` from `main`).
 
 ## Decisions to review
 
+- **Demo (M1.6): "pretend I'm at the job" starts on**, so the demo never asks for or reads a
+  visitor's location (a recruiter in another state would otherwise see "Off site, 444 mi"). The
+  checkbox on Home turns it off. The consent and location tests opt out to cover the real path.
+- **Demo (M1.6): before 9 AM the sample day is yesterday** (everyone clocked out by 3:30 PM) and the
+  boss's list says "Yesterday (sample day)"; from 9 AM it's today from 6:54 AM. Replaces UX-7's
+  slide-back, which showed 1 AM shifts; UX-7's unit test now checks the shown day and daytime hours.
+- **Left from the showcase sweep (P2, logged):** SC-10 the Today summary's hours count only finished
+  shifts; SC-11 caption the mock phone prompt (only seen with the fake off); SC-12 use the empty
+  sides on a laptop for the pitch and a short tour; tab labels and legend chips stay 13px.
+- **Demo (M1.6): on the boss map, everyone at a job sits in a row above that job's pin**, not at
+  their exact GPS point, so dots never cover each other on a phone (WCAG target size). Off-site
+  punches still sit where they were. The popup still shows distance and accuracy.
 - **Location (M1.3): the GPS watch stops when the app goes to the background** during "Finding
   you", and the worker clocks in with a picture after. Stricter than "stops when they leave the
   screen"; if real phones background the app for the permission prompt, revisit.
@@ -204,6 +233,9 @@ Waiting on Chase, in order (each unblocks an M2 task; nothing in M1 needs these)
    Chase") with whoever does the company's payroll. Only the hours row could change.
 6. Turn on secret scanning and push protection (2 minutes): repo **Settings > Advanced Security**
    (or **Code security**) > Secret Protection > Enable, then Push protection > Enable.
+7. Confirm none of the demo's four made-up job pins (town level: Teays Valley, Cross Lanes, Scott
+   Depot, Hurricane; rounded to about 100 m) sits near a real past or current job (privacy-security
+   P2 on M1.6, 2026-10-24). Needed before the portfolio link (M1.8).
 
 ## Portfolio / public presence
 

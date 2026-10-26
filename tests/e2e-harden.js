@@ -16,6 +16,8 @@ const t = (name, fn) => cases.push({ name, fn });
 // A rough reading (the job list's sort, the permission primer) isn't a punch watch: it answers on its
 // own as the old one-shot read did (M1.3 moved those reads to a watch so they can be stopped).
 function gpsStub(cfg) {
+  // The demo starts with "pretend I'm at the job" on (M1.6); these tests drive the real GPS path.
+  try { localStorage.setItem('cc.demoFake', 'false'); } catch (e) { /* ok */ }
   const g = window.__gps = { mode: cfg.mode, pos: cfg.pos, watches: [] };
   const at = (p) => ({ coords: { latitude: p.lat, longitude: p.lng, accuracy: p.acc }, timestamp: Date.now() });
   let rough = 1000;
@@ -44,6 +46,10 @@ async function open(browser, mode, pos) {
   page.dialogs = [];
   page.on('dialog', (d) => { page.dialogs.push(d.message()); d.accept(); });
   await page.addInitScript(gpsStub, { mode, pos: Object.assign({ acc: 8 }, pos || JOBS.j1) });
+  // The sample crew's day depends on the hour (M1.6: before 9 AM it's yesterday, all clocked out).
+  // These cases need people on the clock, so the page's clock starts at 1:30 PM today and runs on.
+  const afternoon = new Date(); afternoon.setHours(13, 30, 0, 0);
+  await page.clock.install({ time: afternoon });
   await page.goto(BASE);
   return { ctx, page };
 }
