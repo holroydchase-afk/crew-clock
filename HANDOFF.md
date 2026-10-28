@@ -25,6 +25,14 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
   and says "You worked X h Y min"; "Switch" is "Sign out"; Refresh is a real button; foreman
   photo screen says "Clock out Jake R."; Today times never wrap and "Check:" says why; 44px job
   pins, 15px labels; placeholders that aren't sample data; quieter dark banner.
+  Round 2 after ux-reviewer's after-score (7.5): UX-R18 New group rows (sign-in class renamed
+  `.signin-pick`), UX-R19 Travis K. in the sample chat, UX-R20 "less than a minute", UX-R21 "so far
+  today" summary counts open shifts, UX-R22 placeholders, UX-R23 one word "Messages", UX-R24 hours
+  under the status chip, UX-R25 contrast measured (ok). Flakes fixed: RST-1 (a demo request in
+  flight after "Reset sample data" wrote the old visit back; `DemoBackend.reset()` now stops later
+  saves, RST-2 unit test) and the UX-R10 test's team-list race. Open flake: UX-4 in e2e-harden
+  (1 in ~12 runs, "button is 0x0", likely the same team-list race). Known gap for staff-pm: before
+  the team list loads, the pick-teammate screen offers "Clock in" for everyone.
   Portfolio / public presence: the demo's first screen and laptop layout changed.
 
 - `M1.10` works for real (release run 2026-10-28, Chase's 7-phase plan). Chase's 11:20 PM phone

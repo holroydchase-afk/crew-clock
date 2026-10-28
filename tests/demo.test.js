@@ -109,3 +109,18 @@ test('PS-M110-1 the sample chat seeds only in a real demo build', () => {
   assert.match(body.split('\n')[1], /Api\.isDemo/);
   assert.match(body.split('\n')[1], /cfg\.backend\s*!==\s*'demo'/);
 });
+
+// RST-1 flake (1 in 6 runs): a demo request still in flight when the visitor taps "Reset sample data"
+// wrote the visit back into the fresh store, so after the reload Travis K. was still on the clock.
+test('RST-2 a demo request in flight during "Reset sample data" never writes the visit back', async () => {
+  const { ctx } = loadDemo();
+  const store = () => { const k = ['cc.demo.db.v6', 'cc.demo.db.v7', 'cc.demo.db.v8'].find((x) => ctx.localStorage.getItem(x)); return k && ctx.localStorage.getItem(k); };
+  const { auth } = await ctx.DemoBackend.handle('demoLogin', { crewId: 'c5' });
+  const punch = { kind: 'punch', id: 'rst-2-punch', crewId: 'c5', jobId: 'j1', type: 'in', at: Date.now(), lat: 38.454, lng: -81.929, accuracy: 8 };
+  const inFlight = ctx.DemoBackend.handle('sync', { auth, items: [punch] }).catch(() => null);
+  ctx.DemoBackend.reset();
+  await inFlight;
+  const raw = store();
+  const kept = raw ? JSON.parse(raw).punches.filter((p) => p.id === punch.id) : [];
+  assert.deepStrictEqual(kept, [], 'the reset store holds the punch sent just before the reset');
+});

@@ -28,7 +28,12 @@ async function open(browser) {
 async function signIn(page, name) {
   await page.waitForSelector('.name-btn');
   await page.getByRole('button', { name, exact: false }).first().click();
-  await page.waitForSelector('.punch, .boss, [data-action="prime-location"]');
+  await page.waitForSelector('.punch, .boss, .consent, [data-action="prime-location"]');
+  // Billy S. never agreed to location in the sample data: "Not now" takes him Home (picture clock-ins).
+  if (await page.locator('.consent').count()) {
+    await page.click('[data-action="consent-later"]');
+    await page.waitForSelector('.punch');
+  }
   if (await page.locator('[data-action="prime-location"]').count()) {
     await page.click('[data-action="prime-location"]');
     await page.waitForSelector('.punch');
@@ -106,7 +111,7 @@ t('CHAT-SEED-2 the shared demo chat store holds only ciphertext, never the sampl
   return page;
 });
 
-t('CHAT-SEED-3 Jake R. (a member) sees the sample group and the same messages; Travis K. (not a member) does not see it', async (browser) => {
+t('CHAT-SEED-3 Jake R. (a member) sees the sample group and the same messages; Billy S. (not a member) does not see it', async (browser) => {
   const { page } = await open(browser);
   const { group, texts } = await bossSeesSample(page);
   await page.click('[data-action="chat-back"]');
@@ -121,11 +126,11 @@ t('CHAT-SEED-3 Jake R. (a member) sees the sample group and the same messages; T
   await page.click('[data-action="chat-back"]');
   await page.click('[data-action="go-home"]');
   await signOut(page);
-  await signIn(page, 'Travis K.');
+  await signIn(page, 'Billy S.'); // Travis K. joined the sample group in UX-R19; Billy is not in it
   await chatList(page);
   await page.waitForTimeout(1500);
   const tg = await groups(page, false);
-  if (tg.some((g) => g.name === group)) throw new Error(`Travis K. is not in "${group}" but sees it`);
+  if (tg.some((g) => g.name === group)) throw new Error(`Billy S. is not in "${group}" but sees it`);
   return page;
 });
 

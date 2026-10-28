@@ -140,11 +140,13 @@
   // Made-up messages, encrypted with MLS like any other: the shared demo store holds only
   // ciphertext, and each sample person keeps their own keys and readable copy on this phone.
   const SAMPLE_GROUP = 'Smith kitchen crew';
-  const SAMPLE_MEMBERS = ['c1', 'c0', 'c2']; // Ray T. (foreman) starts it with Sam W. and Jake R.
+  // Ray T. (foreman) starts it with Sam W., Jake R. and Travis K., the demo's Start-here person (UX-R19).
+  const SAMPLE_MEMBERS = ['c1', 'c0', 'c2', 'c5'];
   const SAMPLE_LINES = [
     ['c1', 6.6, "Morning. Lumber drop moved to 10. I'll sign for it."],
     ['c2', 6.75, "Need two more boxes of deck screws at Smith's."],
     ['c1', 6.8, "I'll grab them on the way over."],
+    ['c5', 7.1, "I'm off today. Holler if you need me tomorrow."],
     ['c2', 7.4, 'Cabinets are in. Starting on the uppers.'],
   ];
   async function seedDemoChat(M) {
@@ -311,7 +313,7 @@
     return `<main class="screen form">
       <button class="back" data-action="chat-back">${Icons.back} Messages</button>
       <h1>New group</h1>
-      <label class="field"><span>Group name</span><input id="chat-name" placeholder="Smith kitchen crew" autocomplete="off"></label>
+      <label class="field"><span>Group name</span><input id="chat-name" placeholder="e.g. Roof crew" autocomplete="off"></label>
       <div class="field people" role="group" aria-labelledby="people-label"><span id="people-label">Who's in it?</span>
         <div class="list">${people.map((c) => `<label class="row-card pick">
           <input type="checkbox" value="${esc(c.id)}" ${view.picking.includes(c.id) ? 'checked' : ''}>
