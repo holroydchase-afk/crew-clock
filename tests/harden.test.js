@@ -168,7 +168,7 @@ test('UX-8 Today summary lists a person with two flagged shifts once and never e
   ], { c1: 'Ray T.', c2: 'Jake R.' }, { j1: 'Smith kitchen', j2: 'Miller roof' }, ['Travis K.', 'Billy S.']);
   assert.strictEqual((s.match(/Ray T\./g) || []).length, 1, s);
   assert.ok(!/\.\./.test(s), s);
-  assert.match(s, /Check Ray T\. /, s);
+  assert.match(s, /Check: off site for Ray T\. /, s);
   assert.match(s, /Didn't clock in: Travis K\., Billy S\.$/, s);
 });
 

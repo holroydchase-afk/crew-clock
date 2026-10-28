@@ -54,6 +54,12 @@
   };
   const jobById = (id) => state.jobs.find((j) => j.id === id) || (state.team && state.team.jobs.find((j) => j.id === id));
   const crewById = (id) => (state.team && state.team.crew.find((c) => c.id === id)) || state.crew.find((c) => c.id === id) || (state.me && state.me.id === id ? state.me : null);
+  // 6 h 36 min / 45 min / less than a minute (never "0 min", UX-R20)
+  const duration = (ms) => {
+    const m = Math.round(ms / 60000);
+    if (m < 1) return 'less than a minute';
+    return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`;
+  };
   const initials = (name) => String(name || '?').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
   const isBoss = () => state.me && state.me.role === 'boss';
   const isLead = () => state.me && (state.me.role === 'foreman' || state.me.role === 'boss');
@@ -105,6 +111,8 @@
     if (!t) {
       t = document.createElement('div');
       t.id = 'toast';
+      t.setAttribute('role', 'status');
+      t.setAttribute('aria-live', 'polite');
       document.body.appendChild(t);
     }
     t.textContent = msg;
@@ -112,8 +120,39 @@
     clearTimeout(toast._t);
     toast._t = setTimeout(() => { t.className = ''; }, 3000);
   }
+  // A new screen never carries the last screen's message (UX-R4).
+  function clearToast() {
+    const t = document.getElementById('toast');
+    clearTimeout(toast._t);
+    if (t) { t.className = 'gone'; t.textContent = ''; }
+  }
+
+  // A form error sits under its field, is read out, marks the field and puts the cursor there (UX-R4).
+  // target: an input, or a .field holding several inputs (each is marked).
+  function fieldError(target, msg) {
+    if (!target) return toast(msg);
+    const field = target.closest('.field') || target;
+    const inputs = target.matches('input') ? [target] : [...target.querySelectorAll('input')];
+    const id = `${(inputs[0] && inputs[0].id) || 'field'}-error`;
+    document.querySelectorAll('.field-error').forEach((e) => e.remove());
+    document.querySelectorAll('[aria-invalid="true"]').forEach((e) => { e.removeAttribute('aria-invalid'); e.removeAttribute('aria-describedby'); });
+    const err = document.createElement('p');
+    err.className = 'field-error';
+    err.id = id;
+    err.setAttribute('role', 'alert');
+    err.innerHTML = `${Icons.alert}<span>${esc(msg)}</span>`;
+    field.insertAdjacentElement('afterend', err);
+    inputs.forEach((i) => { i.setAttribute('aria-invalid', 'true'); i.setAttribute('aria-describedby', id); });
+    const clear = () => {
+      err.remove();
+      inputs.forEach((i) => { i.removeAttribute('aria-invalid'); i.removeAttribute('aria-describedby'); });
+    };
+    inputs.forEach((i) => i.addEventListener(i.type === 'checkbox' ? 'change' : 'input', clear, { once: true }));
+    if (inputs[0]) inputs[0].focus();
+  }
 
   function setScreen(name, data) {
+    clearToast();
     state.screen = name;
     if (data) Object.assign(state, data);
     render();
@@ -288,6 +327,7 @@
     const open = type !== 'out' ? null : o.crewId ? mateOpen(o.crewId) : state.last && state.last.type === 'in' ? state.last : null;
     if (open) {
       state.flow.jobId = open.jobId;
+      state.flow.inAt = open.at;
       return locate();
     }
     setScreen('pick-job');
@@ -479,13 +519,13 @@
   async function signOut(msg) {
     const waiting = await countPending();
     if (waiting.length && !msg) {
-      if (!confirm(`Some clock-ins have not sent yet. Switch anyway? They will send when this person signs in again.`)) return;
+      if (!confirm(`Some clock-ins have not sent yet. Sign out anyway? They will send when this person signs in again.`)) return;
     }
     if (Api.signOut) Api.signOut();
     ['auth', 'me', 'last', 'team', 'jobs', 'crew'].forEach((k) => Store.local.remove(k));
     Object.assign(state, { auth: null, me: null, last: null, team: null, jobs: [], crew: [], matePunches: [], consentAsked: false });
-    if (msg) toast(msg);
     setScreen('names');
+    if (msg) toast(msg);
   }
 
   function goHome() {
@@ -522,27 +562,48 @@
     return namesHtml();
   };
   const DEMO_START = 'c5'; // the sample crew member who is never on the clock when the demo opens
-  function namesHtml() {
-    const list = state.names;
-    let body;
-    if (list === undefined) body = '<p class="muted center">Loading…</p>';
-    else if (!list) body = '<p class="notice">No signal. The first time you sign in, you need signal. Try near the road or in town.</p>';
-    else {
-      const role = { boss: 'Boss', foreman: 'Foreman' };
-      body = `${demoNoPin() ? `<div class="demo-intro"><p><b>A GPS time clock for a small construction crew.</b> Three taps to clock in, and it works with no signal.</p>
-        <p>Try it: tap the name marked <b>Start here</b> to clock in, then the boss for the team map.</p></div>` : ''}
-        <div class="name-grid">${list.map((c) => `
-        <button class="name-btn" data-action="pick-name" data-id="${esc(c.id)}">
+  function nameBtn(c) {
+    const role = { boss: 'Boss', foreman: 'Foreman' };
+    return `<button class="name-btn" data-action="pick-name" data-id="${esc(c.id)}">
           <span class="avatar">${esc(initials(c.name))}</span><span>${esc(c.name)}</span>
           ${demoNoPin() && role[c.role] ? `<span class="name-role">${role[c.role]}</span>` : ''}
-          ${demoNoPin() && c.id === DEMO_START ? '<span class="name-role start">Start here</span>' : ''}
-        </button>`).join('')}</div>`;
-    }
-    return `<main class="screen">
+        </button>`;
+  }
+  function namesHtml() {
+    const list = state.names;
+    const loading = list === undefined ? '<p class="muted center">Loading…</p>'
+      : !list ? '<p class="notice">No signal. The first time you sign in, you need signal. Try near the road or in town.</p>' : '';
+    if (!demoNoPin()) {
+      return `<main class="screen">
         <div class="brand">${Icons.job}<span>Crew Clock</span></div>
         <h1>Who are you?</h1>
         <p class="privacy">${Icons.pin}<span>This app only checks where you are when you tap <b>Clock In</b> or <b>Clock Out</b>. It does not follow you.</span></p>
-        ${body}
+        ${loading || `<div class="name-grid">${list.map(nameBtn).join('')}</div>`}
+      </main>`;
+    }
+    // The public demo: the pitch, then one obvious way in (UX-R1); side by side on a laptop (UX-R17).
+    const start = list && list.find((c) => c.id === DEMO_START);
+    const others = list ? list.filter((c) => c !== start) : [];
+    return `<main class="screen signin">
+        <section class="pitch">
+          <div class="brand">${Icons.job}<span>Crew Clock</span></div>
+          <h1 class="pitch-title">A GPS time clock for a small construction crew</h1>
+          <ul class="proof">
+            <li>${Icons.check}<span>Three taps to clock in, even with no signal</span></li>
+            <li>${Icons.check}<span>Checks location only at the tap. It never follows you.</span></li>
+            <li>${Icons.check}<span>The boss sees who is at which job on a map</span></li>
+          </ul>
+        </section>
+        <section class="signin-pick" aria-labelledby="pick-title">
+          <h2 id="pick-title">Try it</h2>
+          ${loading || `${start ? `<button class="name-btn start-btn" data-action="pick-name" data-id="${esc(start.id)}">
+            <span class="avatar">${esc(initials(start.name))}</span>
+            <span class="grow"><span class="start-name">${esc(start.name)}</span><span class="start-sub">Clock in as a worker</span></span>
+            <span class="name-role start">Start here</span>
+          </button>` : ''}
+          <p class="muted small pick-note">Or pick someone else. Pick the boss to see the team map.</p>
+          <div class="name-grid">${others.map(nameBtn).join('')}</div>`}
+        </section>
       </main>`;
   }
 
@@ -603,7 +664,7 @@
     const big = onClock
       ? `<button class="punch out" data-action="punch" data-type="out">${Icons.out}<span>CLOCK OUT</span></button>`
       : `<button class="punch in" data-action="punch" data-type="in">${Icons.in}<span>CLOCK IN</span></button>`;
-    const fake = Api.isDemo
+    const fake = Api.isDemo && hasConsent(state.me.id)
       ? `<label class="demo-toggle"><input type="checkbox" data-action="demo-fake" ${fakeGps() ? 'checked' : ''}> Demo: pretend I'm at the job</label>`
       : '';
     return `<main class="screen home">
@@ -621,7 +682,7 @@
         <div id="push-slot"></div>
         ${hasConsent(state.me.id)
           ? '<button class="link" data-action="consent-withdraw">Stop using my location</button>'
-          : '<p class="muted location-off">Location is off. You clock in with a picture.</p><button class="link" data-action="consent-ask">Use my location for clock-ins</button>'}
+          : '<p class="muted location-off">Location is off. When you clock in, the app asks again, or you can use a picture.</p><button class="link" data-action="consent-ask">Use my location for clock-ins</button>'}
         ${fake}
       </main>`;
   };
@@ -696,13 +757,13 @@
     const who = f.forTeammate ? crewById(f.crewId) : null;
     const name = esc(who ? who.name : 'They');
     const why = f.forTeammate && f.noLocation ? `${name} hasn't agreed to use location, so take a picture of them at the job.`
-      : f.forTeammate ? `Take a picture of ${esc(who ? who.name : 'them')} at the job.`
+      : f.forTeammate ? `Take a picture of ${name} at the job.`
         : f.noLocation ? 'Location is off for you, so the picture shows where you are.'
           : f.check && f.check.status === 'weak' ? 'GPS is weak here.' : "GPS couldn't find you.";
     return `<main class="screen center-col">
       <button class="back" data-action="go-home">${Icons.back} Back</button>
       <div class="big-icon amber">${Icons.camera}</div>
-      <h1>${f.forTeammate ? 'Take a picture' : 'Take a picture of the job'}</h1>
+      <h1>${f.forTeammate ? `${f.type === 'out' ? 'Clock out' : 'Clock in'} ${name}` : 'Take a picture of the job'}</h1>
       <p class="lead">${why} ${f.forTeammate ? '' : 'Get the house, the truck, or the work in the picture.'}</p>
       <label class="btn primary xl file-btn">${Icons.camera} Open camera
         <input type="file" accept="image/*" capture="environment" data-action="photo-file">
@@ -731,6 +792,7 @@
       <div class="big-check ${f.type}">${Icons.check}</div>
       <h1>${subject} ${verb}</h1>
       <p class="lead">${esc(job ? job.name : '')}<br><b>${time(f.at)}</b></p>
+      ${f.type === 'out' && f.inAt && f.at > f.inAt ? `<p class="worked">${who ? esc(who.name) : 'You'} worked <b>${duration(f.at - f.inAt)}</b></p>` : ''}
       <p>${chip(f.check.status, !!f.photo)}${f.check.distanceFt != null && f.check.status !== 'onsite' ? ` <span class="muted">${Geo.formatDistance(f.check.distanceFt)} from the job</span>` : ''}</p>
       ${s && f.check.status === 'offsite' ? '<p class="muted">The boss will see where you were.</p>' : ''}
       <div class="done-sync" data-done-sync>${doneSyncHtml()}</div>
@@ -748,9 +810,10 @@
     const tabs = [
       ['map', 'Map', Icons.map], ['today', 'Today', Icons.list],
       ...(isBoss() ? [['jobs', 'Jobs', Icons.job], ['crew', 'Crew', Icons.people]] : []),
-      ...(self.Messenger ? [['chat', 'Chat', Icons.chat]] : []),
+      ...(self.Messenger ? [['chat', 'Messages', Icons.chat]] : []),
     ];
-    const updated = state.team ? `Refresh · ${time(state.team.at)}` : 'Refresh';
+    const updated = state.team ? time(state.team.at) : 'Refresh';
+    const updatedLabel = state.team ? `Refresh. Last updated ${time(state.team.at)}` : 'Refresh';
     let body = '';
     if (tab === 'map') body = bossMapHtml();
     if (tab === 'today') body = bossTodayHtml();
@@ -761,13 +824,13 @@
         <header class="boss-head">
           <div class="brand small">${Icons.job}<span>Crew Clock</span></div>
           <div class="boss-head-right">
-            <button class="link" data-action="reload-team">${updated}</button>
-            ${isBoss() ? '<button class="link" data-action="sign-out">Switch</button>' : '<button class="link" data-action="go-home">Back</button>'}
+            <button class="head-btn" data-action="reload-team" aria-label="${updatedLabel}" title="${updatedLabel}">${Icons.refresh}<span>${updated}</span></button>
+            ${isBoss() ? '<button class="link" data-action="sign-out">Sign out</button>' : '<button class="link" data-action="go-home">Back</button>'}
           </div>
         </header>
         <div class="boss-body tab-${tab}">${body}</div>
-        <nav class="tabbar">${tabs.map(([k, label, ic]) => `
-          <button class="${k === tab ? 'on' : ''}" data-action="boss-tab" data-tab="${k}">${ic}<span>${label}</span></button>`).join('')}
+        <nav class="tabbar" aria-label="Boss views">${tabs.map(([k, label, ic]) => `
+          <button class="${k === tab ? 'on' : ''}" data-action="boss-tab" data-tab="${k}"${k === tab ? ' aria-current="page"' : ''}>${ic}<span>${label}</span></button>`).join('')}
         </nav>
       </div>`;
   };
@@ -791,7 +854,7 @@
 
   function bossMapHtml() {
     return `<div id="team-map" class="team-map"></div>
-      <div class="map-legend">${['onsite', 'near', 'offsite', 'nogps'].map((s) => chip(s)).join('')}</div>`;
+      <div class="map-legend">${['onsite', 'near', 'offsite', 'nogps'].map((s) => chip(s)).join('')}<span class="chip s-out"><i></i>Clocked out</span></div>`;
   }
 
   function mountTeamMap() {
@@ -808,8 +871,10 @@
       pts.push([j.lat, j.lng]);
     });
     const last = Report.lastPunchByCrew(teamPunches());
-    let today0 = Report.startOfDay(Date.now());
-    if (Api.isDemo && !teamPunches().some((p) => p.at >= today0)) today0 = Report.startOfDay(today0 - 1); // the sample day (M1.6)
+    const { today0, shifts } = bossDay(); // the sample day in the demo (M1.6)
+    // A person's dot shows their latest shift's status, the same word as their Today row (UX-R3).
+    const shiftOf = {};
+    shifts.forEach((sh) => { if (!shiftOf[sh.crewId] || (sh.inAt || sh.outAt) >= (shiftOf[sh.crewId].inAt || shiftOf[sh.crewId].outAt)) shiftOf[sh.crewId] = sh; });
     // Everyone whose last punch counts as at a job (not off site) sits in one row above that job's
     // pin, so the dots never cover each other or the pin; an off-site punch sits where it was.
     const rows = {};
@@ -826,15 +891,18 @@
     }).filter(Boolean);
     placed.forEach(({ c, p, job, ll, row }) => {
       const stale = p.at < today0;
-      const s = STATUS[p.status] || STATUS.nogps;
+      const sh = !stale && shiftOf[c.id];
+      const status = sh ? sh.status : p.status;
+      const s = STATUS[status] || STATUS.nogps;
+      const out = p.type === 'out';
       const shift = row ? (row.indexOf(c.id) - (row.length - 1) / 2) * 46 : 0;
       const icon = L.divIcon({
         className: '',
-        html: `<div class="crew-dot ${s.cls} ${stale ? 'stale' : ''} ${p.type === 'out' ? 'is-out' : ''}">${esc(initials(c.name))}</div>`,
-        iconSize: [40, 40], iconAnchor: [20 - shift, row ? 62 : 20], popupAnchor: [shift, row ? -60 : -18],
+        html: `<div class="crew-dot ${s.cls} ${stale ? 'stale' : ''} ${out ? 'is-out' : ''}">${esc(initials(c.name))}</div>`,
+        iconSize: [40, 40], iconAnchor: [20 - shift, row ? 66 : 20], popupAnchor: [shift, row ? -64 : -18],
       });
-      const label = `${c.name}, ${s.word}`;
-      L.marker(ll, { icon, zIndexOffset: 1000, title: label, alt: label }).addTo(leafletMap).bindPopup(punchPopup(c, p, job));
+      const label = `${c.name}, ${s.word}${out ? ', clocked out' : ''}`;
+      L.marker(ll, { icon, zIndexOffset: out ? 500 : 1000, title: label, alt: label }).addTo(leafletMap).bindPopup(punchPopup(c, p, job, status));
       pts.push(ll);
     });
     if (pts.length) leafletMap.fitBounds(pts, { padding: [40, 40], maxZoom: 16 });
@@ -845,19 +913,20 @@
     });
   }
 
-  function punchPopup(c, p, job) {
+  function punchPopup(c, p, job, status = p.status) {
     const verb = p.type === 'in' ? 'Clocked in' : 'Clocked out';
     const late = p.receivedAt && p.receivedAt - p.at > 15 * 60000 ? `<br><span class="muted">Sent at ${time(p.receivedAt)} (no signal)</span>` : '';
     const dist = p.distanceFt != null && p.status !== 'onsite' ? ` · ${Geo.formatDistance(p.distanceFt)} away` : '';
     return `<div class="popup"><b>${esc(c.name)}</b><br>${verb} ${dayLabel(p.at).toLowerCase()} ${time(p.at)}<br>
-      ${esc(job ? job.name : '')}<br>${chip(p.status, p.hasPhoto)}${dist}
+      ${esc(job ? job.name : '')}<br>${chip(status, p.hasPhoto)}${dist}
       ${p.address && p.status === 'offsite' ? `<br><span class="muted">${esc(p.address)}</span>` : ''}${late}
       ${riskHtml(riskFor(p))}
       ${p.hasPhoto ? `<br><button class="mini" data-action="show-photo" data-id="${esc(p.id)}">See photo</button>` : ''}</div>`;
   }
 
   function jobIcon() {
-    return L.divIcon({ className: '', html: `<div class="job-pin">${Icons.job}</div>`, iconSize: [30, 30], iconAnchor: [15, 15] });
+    // 44px to tap (UX-R13); the blue tile inside stays small enough not to hide the dots.
+    return L.divIcon({ className: '', html: `<div class="job-pin"><span>${Icons.job}</span></div>`, iconSize: [44, 44], iconAnchor: [22, 22] });
   }
 
   function addBaseLayers(map) {
@@ -871,7 +940,8 @@
     L.control.layers({ Streets: streets, Satellite: sat }, null, { position: 'topright' }).addTo(map);
   }
 
-  function bossTodayHtml() {
+  // The day the boss views show, and its shifts: one source for Today and the map (UX-R3).
+  function bossDay() {
     let today0 = Report.startOfDay(Date.now());
     // The demo's sample day is yesterday when it's opened before the crew's day has started (M1.6).
     // With no punches at all (an emptied demo) it stays "Today".
@@ -880,6 +950,11 @@
     if (sampleYesterday) today0 = Report.startOfDay(today0 - 1);
     const punches = teamPunches().filter((p) => p.at >= today0 || (p.type === 'void'));
     const shifts = Report.pairShifts(punches).filter((s) => (s.inAt || s.outAt) >= today0);
+    return { today0, sampleYesterday, shifts };
+  }
+
+  function bossTodayHtml() {
+    const { sampleYesterday, shifts } = bossDay();
     const crew = teamCrew();
     const inToday = new Set(shifts.map((s) => s.crewId));
     const notIn = crew.filter((c) => !inToday.has(c.id));
@@ -890,12 +965,16 @@
       const job = jobById(s.jobId);
       const photoP = [punchById[s.inId], punchById[s.outId]].find((p) => p && p.hasPhoto);
       const flags = [punchById[s.inId], punchById[s.outId]].filter(Boolean).flatMap(riskFor);
-      const span = `${s.inAt ? time(s.inAt) : '?'} – ${s.outAt ? time(s.outAt) : s.open ? '<b class="on-clock">on the clock</b>' : '<b class="warn">no clock-out</b>'}`;
+      // Times never break mid-value (UX-R12): each one is a no-wrap piece of the line. The hours sit
+      // under the status chip, so they never drop to a line of their own (UX-R24).
+      const span = `<span class="nw">${s.inAt ? time(s.inAt) : '?'} –</span> ${s.outAt ? `<span class="nw">${time(s.outAt)}</span>` : s.open ? '<b class="on-clock nw">on the clock</b>' : '<b class="warn nw">no clock-out</b>'}`;
       return `<div class="shift">
         <span class="avatar">${esc(initials(c.name))}</span>
         <div class="grow"><div class="shift-name">${esc(c.name)}</div>
-          <div class="muted small">${esc(job ? job.name : '')} · ${span}${s.hours != null ? ` · ${s.hours.toFixed(1)} h` : ''}</div>${riskHtml(flags)}</div>
+          <div class="muted small">${esc(job ? job.name : '')}</div>
+          <div class="muted small shift-times">${span}</div>${riskHtml(flags)}</div>
         <div class="shift-right">${chip(s.status)}
+          ${s.hours != null ? `<span class="muted small shift-hours nw">${s.hours.toFixed(1)} h</span>` : ''}
           ${photoP ? `<button class="mini" data-action="show-photo" data-id="${esc(photoP.id)}">${Icons.camera}</button>` : ''}</div>
       </div>`;
     }).join('');
@@ -904,7 +983,7 @@
     if (self.AI) {
       const names = Object.fromEntries(teamCrew().map((c) => [c.id, c.name]));
       const jobNames = Object.fromEntries(((state.team && state.team.jobs) || state.jobs).map((j) => [j.id, j.name]));
-      const text = state.aiSummary || AI.plainSummary(shifts, names, jobNames, notIn.map((c) => c.name));
+      const text = state.aiSummary || AI.plainSummary(shifts, names, jobNames, notIn.map((c) => c.name), Date.now());
       state.summaryFacts = text;
       // The demo never loads a model: it would fetch a script from another site (SEP-2)
       const canWrite = !Api.isDemo && AI.tier() >= 2 && !state.aiSummary && shifts.length;
@@ -970,8 +1049,8 @@
       <button class="back" data-action="boss-back">${Icons.back} Jobs</button>
       <h1>${j.isNew ? 'New job' : 'Edit job'}</h1>
       <label class="field"><span>Job name</span>
-        <input id="job-name" value="${esc(j.name)}" placeholder="Smith kitchen" autocomplete="off"></label>
-      <div class="field"><span>Where is it?</span>
+        <input id="job-name" value="${esc(j.name)}" placeholder="e.g. Jones porch" autocomplete="off"></label>
+      <div class="field" id="job-where"><span>Where is it?</span>
         <div class="seg">${[['address', 'Address'], ['pin', 'Drop a pin'], ['here', "I'm here"]].map(([k, l]) =>
           `<button class="${mode === k ? 'on' : ''}" data-action="job-mode" data-mode="${k}">${l}</button>`).join('')}</div></div>
       ${mode === 'address' ? `<div class="field"><div class="search-row">
@@ -1027,9 +1106,9 @@
       <button class="back" data-action="boss-back">${Icons.back} Crew</button>
       <h1>${c.isNew ? 'Add person' : esc(c.name)}</h1>
       <label class="field"><span>Name (first name and last initial)</span>
-        <input id="crew-name" value="${esc(c.name)}" placeholder="Jake R." autocomplete="off"></label>
+        <input id="crew-name" value="${esc(c.name)}" placeholder="e.g. Pat L." autocomplete="off"></label>
       <label class="field"><span>${c.isNew ? '4 number PIN' : 'New 4 number PIN (leave blank to keep)'}</span>
-        <input id="crew-pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="${c.isNew ? '1234' : '••••'}" autocomplete="off"></label>
+        <input id="crew-pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="${c.isNew ? '4 numbers' : '••••'}" autocomplete="off"></label>
       <div class="field"><span>Role</span>
         <div class="seg">${[['crew', 'Crew'], ['foreman', 'Foreman'], ['boss', 'Boss']].map(([k, l]) =>
           `<button class="${(c.role || 'crew') === k ? 'on' : ''}" data-action="crew-role" data-role="${k}">${l}</button>`).join('')}</div>
@@ -1254,14 +1333,14 @@
     'job-save': async () => {
       keepJobInputs();
       const j = state.editJob;
-      if (!j.name.trim()) return toast('Give the job a name');
-      if (j.lat == null) return toast('Set where the job is first');
+      if (!j.name.trim()) return fieldError(document.getElementById('job-name'), 'Give the job a name');
+      if (j.lat == null) return fieldError(document.getElementById('job-address') || document.getElementById('job-where'), 'Set where the job is first');
       const rec = { id: j.id, name: j.name.trim(), address: j.address || '', lat: j.lat, lng: j.lng, radiusFt: j.radiusFt || 300, active: true };
       upsertLocal('jobs', rec);
       await queueEdit('job', rec);
-      toast('Job saved');
       state.bossTab = 'jobs';
       setScreen('boss');
+      toast('Job saved');
     },
     'job-archive': async () => {
       const j = Object.assign({}, state.editJob, { active: false });
@@ -1276,16 +1355,17 @@
     'crew-save': async () => {
       keepCrewInputs();
       const c = state.editCrew;
-      if (!c.name.trim()) return toast('Type their name');
-      if (c.newPin && !/^\d{4}$/.test(c.newPin)) return toast('PIN must be 4 numbers');
-      if (c.isNew && !c.newPin) return toast('Give them a 4 number PIN');
+      const pin = document.getElementById('crew-pin');
+      if (!c.name.trim()) return fieldError(document.getElementById('crew-name'), 'Type their name');
+      if (c.newPin && !/^\d{4}$/.test(c.newPin)) return fieldError(pin, 'The PIN is 4 numbers');
+      if (c.isNew && !c.newPin) return fieldError(pin, 'Give them a 4 number PIN');
       const rec = { id: c.id, name: c.name.trim(), role: c.role || 'crew', active: true };
       if (c.newPin) rec.pin = c.newPin;
       upsertLocal('crew', { id: rec.id, name: rec.name, role: rec.role, active: true });
       await queueEdit('crew', rec);
-      toast(c.isNew ? `${rec.name} added. Their PIN is ${c.newPin}.` : 'Saved');
       state.bossTab = 'crew';
       setScreen('boss');
+      toast(c.isNew ? `${rec.name} added. Their PIN is ${c.newPin}.` : 'Saved');
     },
     'crew-off': async () => {
       const c = state.editCrew;
@@ -1373,6 +1453,6 @@
   }
 
   // Hooks for add-on screens (js/messenger.js registers the chat screens here).
-  self.CrewClock = { state, syncNow, render, screens, handlers, setScreen, esc, toast, time, initials, isBoss, isLead, crewById, goHome };
+  self.CrewClock = { state, syncNow, render, screens, handlers, setScreen, esc, toast, fieldError, time, initials, isBoss, isLead, crewById, goHome };
   countPending().then(() => { goHome(); syncNow(); });
 })();
