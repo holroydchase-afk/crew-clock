@@ -1,0 +1,36 @@
+name: agents-check
+# Studio rule (templates/CLAUDE-agents.md): the agent table matches .claude/agents/, every PR body has
+# an "Agents:" line, and a PR that changes more than docs names qa-tdd on it (or "qa-tdd skipped: why").
+# Bot PRs (Dependabot) and titles with [skip agents] are exempt.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+permissions:
+  contents: read
+jobs:
+  agents:
+    if: ${{ github.event.pull_request.user.type != 'Bot' && !contains(github.event.pull_request.title, '[skip agents]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Agent roster matches CLAUDE.md
+        run: if [ -f scripts/check-agents.sh ]; then bash scripts/check-agents.sh; else echo "no scripts/check-agents.sh (install it with studio-agents scripts/install-rules.sh)"; fi
+      - name: Agents line in the PR body
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          line=$(printf '%s\n' "$BODY" | tr -d '\r' | grep -iE '^[[:space:]>*_-]*agents:' | tail -n 1)
+          if [ -z "$line" ]; then
+            echo "::error::Add an 'Agents:' line to the PR body naming who ran and the verdict, e.g. 'Agents: staff-pm scoped M1.2; qa-tdd red then green, 3x; ux-reviewer no P0/P1'. See the Studio agents section of CLAUDE.md."
+            exit 1
+          fi
+          code=$(git diff --name-only "$BASE...$HEAD" | grep -vE '(\.md$|^docs/|^LICENSE)' || true)
+          if [ -n "$code" ] && ! printf '%s' "$line" | grep -qi 'qa-tdd'; then
+            echo "::error::This PR changes code or config, so the Agents: line must name qa-tdd (failing test first, all suites 3x) or say 'qa-tdd skipped: <reason>'. Changed: $(echo $code | head -c 300)"
+            exit 1
+          fi
+          echo "ok: $line"
