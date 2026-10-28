@@ -100,6 +100,11 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
   background refresh uses `cache: 'no-cache'`, and the app version hash includes `sw.js` itself.
   `tests/e2e-update.js` (red before, green after) builds two deploys and checks a phone on the old
   one is on the new one by the second reopen. Live page not checked from the sandbox.
+  Main CI then failed once on RST-1 ("Reset sample data": Travis still on the clock after reset),
+  which blocked that deploy. Reset deleted IndexedDB without waiting and reloaded, so an unsent
+  punch in the outbox could survive and sync back; Store also held its connection open, which
+  blocks a delete. Now reset waits for the deletes and Store closes on `versionchange`. The race
+  did not reproduce locally (e2e-demo green 3x before and after), so this fix is by reading.
 - The whole MVP: three-tap clock-in, offline queue, fair geofence with the phone's GPS error
   counted in the worker's favor, photo fallback, boss Map / Today / Jobs / Crew tabs, "Not in
   yet", "Wrong job? Fix it", foreman "clock in a teammate".

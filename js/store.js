@@ -15,7 +15,11 @@
         req.onupgradeneeded = () => {
           req.result.createObjectStore(OUTBOX, { keyPath: 'id' });
         };
-        req.onsuccess = () => resolve(req.result);
+        req.onsuccess = () => {
+          // Let "Reset sample data" delete the database instead of waiting on this open connection
+          req.result.onversionchange = () => { req.result.close(); dbPromise = null; };
+          resolve(req.result);
+        };
         req.onerror = () => { volatile = true; resolve(null); };
       } catch (e) {
         volatile = true;
