@@ -29,7 +29,12 @@ async function open(browser, ctxOpts = {}, init) {
 async function signIn(page, name) {
   await page.waitForSelector('.name-btn');
   await page.getByRole('button', { name, exact: false }).first().click();
-  await page.waitForSelector('.punch, .boss, [data-action="prime-location"]');
+  await page.waitForSelector('.punch, .boss, .consent, [data-action="prime-location"]');
+  // Billy S. never agreed to location in the sample data: "Not now" takes him Home (picture clock-ins).
+  if (await page.locator('.consent').count()) {
+    await page.click('[data-action="consent-later"]');
+    await page.waitForSelector('.punch');
+  }
   if (await page.locator('[data-action="prime-location"]').count()) {
     await page.click('[data-action="prime-location"]');
     await page.waitForSelector('.punch');
@@ -127,7 +132,7 @@ t('EMPTY-3 a worker with no active jobs sees on Home a plain message to ask the 
 
 t('EMPTY-4 a crew member (not a lead) with no groups is told who can start one, not just "No groups yet."', async (browser) => {
   const { page } = await open(browser);
-  await signIn(page, 'Travis K.'); // in no group, sample or otherwise
+  await signIn(page, 'Billy S.'); // in no group (Travis K. joined the sample group in UX-R19)
   await page.click('[data-to="chat-list"]');
   await page.waitForFunction(() => { const l = document.querySelector('#app .list'); return l && !/Loading/.test(l.innerText); }, null, { timeout: 20000 });
   const list = await text(page, '#app .list');

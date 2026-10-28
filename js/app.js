@@ -56,9 +56,10 @@
   };
   const jobById = (id) => state.jobs.find((j) => j.id === id) || (state.team && state.team.jobs.find((j) => j.id === id));
   const crewById = (id) => (state.team && state.team.crew.find((c) => c.id === id)) || state.crew.find((c) => c.id === id) || (state.me && state.me.id === id ? state.me : null);
-  // 6 h 36 min / 45 min
+  // 6 h 36 min / 45 min / less than a minute (never "0 min", UX-R20)
   const duration = (ms) => {
     const m = Math.round(ms / 60000);
+    if (m < 1) return 'less than a minute';
     return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`;
   };
   const initials = (name) => String(name || '?').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
@@ -618,7 +619,7 @@
             <li>${Icons.check}<span>The boss sees who is at which job on a map</span></li>
           </ul>
         </section>
-        <section class="pick" aria-labelledby="pick-title">
+        <section class="signin-pick" aria-labelledby="pick-title">
           <h2 id="pick-title">Try it</h2>
           ${loading || `${start ? `<button class="name-btn start-btn" data-action="pick-name" data-id="${esc(start.id)}">
             <span class="avatar">${esc(initials(start.name))}</span>
@@ -834,7 +835,7 @@
     const tabs = [
       ['map', 'Map', Icons.map], ['today', 'Today', Icons.list],
       ...(isBoss() ? [['jobs', 'Jobs', Icons.job], ['crew', 'Crew', Icons.people]] : []),
-      ...(self.Messenger ? [['chat', 'Chat', Icons.chat]] : []),
+      ...(self.Messenger ? [['chat', 'Messages', Icons.chat]] : []),
     ];
     const updated = state.team ? time(state.team.at) : 'Refresh';
     const updatedLabel = state.team ? `Refresh. Last updated ${time(state.team.at)}` : 'Refresh';
@@ -1105,15 +1106,17 @@
       const photoP = [punchById[s.inId], punchById[s.outId]].find((p) => p && p.hasPhoto);
       const dupes = (s.duplicateOuts || []).map((id) => punchById[id]);
       const flags = [punchById[s.inId], punchById[s.outId], ...dupes].filter(Boolean).flatMap(riskFor);
-      // Times never break mid-value (UX-R12): each one is a no-wrap piece of the line.
+      // Times never break mid-value (UX-R12): each one is a no-wrap piece of the line. The hours sit
+      // under the status chip, so they never drop to a line of their own (UX-R24).
       const span = `<span class="nw">${s.inAt ? time(s.inAt) : '?'} –</span> ${s.outAt ? `<span class="nw">${time(s.outAt)}</span>` : s.open ? '<b class="on-clock nw">on the clock</b>' : '<b class="warn nw">no clock-out</b>'}`;
       const late = sentLate(punchById[s.inId]) || sentLate(punchById[s.outId]); // ENH-2
       return `<div class="shift">
         <span class="avatar">${esc(initials(c.name))}</span>
         <div class="grow"><div class="shift-name">${esc(c.name)}</div>
           <div class="muted small">${esc(job ? job.name : '')}</div>
-          <div class="muted small shift-times">${span}${s.hours != null ? ` <span class="nw">· ${s.hours.toFixed(1)} h</span>` : ''}${dupes.length ? ' <span class="nw">· clocked out twice</span>' : ''}${late ? ` <span class="nw">· ${late}</span>` : ''}</div>${riskHtml(flags)}</div>
+          <div class="muted small shift-times">${span}${dupes.length ? ' <span class="nw">· clocked out twice</span>' : ''}${late ? ` <span class="nw">· ${late}</span>` : ''}</div>${riskHtml(flags)}</div>
         <div class="shift-right">${chip(s.status)}
+          ${s.hours != null ? `<span class="muted small shift-hours nw">${s.hours.toFixed(1)} h</span>` : ''}
           ${photoP ? `<button class="mini" data-action="show-photo" data-id="${esc(photoP.id)}">${Icons.camera}</button>` : ''}</div>
       </div>`;
     }).join('');
@@ -1122,7 +1125,7 @@
     if (self.AI) {
       const names = Object.fromEntries(teamCrew().map((c) => [c.id, c.name]));
       const jobNames = Object.fromEntries(((state.team && state.team.jobs) || state.jobs).map((j) => [j.id, j.name]));
-      const text = state.aiSummary || AI.plainSummary(shifts, names, jobNames, notIn.map((c) => c.name));
+      const text = state.aiSummary || AI.plainSummary(shifts, names, jobNames, notIn.map((c) => c.name), Date.now());
       state.summaryFacts = text;
       // The demo never loads a model: it would fetch a script from another site (SEP-2)
       const canWrite = !Api.isDemo && AI.tier() >= 2 && !state.aiSummary && shifts.length;
@@ -1247,7 +1250,7 @@
       <button class="back" data-action="boss-back">${Icons.back} Crew</button>
       <h1>${c.isNew ? 'Add person' : esc(c.name)}</h1>
       <label class="field"><span>Name (first name and last initial)</span>
-        <input id="crew-name" maxlength="60" value="${esc(c.name)}" placeholder="Jake R." autocomplete="off"></label>
+        <input id="crew-name" maxlength="60" value="${esc(c.name)}" placeholder="e.g. Pat L." autocomplete="off"></label>
       <label class="field"><span>${c.isNew ? '4 number PIN' : 'New 4 number PIN (leave blank to keep)'}</span>
         <input id="crew-pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="${c.isNew ? '4 numbers' : '••••'}" autocomplete="off"></label>
       <div class="field"><span>Role</span>

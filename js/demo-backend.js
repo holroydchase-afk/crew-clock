@@ -157,7 +157,10 @@
     return seeding;
   }
 
+  // After "Reset sample data" the page reloads: a request still in flight must not write the visit back.
+  let stopped = false;
   function save(db) {
+    if (stopped) return;
     try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { root.__demoDb = db; }
   }
 
@@ -420,5 +423,5 @@
   const isTampered = () => { const db = stored(); return !!(db && db.tampered); };
 
   root.DemoBackend = { handle, forgetCrewApp, sampleDay, setOffline, isOffline, tamper, untamper, isTampered,
-    reset: () => { root.__demoDb = null; try { localStorage.removeItem(KEY); } catch (e) { /* private mode */ } } };
+    reset: () => { stopped = true; try { localStorage.removeItem(KEY); } catch (e) { /* private mode */ } root.__demoDb = null; } };
 })(self);

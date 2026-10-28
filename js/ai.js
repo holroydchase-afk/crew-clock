@@ -83,17 +83,21 @@
   };
 
   // ---------- tier 0: day summary from facts, no model ----------
-  // shifts: Report.pairShifts output; names: id -> name; jobs: id -> name; notIn: names
-  function plainSummary(shifts, names, jobs, notIn) {
+  // shifts: Report.pairShifts output; names: id -> name; jobs: id -> name; notIn: names; now: ms
+  // A shift still open counts up to now, and the sentence says "so far today" (UX-R21).
+  function plainSummary(shifts, names, jobs, notIn, now) {
+    const at = now == null ? Date.now() : now;
     const people = new Set(shifts.map((s) => s.crewId));
     const onsite = shifts.filter((s) => s.status === 'onsite').length;
-    const hours = shifts.reduce((a, s) => a + (s.hours || 0), 0);
+    const running = shifts.filter((s) => s.open && s.inAt != null && at > s.inAt);
+    const hours = shifts.reduce((a, s) => a + (s.hours || 0), 0) + running.reduce((a, s) => a + (at - s.inAt) / 3600000, 0);
     const flagged = shifts.filter((s) => s.status === 'offsite' || s.status === 'near' || s.status === 'nogps' || s.missingOut);
     const byJob = {};
     shifts.forEach((s) => { byJob[jobs[s.jobId] || 'a job'] = (byJob[jobs[s.jobId] || 'a job'] || 0) + 1; });
     const busiest = Object.entries(byJob).sort((a, b) => b[1] - a[1])[0];
     const parts = [];
-    parts.push(`${people.size} ${people.size === 1 ? 'person' : 'people'} worked ${hours.toFixed(1)} hours across ${Object.keys(byJob).length} ${Object.keys(byJob).length === 1 ? 'job' : 'jobs'}.`);
+    const worked = running.length ? `${people.size === 1 ? 'has' : 'have'} worked ${hours.toFixed(1)} hours so far today` : `worked ${hours.toFixed(1)} hours`;
+    parts.push(`${people.size} ${people.size === 1 ? 'person' : 'people'} ${worked} across ${Object.keys(byJob).length} ${Object.keys(byJob).length === 1 ? 'job' : 'jobs'}.`);
     if (shifts.length) parts.push(`${onsite} of ${shifts.length} shifts were fully on site${busiest ? `; ${busiest[0]} had the most crew` : ''}.`);
     // Each person once, and no ".." when a name ends in a period ("Ray T.") (UX-8).
     const end = (t) => (/\.$/.test(t) ? t : t + '.');
