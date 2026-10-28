@@ -217,6 +217,7 @@ t('ENH-2b "No signal" is in the demo banner on the boss screen too, and boss Ref
 t('ENH-3a Today has Day | Week; Week shows hours per person Mon to Sun with totals, over several sample days', async (browser) => {
   const page = await open(browser);
   await bossToday(page);
+  await verifiedCount(page); // the team's punches have loaded
   const week = page.getByRole('button', { name: 'Week', exact: true });
   await week.click();
   await page.waitForSelector('table.week');
@@ -251,6 +252,7 @@ t('ENH-3a Today has Day | Week; Week shows hours per person Mon to Sun with tota
 t('ENH-3b "Download CSV" gives name, date, in, out, hours, and no GPS, job pins, photo keys or risk data', async (browser) => {
   const page = await open(browser);
   await bossToday(page);
+  await verifiedCount(page); // the team's punches have loaded (CI ran the click before they had)
   await page.getByRole('button', { name: 'Week', exact: true }).click();
   await page.waitForSelector('table.week');
   const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Download CSV/ }).click()]);

@@ -325,6 +325,11 @@ sign-in and server hardening (F-03, F-06, F-12, F-13, F-15), failing tests first
   (engineer), so the week view still gets times from one request; distance in feet goes too.
 - **M1.13 round 2: before 9 AM the demo's day summary still says "so far today"** when the
   visitor is on the clock, under the "Yesterday (sample day)" heading; left as is.
+- **M1.13 CI fix: ENH-3a/3b wait for the team's punches before opening Week** (qa-tdd). CI clicked
+  Week before the team list loaded and downloaded a CSV with no rows; the tests now wait for the
+  verify line, as a person would see the day load first.
+  UX-R31 ("Show me" after Try tampering) failed once in 10 local runs of `tests/e2e-enhance.js`
+  with no message kept; not yet root-caused, watch for it in CI.
 - **M1.13: the crew app shows no verify line yet** (engineer). Its team view has no phone public
   keys (RLS lets a worker read only their own `devices` row), so the boss's screen can't check
   signatures there; the server already checks each punch at sync (`sig_ok`, `bad_signature` flag).
