@@ -118,12 +118,16 @@
     t.textContent = msg;
     t.className = 'show';
     clearTimeout(toast._t);
+    clearTimeout(toast._t2);
+    // After it fades, the words leave the page too: a new PIN must not sit in the DOM (PS-M111-1).
     toast._t = setTimeout(() => { t.className = ''; }, 3000);
+    toast._t2 = setTimeout(() => { t.textContent = ''; }, 3400);
   }
   // A new screen never carries the last screen's message (UX-R4).
   function clearToast() {
     const t = document.getElementById('toast');
     clearTimeout(toast._t);
+    clearTimeout(toast._t2);
     if (t) { t.className = 'gone'; t.textContent = ''; }
   }
 
@@ -181,7 +185,7 @@
   }
 
   // Server refusals that mean "this phone may never send this": safe to drop.
-  const PERMISSION = /^(Only a foreman|Unknown crew member|Boss only|Not yours)/i;
+  const PERMISSION = /^(Only a foreman|Unknown crew member|Boss only|Not yours|Turned off)/i;
   function rejectWords(reason) {
     if (/too old/i.test(reason || '')) return "Punch too old. Check the phone's clock and date are right, then tell the boss.";
     return `The office couldn't take it (${reason || 'no reason given'}). Tell the boss.`;
@@ -545,6 +549,20 @@
   // ---------- screens ----------
   const screens = {};
 
+  // HRD-13: private browsing on some phones refuses every storage write. Punches still go out
+  // while the tab is open, so say so plainly on every screen, demo and crew app alike.
+  function privateBanner() {
+    return Store.isVolatile() ? `<div class="private-banner" role="status">Private mode: keep this tab open until it says Sent.</div>` : '';
+  }
+  function banners() { return privateBanner() + demoBanner(); }
+
+  // Names and addresses never keep control characters or text-direction overrides (HRD-14).
+  // Same rule as cleanText in supabase/functions/_shared/core.ts.
+  function cleanText(v) {
+    // eslint-disable-next-line no-control-regex
+    return String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '').trim();
+  }
+
   // One line on every demo screen (SEP-3, SEP-4); the crew app never shows it (SEP-5).
   function demoBanner() {
     return Api.isDemo ? `<div class="demo-banner" role="note"><span>Sample data, made-up crew, saved only in this browser</span>
@@ -820,7 +838,7 @@
     if (tab === 'jobs') body = bossJobsHtml();
     if (tab === 'crew') body = bossCrewHtml();
     if (tab === 'chat' && self.Messenger) body = Messenger.listHtml();
-    return `<div class="boss">${demoBanner()}
+    return `<div class="boss">${banners()}
         <header class="boss-head">
           <div class="brand small">${Icons.job}<span>Crew Clock</span></div>
           <div class="boss-head-right">
@@ -841,7 +859,10 @@
     if (Array.isArray(p.risk)) return p.risk;
     const crewHistory = teamPunches().filter((x) => x.crewId === p.crewId && x.id !== p.id);
     const deviceHistory = p.deviceId ? teamPunches().filter((x) => x.deviceId === p.deviceId) : [];
-    return Risk.assess(p, { crewHistory, deviceHistory, receivedAt: p.receivedAt });
+    const flags = Risk.assess(p, { crewHistory, deviceHistory, receivedAt: p.receivedAt });
+    // PS-4 (demo): synced after the boss turned this person off.
+    if (p.crewInactive) flags.push({ code: 'crew_inactive', level: Risk.RULES.crew_inactive.level });
+    return flags;
   }
   function riskHtml(flags) {
     const high = flags.filter((f) => f.level === 'high');
@@ -948,8 +969,8 @@
     const sampleYesterday = Api.isDemo && !teamPunches().some((p) => p.at >= today0)
       && teamPunches().some((p) => p.at >= Report.startOfDay(today0 - 1));
     if (sampleYesterday) today0 = Report.startOfDay(today0 - 1);
-    const punches = teamPunches().filter((p) => p.at >= today0 || (p.type === 'void'));
-    const shifts = Report.pairShifts(punches).filter((s) => (s.inAt || s.outAt) >= today0);
+    // HRD-7: a shift clocked in last night and still open (or closed this morning) stays on Today.
+    const shifts = Report.shiftsForDay(teamPunches(), today0);
     return { today0, sampleYesterday, shifts };
   }
 
@@ -964,7 +985,8 @@
       const c = crewById(s.crewId) || { name: '?' };
       const job = jobById(s.jobId);
       const photoP = [punchById[s.inId], punchById[s.outId]].find((p) => p && p.hasPhoto);
-      const flags = [punchById[s.inId], punchById[s.outId]].filter(Boolean).flatMap(riskFor);
+      const dupes = (s.duplicateOuts || []).map((id) => punchById[id]);
+      const flags = [punchById[s.inId], punchById[s.outId], ...dupes].filter(Boolean).flatMap(riskFor);
       // Times never break mid-value (UX-R12): each one is a no-wrap piece of the line. The hours sit
       // under the status chip, so they never drop to a line of their own (UX-R24).
       const span = `<span class="nw">${s.inAt ? time(s.inAt) : '?'} –</span> ${s.outAt ? `<span class="nw">${time(s.outAt)}</span>` : s.open ? '<b class="on-clock nw">on the clock</b>' : '<b class="warn nw">no clock-out</b>'}`;
@@ -972,7 +994,7 @@
         <span class="avatar">${esc(initials(c.name))}</span>
         <div class="grow"><div class="shift-name">${esc(c.name)}</div>
           <div class="muted small">${esc(job ? job.name : '')}</div>
-          <div class="muted small shift-times">${span}</div>${riskHtml(flags)}</div>
+          <div class="muted small shift-times">${span}${dupes.length ? ' <span class="nw">· clocked out twice</span>' : ''}</div>${riskHtml(flags)}</div>
         <div class="shift-right">${chip(s.status)}
           ${s.hours != null ? `<span class="muted small shift-hours nw">${s.hours.toFixed(1)} h</span>` : ''}
           ${photoP ? `<button class="mini" data-action="show-photo" data-id="${esc(photoP.id)}">${Icons.camera}</button>` : ''}</div>
@@ -1049,12 +1071,12 @@
       <button class="back" data-action="boss-back">${Icons.back} Jobs</button>
       <h1>${j.isNew ? 'New job' : 'Edit job'}</h1>
       <label class="field"><span>Job name</span>
-        <input id="job-name" value="${esc(j.name)}" placeholder="e.g. Jones porch" autocomplete="off"></label>
+        <input id="job-name" maxlength="60" value="${esc(j.name)}" placeholder="e.g. Jones porch" autocomplete="off"></label>
       <div class="field" id="job-where"><span>Where is it?</span>
         <div class="seg">${[['address', 'Address'], ['pin', 'Drop a pin'], ['here', "I'm here"]].map(([k, l]) =>
           `<button class="${mode === k ? 'on' : ''}" data-action="job-mode" data-mode="${k}">${l}</button>`).join('')}</div></div>
       ${mode === 'address' ? `<div class="field"><div class="search-row">
-          <input id="job-address" value="${esc(state.addressQuery != null ? state.addressQuery : j.address)}" placeholder="Street and town" autocomplete="street-address" enterkeyhint="search">
+          <input id="job-address" maxlength="200" value="${esc(state.addressQuery != null ? state.addressQuery : j.address)}" placeholder="Street and town" autocomplete="street-address" enterkeyhint="search">
           <button class="btn primary sm" data-action="geo-search">Find</button></div>
           ${results ? `<div class="results">${results.length ? results.map((r, i) =>
             `<button data-action="geo-pick" data-i="${i}">${Icons.pin}<span>${esc(r.label)}</span></button>`).join('')
@@ -1106,7 +1128,7 @@
       <button class="back" data-action="boss-back">${Icons.back} Crew</button>
       <h1>${c.isNew ? 'Add person' : esc(c.name)}</h1>
       <label class="field"><span>Name (first name and last initial)</span>
-        <input id="crew-name" value="${esc(c.name)}" placeholder="e.g. Pat L." autocomplete="off"></label>
+        <input id="crew-name" maxlength="60" value="${esc(c.name)}" placeholder="e.g. Pat L." autocomplete="off"></label>
       <label class="field"><span>${c.isNew ? '4 number PIN' : 'New 4 number PIN (leave blank to keep)'}</span>
         <input id="crew-pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="${c.isNew ? '4 numbers' : '••••'}" autocomplete="off"></label>
       <div class="field"><span>Role</span>
@@ -1159,7 +1181,7 @@
   // ---------- rendering ----------
   function paint(html) {
     // The boss screen puts the banner inside its own frame, so the tab bar still fits (UX-5).
-    $app.innerHTML = (state.screen === 'boss' ? '' : demoBanner()) + html;
+    $app.innerHTML = (state.screen === 'boss' ? '' : banners()) + html;
   }
 
   function render() {
@@ -1333,7 +1355,9 @@
     'job-save': async () => {
       keepJobInputs();
       const j = state.editJob;
-      if (!j.name.trim()) return fieldError(document.getElementById('job-name'), 'Give the job a name');
+      j.name = cleanText(j.name).slice(0, 60);
+      j.address = cleanText(j.address).slice(0, 200);
+      if (!j.name) return fieldError(document.getElementById('job-name'), 'Give the job a name');
       if (j.lat == null) return fieldError(document.getElementById('job-address') || document.getElementById('job-where'), 'Set where the job is first');
       const rec = { id: j.id, name: j.name.trim(), address: j.address || '', lat: j.lat, lng: j.lng, radiusFt: j.radiusFt || 300, active: true };
       upsertLocal('jobs', rec);
@@ -1356,7 +1380,8 @@
       keepCrewInputs();
       const c = state.editCrew;
       const pin = document.getElementById('crew-pin');
-      if (!c.name.trim()) return fieldError(document.getElementById('crew-name'), 'Type their name');
+      c.name = cleanText(c.name).slice(0, 60);
+      if (!c.name) return fieldError(document.getElementById('crew-name'), 'Type their name');
       if (c.newPin && !/^\d{4}$/.test(c.newPin)) return fieldError(pin, 'The PIN is 4 numbers');
       if (c.isNew && !c.newPin) return fieldError(pin, 'Give them a 4 number PIN');
       const rec = { id: c.id, name: c.name.trim(), role: c.role || 'crew', active: true };

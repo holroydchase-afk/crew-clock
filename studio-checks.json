@@ -1,6 +1,7 @@
 {
   "logs": {
-    "roots": ["js", "supabase/functions"],
-    "banned": []
+    "roots": ["js", "supabase/functions", "sw.js", "config.js"],
+    "banned": [],
+    "bannedWords": ["lat", "lng", "coords", "pin", "punch", "claims", "phone", "photo"]
   }
 }

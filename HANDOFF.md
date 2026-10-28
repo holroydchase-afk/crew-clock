@@ -2,7 +2,7 @@
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-10-28 (release run: M1.11 UI polish)
+Updated: 2026-10-28 (release run: M1.12 Harden)
 
 ## What it is
 
@@ -14,6 +14,37 @@ Plan and milestone IDs: [PLAN.md](PLAN.md). Hard rules: [CLAUDE.md](CLAUDE.md). 
 contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
+
+- `M1.12` Harden (release run 2026-10-28). qa-tdd wrote red tests first (`tests/harden2.test.js`,
+  `tests/check-logs.test.js` CRW-R3..R5, `tests/edge/harden.test.ts`, `tests/sql/harden_test.sql`,
+  `tests/e2e-harden2.js`); engineer made them green. PS-4: a worker turned off before their
+  offline clock-out syncs keeps that punch, flagged `crew_inactive` for the boss (Edge `Repo.crewMember`
+  sees turned-off crew of the same company; another company is still refused; the demo does the
+  same and still refuses their sign-in). HRD-7: Today keeps a shift clocked in last night
+  (`Report.shiftsForDay`, used by `bossDay()`). HRD-8: NaN, negative or text accuracy and NaN
+  coordinates are "no GPS" (photo), never off site. HRD-11: a second clock-out within 12 h of the
+  one that closed a shift (worker and foreman both, offline) is kept on that shift as
+  `duplicateOuts` / SQL note "Duplicate clock-out", no extra hours; Today says "clocked out twice".
+  HRD-14: migration `20261028000000_harden.sql` (checks: names <= 60, address <= 200, lat/lng in
+  range, accuracy >= 0, punch time 2020..2100; `shifts()` pairs duplicates); sync drops an
+  impossible fix (flag `bad_location`) instead of refusing, caps a phone time over now + 10 min
+  (flag `future_time`), refuses over-long or off-the-map boss edits with words that name no value,
+  and strips control characters from names; the forms have maxlength 60/200. HRD-13: a plain
+  "Private mode: keep this tab open until it says Sent." banner when storage writes fail.
+  PS-M111-1: the toast's words (a new PIN) leave the page 3.4 s after it shows. CRW-R3..R5: the
+  log check bans the whole words lat, lng, coords, pin, punch, claims, phone, photo
+  (`bannedWords` in `studio-checks.json`), covers `sw.js` and `config.js`, and Edge logs start with
+  a fixed `function:step` tag (`http:serve`, `sync:alert` plus the upstream status). CI and
+  `tests/sql/run.sh` now also run the retention and harden SQL.
+  privacy-security fixes on the branch, failing tests first: PS-M112-1: a turned-off worker's own
+  punches are kept only up to 15 min after `deactivated_at`; later ones, any foreman's punch for
+  them, and anything else from a turned-off caller (teammate punches, consent, edits) are refused
+  "Turned off", which the phone drops like other permission refusals; photo-url, digest and
+  geocode refuse a turned-off caller (`requireActive`); demo the same. PS-M112-2: when sync drops
+  a punch's GPS (bad reading or no consent) it stores no hash or signature, the device row keeps
+  `dropped` instead of that hash, and the next punch stores no `prev_hash` to it (PRIVACY L3a).
+  PS-M112-3: the harden migration cleans old out-of-range rows (drops bad GPS with its hash, pulls
+  times into 2020..2100, cuts long names/addresses) and adds the checks validated.
 
 - `M1.11` UI to 8/10 (release run 2026-10-28). ux-reviewer scored the demo 6.5/10 before (0 P0,
   7 P1, 10 P2: `UX-R1..R17`). qa-tdd wrote `tests/e2e-polish.js` (16 cases, red first), engineer
@@ -230,11 +261,10 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
 
 ## Exact next step
 
-Log check follow-ups from privacy-security (all P2, 2026-10-28): CRW-R3 the checker misses a bare
-`ex` error and words like lat, lng, coords, pin, punch, claims, phone, photo (add them to
-`studio-checks.json` "banned", not `name`, which `e.name` needs; the `ex` rule belongs upstream in
-studio-agents' check-logs.mjs); CRW-R4 add `sw.js` and `config.js` to the checker's roots; CRW-R5
-`e.name` alone is usually "Error", so add a fixed where-it-failed tag and the upstream status code.
+M1.12: qa-tdd runs all suites 3x, then privacy-security and ux-reviewer on the branch
+`claude/project-thread-1jlll2-m1.12` (location drops, the private-mode banner, the duplicate note).
+Still open from CRW-R3: the bare `ex` error rule belongs upstream in studio-agents' check-logs.mjs
+(this repo's copy now has `bannedWords`; carry that upstream too).
 
 Chase: the three steps in `docs/reviews/2026-10-24-recruiter-ready.md` (confirm the demo pins and
 names are made up, merge #18 then #19 then #20, open the live demo on his phone), then review the
@@ -243,6 +273,31 @@ sign-in and server hardening (F-03, F-06, F-12, F-13, F-15), failing tests first
 "Erase their data" button and the B2 purge function if Chase wants M1.4's leftovers first.
 
 ## Decisions to review
+
+- **M1.12: an impossible GPS reading is dropped, not refused** (qa-tdd). Sync keeps the punch with
+  no location and flags `bad_location`; CLAUDE.md "never block a clock-in" wins over strict input
+  checks. The database checks are the last line only.
+- **M1.12: punch time bound 2020..2100 in SQL; the future cap lives in sync** (qa-tdd). No
+  `phone_at <= now()` check, so a fast phone clock never becomes a server error and a stuck outbox;
+  sync stores at most now + 10 min and flags `future_time`. The signed time stays in the hash.
+- **M1.12: a second clock-out counts as a duplicate only within 12 hours** of the one that closed
+  the shift and with no clock-in between (JS and SQL alike). Later than that it stays its own
+  "No clock-in" row, so a forgotten clock-in the next day is not hidden.
+- **M1.12: a turned-off worker's own punches are kept up to 15 min after they were turned off**
+  (PS-M112-1), flagged `crew_inactive`; later ones and a foreman's punch for them are refused
+  "Turned off" and dropped by the phone. A consent record from a turned-off worker is refused too,
+  withdrawal included (they can't sign in, so no location is read anyway). photo-upload still
+  answers a turned-off caller so their early punch can carry its photo; their refresh token died
+  when they were turned off.
+- **M1.12: a punch's `prev_hash` is stored only when it links to a punch kept with its hash**
+  (PS-M112-2); after a dropped punch the next link is taken on trust (its signature still checks),
+  and a chain gap stores no `prev_hash`.
+- **M1.12: old out-of-range rows are cleaned by the migration, then the checks are validated**
+  (PS-M112-3): a punch time before 2020 or from 2100 on moves to the nearest edge, a bad job pin
+  is cleared (the boss re-pins it), long names and addresses are cut.
+- **M1.12: the private-mode banner shows in the crew app too**, not only the demo (same risk).
+- **M1.12: `scripts/check-logs.mjs` gained `bannedWords`** (whole-word, camelCase/underscore aware)
+  in this repo's copy; it should go upstream to studio-agents so a re-sync doesn't drop it.
 
 - **M1.11: laptop boss tabs move to the top** (≥ 960px), inside the 560px content column that the
   header, lists and forms now share (`--col`, `--gutter: 20px` in `css/app.css`). Phones keep the

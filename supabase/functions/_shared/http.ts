@@ -25,7 +25,7 @@ export function serve(handler: (req: Request, body: Record<string, unknown>) => 
       return json(Object.assign({ ok: true }, await handler(req, body)));
     } catch (e) {
       if (e instanceof HttpError) return json({ ok: false, error: e.message }, e.status);
-      console.error('Server error', e instanceof Error ? e.name : 'unknown');
+      console.error('http:serve', e instanceof Error ? e.name : 'unknown');
       return json({ ok: false, error: 'Server error' }, 500);
     }
   });

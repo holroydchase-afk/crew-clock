@@ -21,8 +21,17 @@
 
   // onsite | near | offsite | weak | nogps
   // The worker gets the benefit of the phone's own stated error.
+  // A number the phone could have sent: finite and not negative. Anything else (null, NaN, text,
+  // a negative accuracy) counts as no reading, so the worker gets a photo, never "off site".
+  function num(v) {
+    if (typeof v === 'string' && v.trim() !== '') v = Number(v);
+    return typeof v === 'number' && isFinite(v) ? v : null;
+  }
+
   function fenceStatus(distM, accuracyM, radiusM) {
-    if (distM == null || accuracyM == null || isNaN(distM)) return 'nogps';
+    distM = num(distM);
+    accuracyM = num(accuracyM);
+    if (distM == null || accuracyM == null || accuracyM < 0) return 'nogps';
     if (accuracyM > WEAK_ACCURACY_M) return 'weak';
     const closest = distM - accuracyM;
     if (closest <= radiusM) return 'onsite';
@@ -32,10 +41,13 @@
 
   // Status for a fix against a job ({lat,lng,radiusFt}).
   function checkFix(fix, job) {
-    if (!fix || fix.lat == null || !job || job.lat == null) {
+    const lat = fix ? num(fix.lat) : null;
+    const lng = fix ? num(fix.lng) : null;
+    if (lat == null || lng == null || Math.abs(lat) > 90 || Math.abs(lng) > 180 ||
+        !job || num(job.lat) == null || num(job.lng) == null) {
       return { status: 'nogps', distanceFt: null };
     }
-    const d = distanceM(fix.lat, fix.lng, job.lat, job.lng);
+    const d = distanceM(lat, lng, Number(job.lat), Number(job.lng));
     return {
       status: fenceStatus(d, fix.accuracy, toMeters(job.radiusFt || 300)),
       distanceFt: Math.round(toFeet(d)),

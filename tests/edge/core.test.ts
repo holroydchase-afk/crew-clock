@@ -6,6 +6,7 @@ import { Chain } from '../../supabase/functions/_shared/vendor/mod.ts';
 const ORG = '00000000-0000-4000-8000-0000000000a1';
 const JAKE = '00000000-0000-4000-8000-0000000000b1';
 const CODY = '00000000-0000-4000-8000-0000000000b2';
+const BOSS = '00000000-0000-4000-8000-0000000000b0'; // on the crew table too (sync checks the caller is still on it)
 const now = Date.parse('2026-10-21T12:00:00-04:00');
 const claims = (crew: string, role: Claims['crew_role'] = 'crew'): Claims =>
   ({ sub: crew, role: 'authenticated', aud: 'authenticated', org_id: ORG, crew_id: crew, crew_role: role, iat: 0, exp: 9e9 });
@@ -17,6 +18,7 @@ function fakeRepo(devices: Device[] = [], agreed: string[] = [JAKE, CODY]) {
   const consents: Record<string, unknown>[] = agreed.map((c, i) => ({ id: `seed-${i}`, crew_id: c, action: 'agree', text_version: 'loc-v1', phone_at: '2026-10-01T11:00:00Z' }));
   const repo: Repo = {
     crewInOrg: async (_o, c) => [JAKE, CODY].includes(c),
+    crewMember: async (_o, c) => ([JAKE, CODY, BOSS].includes(c) ? { active: true, deactivated_at: null } : null),
     punchExists: async (id) => punches.some((p) => p.id === id),
     getDevice: async (id) => devices.find((d) => d.id === id) || null,
     setDeviceChain: async (id, seq, hash) => { const d = devices.find((x) => x.id === id)!; d.last_seq = seq; d.last_hash = hash; },
