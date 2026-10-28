@@ -2,7 +2,7 @@
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-10-28 (M1.13 Enhancements, review round 2)
+Updated: 2026-10-28 (M1.14 Demo verify)
 
 ## What it is
 
@@ -15,6 +15,13 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
 
+- `M1.14` Demo verify (2026-10-28, release plan phase 6). The README matches tonight's demo
+  (positioning: a 6-step walkthrough, the tamper check, "No signal" and the week view). Its three
+  screenshots are recaptured from a local `--demo` build at 390x844@2x, light mode. Local load of
+  the demo build: first screen in 320 ms, about 253 KB sent, 768 KB for the whole build. The live
+  demo at chaseholroyd.com is **untested** from here because the build sandbox blocks that domain
+  (and the map tile hosts tile.openstreetmap.org and basemap.nationalmap.gov).
+  Portfolio / public presence: the README screenshots and walkthrough changed.
 - `M1.13` Enhancements for a recruiter's 90-second visit (2026-10-28, staff-pm's picks). qa-tdd
   wrote red tests first (`tests/enhance.test.js` 17 cases, `tests/e2e-enhance.js` 8 cases, added
   to `test:e2e`; showcase axe walk now covers Today verified/tampered, Week and "No signal" on);
@@ -501,6 +508,8 @@ Waiting on Chase, in order (each unblocks an M2 task; nothing in M1 needs these)
 
 ## Portfolio / public presence
 
+- 2026-10-28 (M1.10 to M1.14 release run): README and its screenshots match the demo after
+  M1.13 (tamper check, "No signal" switch, Week view). Live demo not loaded from the sandbox.
 - 2026-10-24 (M1.6, M1.7 night shift): the demo opens with what it is and a "Start here" name,
   never reads a visitor's location, keeps the sample crew in daytime hours, and passes axe on every
   screen; the README now matches what the demo shows, with screenshots.
