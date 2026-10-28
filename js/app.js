@@ -1086,7 +1086,14 @@
       .sort((a, b) => String(names[a] || '').localeCompare(String(names[b] || '')));
     const hrs = (h, open) => (open ? `${(h || 0).toFixed(1)}+` : h ? h.toFixed(1) : '–');
     const none = { days: [0, 0, 0, 0, 0, 0, 0], total: 0, open: [] };
-    const rowOf = (id) => w.byCrew[id] || none;
+    // Totals add up the tenths shown, so a row's days always sum to its total on screen (the CSV
+    // keeps hundredths)
+    const r1 = (h) => Math.round((h || 0) * 10) / 10;
+    const rowOf = (id) => {
+      const r = w.byCrew[id] || none;
+      const days = r.days.map(r1);
+      return Object.assign({}, r, { days, total: days.reduce((a, h) => a + h, 0) });
+    };
     const dayTotals = w.days.map((_, i) => ids.reduce((a, id) => a + (rowOf(id).days[i] || 0), 0));
     const dayOpen = w.days.map((_, i) => ids.some((id) => (rowOf(id).open || [])[i]));
     const anyOpen = dayOpen.some(Boolean);
@@ -1337,9 +1344,20 @@
   }
 
   // ---------- rendering ----------
+  // A redraw of the same boss tab (the check finishing, a refresh) keeps where the boss had
+  // scrolled to, so "Show me" and reading down the list are not thrown back to the top (UX-R31).
+  // A redraw that is briefly shorter (the check still running) remembers the spot for the next one.
+  let bossScroll = { tab: null, want: 0, got: 0 };
   function paint(html) {
+    const tab = state.screen === 'boss' ? state.bossTab : null;
+    const old = tab && tab === bossScroll.tab ? $app.querySelector('.boss-body') : null;
+    let keep = old ? old.scrollTop : 0;
+    if (old && keep === bossScroll.got && bossScroll.want > bossScroll.got) keep = bossScroll.want;
     // The boss screen puts the banner inside its own frame, so the tab bar still fits (UX-5).
     $app.innerHTML = (state.screen === 'boss' ? '' : banners()) + html;
+    const body = keep && $app.querySelector('.boss-body');
+    if (body) body.scrollTop = keep;
+    bossScroll = { tab, want: keep, got: body ? body.scrollTop : 0 };
   }
 
   function render() {
