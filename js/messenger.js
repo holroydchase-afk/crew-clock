@@ -23,9 +23,13 @@
       };
     });
   }
+  const kvFor = (id) => ({
+    get: (k) => idb('readonly', (s) => s.get(`${id}:${k}`)),
+    set: (k, v) => idb('readwrite', (s) => s.put(v, `${id}:${k}`)),
+  });
   const kv = {
-    get: (k) => idb('readonly', (s) => s.get(`${state.me.id}:${k}`)),
-    set: (k, v) => idb('readwrite', (s) => s.put(v, `${state.me.id}:${k}`)),
+    get: (k) => kvFor(state.me.id).get(k),
+    set: (k, v) => kvFor(state.me.id).set(k, v),
   };
 
   let mlsPromise = null;
@@ -42,9 +46,10 @@
   }
 
   // ---------- transports ----------
+  let stopped = false; // "Reset sample data": nothing in flight may write the old chat back
   const demoTransport = {
     _db() { return Store.local.get('demo.chat', { keyPackages: {}, groups: [], messages: [], seq: 0 }); },
-    _save(d) { Store.local.set('demo.chat', d); },
+    _save(d) { if (!stopped) Store.local.set('demo.chat', d); },
     async publishKeyPackage(b64) { const d = this._db(); d.keyPackages[state.me.id] = b64; this._save(d); },
     async keyPackages(ids) { const d = this._db(); return Object.fromEntries(ids.filter((i) => d.keyPackages[i]).map((i) => [i, d.keyPackages[i]])); },
     async createGroup(g) { const d = this._db(); d.groups.push(g); this._save(d); },
@@ -126,13 +131,77 @@
     return me;
   }
 
+  const emptyChat = () => ({ states: {}, messages: {}, lastId: 0, read: {} });
   async function local() {
-    return (await kv.get('chat')) || { states: {}, messages: {}, lastId: 0, read: {} };
+    return (await kv.get('chat')) || emptyChat();
+  }
+
+  // ---------- demo only: a sample crew chat, so the boss's Chat tab isn't empty (M1.10-a) ----------
+  // Made-up messages, encrypted with MLS like any other: the shared demo store holds only
+  // ciphertext, and each sample person keeps their own keys and readable copy on this phone.
+  const SAMPLE_GROUP = 'Smith kitchen crew';
+  const SAMPLE_MEMBERS = ['c1', 'c0', 'c2']; // Ray T. (foreman) starts it with Sam W. and Jake R.
+  const SAMPLE_LINES = [
+    ['c1', 6.6, "Morning. Lumber drop moved to 10. I'll sign for it."],
+    ['c2', 6.75, "Need two more boxes of deck screws at Smith's."],
+    ['c1', 6.8, "I'll grab them on the way over."],
+    ['c2', 7.4, 'Cabinets are in. Starting on the uppers.'],
+  ];
+  async function seedDemoChat(M) {
+    if (!Api.isDemo || cfg.backend !== 'demo') return; // never in a crew build that fell back to demo (PS-M110-1)
+    const d = demoTransport._db();
+    if (d.seeded) return;
+    // A store from before the sample chat already has someone's groups: leave it alone.
+    if (d.groups.length || d.messages.length) { d.seeded = true; demoTransport._save(d); return; }
+    const now = Date.now();
+    const base = root.DemoBackend && root.DemoBackend.sampleDay ? root.DemoBackend.sampleDay(now).base : root.Report.startOfDay(now);
+    const at = (h) => Math.min(base + h * 3600000, now - 60000);
+    const people = {};
+    for (const id of SAMPLE_MEMBERS) {
+      const k = kvFor(id);
+      let ident = await k.get('identity'); // a visitor's own keys stay as they are
+      if (!ident) ident = await M.newKeyPackage(id);
+      d.keyPackages[id] = ident.publicB64;
+      ident.published = true;
+      people[id] = { k, ident, chat: (await k.get('chat')) || emptyChat() };
+    }
+    const post = (m) => { d.seq += 1; d.messages.push(Object.assign({ id: d.seq }, m)); };
+    const [lead, ...rest] = SAMPLE_MEMBERS;
+    const gid = Store.uid();
+    let s = await M.startGroup(gid, people[lead].ident);
+    const add = await M.addMembers(s, rest.map((id) => people[id].ident.publicB64));
+    people[lead].chat.states[gid] = add.stateB64;
+    d.groups.push({ id: gid, name: SAMPLE_GROUP, createdBy: lead, members: SAMPLE_MEMBERS.slice() });
+    for (const id of rest) {
+      post({ groupId: gid, kind: 'welcome', recipient: id, ciphertext: add.welcomeB64, epoch: add.epoch, sender: lead, at: at(6.5) });
+      people[id].chat.states[gid] = await M.join(add.welcomeB64, people[id].ident);
+    }
+    for (const [from, h, text] of SAMPLE_LINES) {
+      const p = people[from];
+      const r = await M.encrypt(p.chat.states[gid], text);
+      p.chat.states[gid] = r.stateB64;
+      post({ groupId: gid, kind: 'application', ciphertext: r.cipherB64, sender: from, at: at(h) });
+      // Each member reads it the way their own sync would, so every phone's state stays in step.
+      for (const id of SAMPLE_MEMBERS) {
+        const c = people[id].chat;
+        if (id !== from) c.states[gid] = (await M.decrypt(c.states[gid], r.cipherB64)).stateB64;
+        (c.messages[gid] = c.messages[gid] || []).push({ from, text, at: at(h) });
+      }
+    }
+    for (const id of SAMPLE_MEMBERS) {
+      const p = people[id];
+      p.chat.lastId = Math.max(p.chat.lastId, d.seq);
+      await p.k.set('identity', p.ident);
+      await p.k.set('chat', p.chat);
+    }
+    d.seeded = true;
+    demoTransport._save(d);
   }
 
   const sync = () => serial(async () => {
     if (!state.me) return;
     const M = await mls();
+    await seedDemoChat(M);
     const me = await identity();
     const c = await local();
     const incoming = await transport().since(c.lastId);
@@ -227,7 +296,8 @@
       <div class="row-between"><h2>Messages</h2>${App.isLead() ? `<button class="btn primary sm" data-action="chat-new">${Icons.plus} New group</button>` : ''}</div>
       <p class="e2e">${Icons.lock}<span>Locked: only people in the group can read these. Not even the company server can.</span></p>
       ${view.error ? `<p class="notice">${esc(view.error)}</p>` : ''}
-      <div class="list">${rows || (view.chat ? '<p class="muted">No groups yet.</p>' : '<p class="muted">Loading…</p>')}</div>
+      <div class="list">${rows || (!view.chat ? '<p class="muted">Loading…</p>'
+        : App.isLead() ? '<p class="muted">No groups yet.</p>' : '<p class="muted">No groups yet. The boss or foreman can start one.</p>')}</div>
     </div>`;
   }
 
@@ -347,6 +417,9 @@
   // Get ready in the background so teammates can add this person to groups.
   setTimeout(() => { if (state.me && navigator.onLine !== false) tick(true).catch(() => {}); }, 3000);
 
-  root.Messenger = { listHtml, afterRender, sync, send, createGroup, refresh };
+  // Demo reset: stop polling and never save the old chat store again before the page reloads.
+  function stop() { stopped = true; clearInterval(timer); }
+
+  root.Messenger = { listHtml, afterRender, sync, send, createGroup, refresh, stop };
   if (state.screen) App.render(); // first paint happened before chat was loaded
 })(self);

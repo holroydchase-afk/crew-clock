@@ -1,8 +1,16 @@
 // Stand-in for the Apps Script backend, used when no backendUrl is set.
 // Same actions and rules as backend/Code.gs, stored in this browser only.
 (function (root) {
-  const KEY = 'cc.demo.db.v5'; // v2: boss renamed from "Dad"; v3: job pins rounded (SEP-6); v4: location consents (M1.2); v5: daytime sample day (M1.6)
+  const KEY = 'cc.demo.db.v6'; // v2: boss renamed from "Dad"; v3: job pins rounded (SEP-6); v4: location consents (M1.2); v5: daytime sample day (M1.6); v6: finished day in the evening (M1.10)
   const H = 3600000;
+
+  // The sample day: today, or yesterday before 9 AM (not enough of today yet). `done` means
+  // everyone has clocked out: yesterday's day, or today's from 6 PM on (M1.10 EVENING).
+  function sampleDay(now) {
+    const day = root.Report.startOfDay(now);
+    const early = now < day + 9 * H;
+    return { day, base: early ? day - 24 * H : day, done: early || now >= day + 18 * H };
+  }
 
   function seed() {
     const now = Date.now();
@@ -26,9 +34,9 @@
     // Seed a normal work day that starts at 6:54 AM, so every time on screen is a daytime time
     // whenever the visitor opens it (showcase SC-2). Before 9 AM there isn't enough of today yet,
     // so the sample day is yesterday, with everyone clocked out by mid-afternoon; the boss's day
-    // list then shows it as "Yesterday (sample day)".
-    const early = now < day + 9 * H;
-    const base = early ? day - 24 * H : day;
+    // list then shows it as "Yesterday (sample day)". From 6 PM the sample day is today, but
+    // finished the same way, so an evening visitor doesn't see the crew on the clock at night.
+    const { base, done } = sampleDay(now);
     const t = (h) => Math.min(base + h * H, now - 60000);
     const punches = [
       mk('p1', 'c1', 'j1', 'in', t(6.9), 38.45405, -81.92895, 8),
@@ -37,7 +45,7 @@
       mk('p4', 'c4', 'j3', 'in', t(7.5), null, null, null),
       mk('p5', 'c4', 'j3', 'out', t(Math.min(11.5, (now - base) / H - 0.25)), 38.47820, -81.85800, 12),
     ];
-    if (early) {
+    if (done) {
       punches.push(
         mk('p6', 'c1', 'j1', 'out', t(15.4), 38.45398, -81.92902, 9),
         mk('p7', 'c2', 'j1', 'out', t(15.5), 38.45421, -81.92871, 14),
@@ -254,5 +262,5 @@
     } catch (e) { /* private mode: nothing was kept */ }
   }
 
-  root.DemoBackend = { handle, forgetCrewApp, reset: () => { try { localStorage.removeItem(KEY); } catch (e) { root.__demoDb = null; } } };
+  root.DemoBackend = { handle, forgetCrewApp, sampleDay, reset: () => { try { localStorage.removeItem(KEY); } catch (e) { root.__demoDb = null; } } };
 })(self);

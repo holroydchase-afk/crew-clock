@@ -281,7 +281,7 @@ t('CON-6 a worker who agreed to an older consent text is asked again at sign-in'
     if (sessionStorage.getItem('aged')) return;
     sessionStorage.setItem('aged', '1');
     // The demo store, made on first load, with Jake's agreement turned into an older text version
-    const k = Object.keys(localStorage).find((x) => x.startsWith('cc.demo.db')) || 'cc.demo.db.v5';
+    const k = Object.keys(localStorage).find((x) => x.startsWith('cc.demo.db')) || 'cc.demo.db.v6';
     const tick = setInterval(() => {
       const db = JSON.parse(localStorage.getItem(k) || 'null');
       if (!db) return;

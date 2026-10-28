@@ -2,7 +2,7 @@
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-10-28 (log check: CRW-R1, CRW-R2 fixed)
+Updated: 2026-10-28 (release run: M1.10 works for real)
 
 ## What it is
 
@@ -14,6 +14,20 @@ Plan and milestone IDs: [PLAN.md](PLAN.md). Hard rules: [CLAUDE.md](CLAUDE.md). 
 contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
+
+- `M1.10` works for real (release run 2026-10-28, Chase's 7-phase plan). Chase's 11:20 PM phone
+  screenshots were the old cached build (fixed by #22); on current main the map pins, Today line
+  and legend were already right. Fixed what was still real, test-first (qa-tdd red, engineer,
+  green): the demo Chat tab has a sample encrypted group "Smith kitchen crew" (Ray T., Sam W.,
+  Jake R., 4 made-up messages, MLS like any other group; the demo store holds only ciphertext;
+  `tests/e2e-demo-chat.js` CHAT-SEED-1..5); from 6 PM the sample day is finished, so nobody is "on
+  the clock" at night (store key v6, `tests/demo.test.js` EVENING); iPhone Safari in the browser
+  pads the boss tab bar clear of Safari 26's floating toolbar (`ios-safari-tab` on `<html>`,
+  `tests/e2e-works.js` IOS-TABBAR-1..3; real iPhone not checked); empty states HRD-12/UX-12 (Jobs
+  has an Add job button, Home with no jobs says ask the boss, Today with no punches says "Today",
+  crew chat says the boss or foreman can start a group; EMPTY-1..4). PIN sign-in was already
+  covered (`tests/e2e.js` with `demoPin`, `tests/e2e-supabase.js`); the demo signs in by tapping a name.
+  Portfolio / public presence: the demo's Chat tab now shows a real-looking crew thread.
 
 - Studio refresh (2026-10-28, Chase's ask): re-synced `.claude/agents/` from studio-agents (adds
   `architect`, updates `engineer`) and ran its `install-rules.sh`. The CLAUDE.md "Studio agents"
@@ -209,6 +223,12 @@ sign-in and server hardening (F-03, F-06, F-12, F-13, F-15), failing tests first
 "Erase their data" button and the B2 purge function if Chase wants M1.4's leftovers first.
 
 ## Decisions to review
+
+- **M1.10: a demo visitor who already made chat groups doesn't get the sample group** (the seed
+  marks their store done so nothing mixes); "Reset sample data" brings it back.
+- **M1.10: the iPhone tab-bar padding comes from the user agent** (iOS and not installed), read
+  on the phone only, never sent. Undo: drop `ios-safari-tab` in `js/app.js`.
+- **M1.10: from 6 PM the demo's sample day is finished** (everyone out by about 3:30 PM).
 
 - **Studio refresh: kept this repo's `handoff-check.yml`.** install-rules reported it as "kept
   existing"; ours is newer than the template (skips Dependabot, checkout@v7), so nothing to merge.

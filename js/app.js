@@ -5,6 +5,15 @@
   const $app = document.getElementById('app');
   const FIX_WINDOW_MS = 2 * 60 * 1000;
 
+  // iPhone/iPad Safari in the browser (not installed to the Home Screen): Safari 26's floating
+  // toolbar sits over the bottom of the page, so the CSS lifts the boss tab bar clear of it.
+  try {
+    const ua = navigator.userAgent || '';
+    const ios = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const installed = navigator.standalone === true || (self.matchMedia && matchMedia('(display-mode: standalone)').matches);
+    if (ios && !installed) document.documentElement.classList.add('ios-safari-tab');
+  } catch (e) { /* old browser: no extra padding */ }
+
   const STATUS = {
     onsite: { word: 'On site', cls: 's-onsite' },
     near: { word: 'Near', cls: 's-near' },
@@ -603,6 +612,7 @@
           <button class="link" data-action="sign-out">Not you?</button>
         </header>
         ${status}
+        ${state.jobs.some((j) => j.active !== false) ? '' : '<p class="notice">No jobs yet. Ask the boss to add the job.</p>'}
         ${big}
         <div class="sync-line" data-sync-line>${syncLineHtml()}</div>
         ${isLead() ? `<button class="btn secondary" data-action="teammate">${Icons.teammate} Clock in or out a teammate</button>` : ''}
@@ -864,7 +874,9 @@
   function bossTodayHtml() {
     let today0 = Report.startOfDay(Date.now());
     // The demo's sample day is yesterday when it's opened before the crew's day has started (M1.6).
-    const sampleYesterday = Api.isDemo && !teamPunches().some((p) => p.at >= today0);
+    // With no punches at all (an emptied demo) it stays "Today".
+    const sampleYesterday = Api.isDemo && !teamPunches().some((p) => p.at >= today0)
+      && teamPunches().some((p) => p.at >= Report.startOfDay(today0 - 1));
     if (sampleYesterday) today0 = Report.startOfDay(today0 - 1);
     const punches = teamPunches().filter((p) => p.at >= today0 || (p.type === 'void'));
     const shifts = Report.pairShifts(punches).filter((s) => (s.inAt || s.outAt) >= today0);
@@ -920,7 +932,8 @@
           <span class="job-ico">${Icons.job}</span>
           <span class="grow"><span class="job-name">${esc(j.name)}</span><span class="job-addr">${esc(j.address || 'Pin on map')}</span></span>
           <span class="job-dist">${j.radiusFt || 300} ft</span>
-        </button>`).join('') || '<p class="muted">No jobs yet. Add your first one.</p>'}</div>
+        </button>`).join('') || `<div class="empty"><p class="muted">No jobs yet. Add your first one.</p>
+          <button class="btn primary" data-action="job-new">${Icons.plus} Add job</button></div>`}</div>
       ${syncFooter()}
     </div>`;
   }
@@ -1157,6 +1170,7 @@
       if (!Api.isDemo || !confirm('Start over with the sample crew? Everything you did in this demo is cleared.')) return;
       try { Object.keys(localStorage).filter((k) => k.startsWith('cc.')).forEach((k) => localStorage.removeItem(k)); } catch (e) { /* private mode */ }
       if (window.DemoBackend) window.DemoBackend.reset();
+      if (window.Messenger && window.Messenger.stop) window.Messenger.stop();
       // Wait for the deletes: reloading first can leave the visitor's unsent punches in the outbox,
       // and they would sync straight back into the fresh sample data.
       const gone = (db) => new Promise((done) => {
