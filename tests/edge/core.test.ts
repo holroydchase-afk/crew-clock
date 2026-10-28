@@ -17,6 +17,7 @@ function fakeRepo(devices: Device[] = [], agreed: string[] = [JAKE, CODY]) {
   const consents: Record<string, unknown>[] = agreed.map((c, i) => ({ id: `seed-${i}`, crew_id: c, action: 'agree', text_version: 'loc-v1', phone_at: '2026-10-01T11:00:00Z' }));
   const repo: Repo = {
     crewInOrg: async (_o, c) => [JAKE, CODY].includes(c),
+    crewMember: async (_o, c) => ([JAKE, CODY].includes(c) ? { active: true, deactivated_at: null } : null),
     punchExists: async (id) => punches.some((p) => p.id === id),
     getDevice: async (id) => devices.find((d) => d.id === id) || null,
     setDeviceChain: async (id, seq, hash) => { const d = devices.find((x) => x.id === id)!; d.last_seq = seq; d.last_hash = hash; },

@@ -8,7 +8,10 @@
 //   3. no bare error object (e, err, error): it prints the message and stack unfiltered
 //   4. no JSON.stringify: it dumps whatever the object holds
 // Config: studio-checks.json at the repo root, section "logs":
-//   { "logs": { "roots": ["src"], "banned": ["caption"] } }   ("banned" adds to the defaults)
+//   { "logs": { "roots": ["src"], "banned": ["caption"], "bannedWords": ["lat"] } }
+//   "banned" adds to the defaults and matches anywhere in a name ("apiKey", "monkey").
+//   "bannedWords" match a whole word of a name only: "lat", "p.lat", "lat_deg" and "latFix" trip on
+//   "lat"; "relative" and "plateau" don't. For short words that sit inside ordinary ones.
 // Usage: node scripts/check-logs.mjs [file or dir ...]   (default: the configured roots, else src)
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -22,6 +25,15 @@ const args = process.argv.slice(2);
 const ROOTS = args.length ? args : config.roots?.length ? config.roots : ["src"];
 const SKIP = /(__tests__|\/test\/|\.test\.[jt]sx?$|_test\.ts$|node_modules)/;
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const WORDS = new Set((config.bannedWords ?? []).map((w) => w.toLowerCase()));
+// The first identifier in the code with a whole word (split on _ and camelCase) in WORDS.
+function wordHit(c) {
+  for (const id of c.match(/[A-Za-z_$][\w$]*/g) ?? []) {
+    const parts = id.split(/_|\$|(?<=[a-z0-9])(?=[A-Z])/).map((x) => x.toLowerCase());
+    if (parts.some((x) => WORDS.has(x))) return id;
+  }
+  return null;
+}
 const SECRETISH = new RegExp(`\\b[A-Za-z_$]*(${BANNED.map(escapeRe).join("|")})[A-Za-z_$]*\\b`, "i");
 
 function files(p) {
@@ -85,7 +97,9 @@ for (const root of ROOTS) {
       const where = `${relative(process.cwd(), f)}:${line}`;
       const c = code(raw);
       const name = c.match(SECRETISH);
+      const word = name ? null : wordHit(c);
       if (name) problems.push(`${where} logs "${name[0]}" (keys, URLs, emails and bodies are never logged)`);
+      else if (word) problems.push(`${where} logs "${word}" (location, PINs, punches, phone numbers and photos are never logged)`);
       if (/\.message\b(?!\.replace\(\/https\?:\\S\+\/g)/.test(raw)) problems.push(`${where} logs an error .message without cutting URLs (use .message.replace(/https?:\\S+/g, ""))`);
       if (/(^|[,(?:]\s*)(e|err|error)\s*($|[,)])/.test(c.trim()) || /\$\{\s*(e|err|error)\s*\}/.test(raw))
         problems.push(`${where} logs a whole error object (log e.name or a fixed word)`);

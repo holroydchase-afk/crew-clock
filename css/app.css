@@ -95,6 +95,16 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
   background: var(--banner-bg); color: var(--banner-ink); text-align: center;
   font-size: 15px; font-weight: 600; line-height: 1.35; padding: calc(env(safe-area-inset-top) + 12px) 12px 12px;
 }
+/* HRD-13: private mode. Same ink on amber as the demo banner; first on the page, so it takes the notch. */
+.private-banner {
+  background: var(--banner-bg); color: var(--banner-ink); text-align: center;
+  font-size: 15px; font-weight: 700; line-height: 1.35; padding: calc(env(safe-area-inset-top) + 12px) 12px 12px;
+  border-bottom: 1px solid var(--amber);
+}
+.private-banner + .demo-banner { padding-top: 12px; }
+.private-banner + .screen, .boss > .private-banner + .boss-head { padding-top: 16px; }
+.private-banner + .center-col > .back:first-child { top: 8px; }
+
 /* The two controls sit on their own row; each hit area is 44px tall and fills the banner's bottom
    padding, never past its edge, so neither can cover "Not you?" below or the other control */
 .demo-actions { display: flex; flex-wrap: wrap; justify-content: center; column-gap: 12px; margin: 2px 0 -12px; }

@@ -75,7 +75,8 @@
 
   function load() {
     let db = null;
-    try { db = JSON.parse(localStorage.getItem(KEY)); } catch (e) { db = root.__demoDb || null; }
+    try { db = JSON.parse(localStorage.getItem(KEY)); } catch (e) { /* private mode */ }
+    if (!db) db = root.__demoDb || null; // writes failed earlier in this tab (HRD-13)
     if (!db) {
       db = seed();
       db.punches.forEach((p) => score(db, p));
@@ -95,6 +96,11 @@
     p.status = r.status;
     p.distanceFt = r.distanceFt;
     if (p.status === 'offsite' && fix) p.address = 'Near ' + fix.lat.toFixed(4) + ', ' + fix.lng.toFixed(4);
+  }
+
+  function cleanText(v) {
+    // eslint-disable-next-line no-control-regex
+    return String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '').trim();
   }
 
   function publicCrew(c) { return { id: c.id, name: c.name, role: c.role, active: c.active }; }
@@ -148,14 +154,20 @@
       };
     },
     sync(db, req) {
-      const me = authed(db, req.auth);
+      // PS-4: a worker the boss turned off can't sign in, but punches their phone made before
+      // still sync (flagged for the boss). Nothing else from that phone is taken.
+      const off = req.auth && db.crew.find((c) => c.id === req.auth.crewId && c.active === false);
+      const me = off && String(off.pin) === String(req.auth.pin) ? off : authed(db, req.auth);
       const accepted = [];
       const rejected = [];
       const reasons = []; // same words as the real server (supabase/functions/_shared/core.ts)
       const refuse = (id, reason) => { rejected.push(id); reasons.push({ id, reason }); };
       for (const item of req.items || []) {
+        if (me.active === false && item.kind !== 'punch') { refuse(item.id, 'Turned off'); continue; }
         if (item.kind === 'punch') {
           const forOther = item.crewId !== me.id;
+          const who = db.crew.find((c) => c.id === item.crewId);
+          if (!who) { refuse(item.id, 'Unknown crew member'); continue; }
           if (forOther && me.role === 'crew') { refuse(item.id, 'Only a foreman can clock in a teammate'); continue; }
           if (!db.punches.some((p) => p.id === item.id)) {
             const p = {
@@ -163,6 +175,7 @@
               at: item.at, lat: item.lat, lng: item.lng, accuracy: item.accuracy, voidsId: item.voidsId || null,
               hasPhoto: !!item.photo, receivedAt: Date.now(),
             };
+            if (who.active === false) p.crewInactive = true; // shown to the boss as crew_inactive
             // Like the real server: no current consent at the time of the punch, no location stored (L3)
             const c = (db.consents || []).filter((x) => x.crewId === item.crewId && x.at <= item.at).sort((x, y) => x.at - y.at).pop();
             if (!c || c.action !== 'agree' || c.textVersion !== 'loc-v1') { p.lat = null; p.lng = null; p.accuracy = null; }
@@ -185,8 +198,19 @@
           if (me.role !== 'boss') { refuse(item.id, 'Boss only'); continue; }
           const list = item.kind === 'job' ? db.jobs : db.crew;
           const rec = Object.assign({}, item.data);
+          // Same limits and words as the real server (HRD-14): control characters dropped, then
+          // a name over 60 or an address over 200 is refused, naming no value.
+          if ('name' in rec) rec.name = cleanText(rec.name);
+          if ('address' in rec) rec.address = cleanText(rec.address);
+          if (rec.name && rec.name.length > 60) { refuse(item.id, 'Name is too long (60 letters at most)'); continue; }
+          if (rec.address && rec.address.length > 200) { refuse(item.id, 'Address is too long (200 letters at most)'); continue; }
           const i = list.findIndex((x) => x.id === rec.id);
           if (item.kind === 'crew' && i >= 0 && !rec.pin) rec.pin = list[i].pin;
+          if (item.kind === 'crew') {
+            const was = i >= 0 ? list[i].active !== false : true;
+            if (rec.active === false && was) rec.deactivatedAt = Date.now();
+            if (rec.active !== false) rec.deactivatedAt = null;
+          }
           if (i >= 0) list[i] = Object.assign(list[i], rec); else list.push(rec);
           accepted.push(item.id);
         } else {
