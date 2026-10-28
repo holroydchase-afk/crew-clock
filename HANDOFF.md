@@ -2,7 +2,7 @@
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-10-24 (morning shift: M1.4 retention)
+Updated: 2026-10-28 (stale live demo fix)
 
 ## What it is
 
@@ -15,6 +15,13 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
 
+- Stale live demo (2026-10-28): Pages had deployed `b410caa` (PRs #18-#21) fine, but phones
+  that had opened an older deploy kept showing it ("Dad", old pins, no sample day). The service
+  worker filled its new cache through the browser's HTTP cache (GitHub Pages: max-age=600), so a
+  new version could be saved with the old files inside it. Now install uses `cache: 'reload'`, the
+  background refresh uses `cache: 'no-cache'`, and the app version hash includes `sw.js` itself.
+  `tests/e2e-update.js` (red before, green after) builds two deploys and checks a phone on the old
+  one is on the new one by the second reopen. Live page not checked from the sandbox.
 - The whole MVP: three-tap clock-in, offline queue, fair geofence with the phone's GPS error
   counted in the worker's favor, photo fallback, boss Map / Today / Jobs / Crew tabs, "Not in
   yet", "Wrong job? Fix it", foreman "clock in a teammate".
