@@ -2,7 +2,7 @@
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-10-28 (studio refresh: agents by default)
+Updated: 2026-10-28 (log check: CRW-R1, CRW-R2 fixed)
 
 ## What it is
 
@@ -22,8 +22,11 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
   then ux-reviewer / privacy-security / positioning). New `agents-check` PR workflow fails a PR
   without an `Agents:` line (or one that changes code without naming qa-tdd), and
   `scripts/check-agents.sh` (in `npm test` and CI) fails if the table and `.claude/agents/` drift.
-  Also installed `scripts/check-logs.mjs` + `studio-checks.json` (roots `js`, `supabase/functions`),
-  not wired into CI yet (see Exact next step).
+  Also installed `scripts/check-logs.mjs` + `studio-checks.json` (roots `js`, `supabase/functions`).
+- Log check (2026-10-28): `check-logs.mjs` now runs in `npm test` (so CI), proved by
+  `tests/check-logs.test.js`. Fixed CRW-R1 (`_shared/http.ts` catch-all) and CRW-R2 (`sync` push
+  failure): Edge Functions log only the error's name, never the whole error (its message could
+  carry punch data, URLs or keys).
 
 - Stale live demo (2026-10-28): Pages had deployed `b410caa` (PRs #18-#21) fine, but phones
   that had opened an older deploy kept showing it ("Dad", old pins, no sample day). The service
@@ -188,11 +191,11 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
 
 ## Exact next step
 
-Log check: `node scripts/check-logs.mjs` reports 2 findings, both P2 until privacy-security rates
-them (a whole error object in Edge logs could carry punch or user data): CRW-R1
-`supabase/functions/_shared/http.ts:28`, CRW-R2 `supabase/functions/sync/index.ts:16`. In their own
-PR: qa-tdd failing case first, log `e.name` or a fixed word, privacy-security review, and add
-`check-logs` to `npm test` and CI in that same PR.
+Log check follow-ups from privacy-security (all P2, 2026-10-28): CRW-R3 the checker misses a bare
+`ex` error and words like lat, lng, coords, pin, punch, claims, phone, photo (add them to
+`studio-checks.json` "banned", not `name`, which `e.name` needs; the `ex` rule belongs upstream in
+studio-agents' check-logs.mjs); CRW-R4 add `sw.js` and `config.js` to the checker's roots; CRW-R5
+`e.name` alone is usually "Error", so add a fixed where-it-failed tag and the upstream status code.
 
 Chase: the three steps in `docs/reviews/2026-10-24-recruiter-ready.md` (confirm the demo pins and
 names are made up, merge #18 then #19 then #20, open the live demo on his phone), then review the
