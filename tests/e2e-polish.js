@@ -20,8 +20,8 @@ function gpsAtJob() {
   navigator.geolocation.getCurrentPosition = (ok) => setTimeout(() => ok(at()), 0);
 }
 
-async function open(browser, viewport = PHONE, hour = 13.5) {
-  const ctx = await browser.newContext({ viewport, serviceWorkers: 'block' });
+async function open(browser, viewport = PHONE, hour = 13.5, colorScheme = 'light') {
+  const ctx = await browser.newContext({ viewport, colorScheme, serviceWorkers: 'block' });
   const page = await ctx.newPage();
   page.errors = [];
   page.on('pageerror', (e) => page.errors.push(e.message));
@@ -332,7 +332,9 @@ t('UX-R10 foreman clocking Jake R. out: the photo screen says it is a clock-out,
   const page = await open(browser);
   await signIn(page, 'Ray T.');
   await page.click('[data-action="teammate"]');
-  await page.waitForSelector('.mate-btn');
+  // Jake's button says Clock out once the team list (with his open clock-in) has loaded; before that
+  // every teammate shows Clock in, and tapping it then would test a clock-in (flaky, 2 of 3 full runs).
+  await page.locator('.row-card', { hasText: 'Jake R.' }).locator('.mate-btn.out').waitFor({ timeout: 15000 });
   await page.locator('.row-card', { hasText: 'Jake R.' }).locator('.mate-btn').click();
   await page.waitForSelector('[data-action="photo-file"]', { state: 'attached', timeout: 15000 });
   const text = (await page.locator('main').innerText()).replace(/\s+/g, ' ');
@@ -470,6 +472,198 @@ t('UX-R16 consent "Not now" looks like the app\'s other secondary buttons (full 
   if (errs.length) throw new Error(errs.join('; '));
   return page;
 });
+
+// ================= After-review findings (UX-R18 to UX-R25) =================
+
+// Waits until the chat list has loaded (no "Loading…").
+async function chatLoaded(page) {
+  await page.waitForFunction(() => {
+    const l = document.querySelector('#app .list');
+    return l && !/Loading/.test(l.innerText);
+  }, null, { timeout: 20000 });
+}
+// Clock in (picking the first job if asked) and straight back out; returns the done screen's text.
+async function inThenOut(page) {
+  await page.waitForSelector('.punch.in');
+  await page.click('.punch.in');
+  await page.waitForSelector('.big-check, .job-btn', { timeout: 15000 });
+  if (!(await page.locator('.big-check').count())) await page.locator('.job-btn').first().click();
+  await page.waitForSelector('.big-check', { timeout: 15000 });
+  await page.getByRole('button', { name: 'OK', exact: true }).click();
+  await page.waitForSelector('.punch.out');
+  await page.click('.punch.out');
+  await page.waitForSelector('.big-check', { timeout: 15000 });
+  return (await page.locator('main').innerText()).replace(/\s+/g, ' ');
+}
+
+// ---------- UX-R18: New group people rows are rows, not tall cards ----------
+for (const vp of [PHONE, LAPTOP]) {
+  t(`UX-R18 ${vp.width}: New group lists each person as one row (checkbox, avatar, name side by side, <= 80px tall)`, async (browser) => {
+    const page = await open(browser, vp);
+    await boss(page, 'chat');
+    await page.waitForSelector('[data-action="chat-new"]', { timeout: 20000 });
+    await page.click('[data-action="chat-new"]');
+    await page.waitForSelector('#chat-name');
+    const rows = await page.$$eval('#app .people label', (ls) => ls.map((l) => {
+      const r = l.getBoundingClientRect();
+      const cb = l.querySelector('input').getBoundingClientRect();
+      const name = l.querySelector('.grow').getBoundingClientRect();
+      return { text: l.innerText.trim(), h: Math.round(r.height), dir: getComputedStyle(l).flexDirection,
+        cbLeftOfName: cb.right <= name.left, sameLine: Math.abs((cb.top + cb.bottom) / 2 - (name.top + name.bottom) / 2) < 12 };
+    }));
+    if (!rows.length) throw new Error('New group lists nobody');
+    const bad = rows.filter((r) => r.h > 80 || r.dir === 'column' || !r.cbLeftOfName || !r.sameLine);
+    if (bad.length) throw new Error(`rows laid out wrong: ${JSON.stringify(bad)}`);
+    return page;
+  });
+}
+
+// ---------- UX-R19: the Start-here person is in the sample chat ----------
+t('UX-R19 Travis K. (Start here) opens Messages and finds the sample group with messages in it', async (browser) => {
+  const page = await open(browser);
+  await signIn(page, 'Travis K.');
+  await page.click('[data-to="chat-list"]');
+  await chatLoaded(page);
+  await page.waitForSelector('[data-action="chat-open"]', { timeout: 20000 }).catch(() => {});
+  const rows = await page.$$eval('[data-action="chat-open"]', (rs) => rs.map((r) => r.innerText.replace(/\s+/g, ' ')));
+  if (!rows.some((r) => /Smith kitchen crew/.test(r))) throw new Error(`Travis's Messages list: ${JSON.stringify(rows)} (${(await page.locator('#app .list').innerText()).trim()})`);
+  if (rows.some((r) => /No messages yet/.test(r) && /Smith kitchen crew/.test(r))) throw new Error('the sample group shows no messages for Travis');
+  return page;
+});
+
+// ---------- UX-R20: a short shift never says "0 min" ----------
+t('UX-R20 Travis K. clocks in and straight out: the done screen says "less than a minute", never "0 min"', async (browser) => {
+  const page = await open(browser);
+  await signIn(page, 'Travis K.');
+  const text = await inThenOut(page);
+  if (/\b0 min\b/.test(text)) throw new Error(`done screen says 0 min: "${text}"`);
+  if (!/worked less than a minute/i.test(text)) throw new Error(`done screen doesn't say "worked less than a minute": "${text}"`);
+  return page;
+});
+
+// ---------- UX-R21: midday summary counts open shifts ----------
+t('UX-R21 1:30 PM Today summary counts the shifts still open and says "so far today"; 11:20 PM (all out) does not', async (browser) => {
+  const read = async (hour) => {
+    const page = await open(browser, PHONE, hour);
+    await boss(page, 'today');
+    await page.waitForSelector('.shift');
+    const text = (await page.locator('#summary-text, .summary').first().innerText()).replace(/\s+/g, ' ');
+    const finished = await page.$$eval('.shift', (els) => els.reduce((a, e) => a + Number((e.innerText.match(/(\d+\.\d) h/) || [0, 0])[1]), 0));
+    const onClock = await page.locator('.shift .on-clock').count();
+    return { text, finished, open: onClock };
+  };
+  const mid = await read(13.5);
+  const night = await read(23 + 20 / 60);
+  const errs = [];
+  const hrs = Number((mid.text.match(/([\d.]+) hours/) || [0, NaN])[1]);
+  if (!mid.open) errs.push('test setup: nobody is on the clock at 1:30 PM');
+  if (!/so far today/i.test(mid.text)) errs.push(`1:30 PM summary lacks "so far today": "${mid.text}"`);
+  if (!(hrs > mid.finished + mid.open * 4)) errs.push(`1:30 PM summary says ${hrs} hours; finished shifts alone are ${mid.finished.toFixed(1)} h and ${mid.open} people have been on since morning`);
+  if (/so far/i.test(night.text)) errs.push(`11:20 PM (everyone clocked out) still says "so far": "${night.text}"`);
+  if (errs.length) throw new Error(errs.join('; '));
+  return null;
+});
+
+// ---------- UX-R22: name placeholders aren't sample names ----------
+t('UX-R22 Add person name and New group name placeholders are "e.g." examples, not sample crew or group names', async (browser) => {
+  const page = await open(browser);
+  await boss(page, 'crew');
+  const crew = await page.evaluate(() => [...document.querySelectorAll('.boss-body .row-card, .boss-body .shift')]
+    .map((r) => (r.querySelector('.grow b, .job-name, .shift-name, .grow') || r).innerText.split('\n')[0].trim()).filter(Boolean));
+  await page.click('[data-action="crew-new"]');
+  await page.waitForSelector('#crew-name');
+  const namePh = (await page.getAttribute('#crew-name', 'placeholder')) || '';
+  await page.click('.back');
+  await page.waitForSelector('.boss');
+  await bossTab(page, 'chat');
+  await chatLoaded(page);
+  await page.waitForSelector('[data-action="chat-open"]', { timeout: 20000 }).catch(() => {});
+  const groupNames = await page.$$eval('[data-action="chat-open"] .job-name', (els) => els.map((e) => e.innerText.trim()));
+  await page.click('[data-action="chat-new"]');
+  await page.waitForSelector('#chat-name');
+  const groupPh = (await page.getAttribute('#chat-name', 'placeholder')) || '';
+  const errs = [];
+  const sample = ['Sam W.', 'Ray T.', 'Jake R.', 'Cody M.', 'Billy S.', 'Travis K.', ...crew];
+  if (!/^e\.g\. /.test(namePh)) errs.push(`Add person name placeholder "${namePh}" isn't an "e.g." example`);
+  if (sample.some((n) => n && namePh.includes(n))) errs.push(`Add person name placeholder "${namePh}" is a sample crew name`);
+  if (!/^e\.g\. /.test(groupPh)) errs.push(`New group placeholder "${groupPh}" isn't an "e.g." example`);
+  if (['Smith kitchen crew', ...groupNames].some((g) => groupPh.toLowerCase().includes(g.toLowerCase()))) errs.push(`New group placeholder "${groupPh}" is the sample group's name`);
+  if (errs.length) throw new Error(errs.join('; '));
+  return page;
+});
+
+// ---------- UX-R23: one word for chat ----------
+t('UX-R23 390: the boss tab, the chat page heading and the worker\'s button use the same word, and the tab label fits on one line', async (browser) => {
+  const page = await open(browser);
+  await boss(page, 'chat');
+  const tab = await page.evaluate(() => {
+    const s = document.querySelector('[data-action="boss-tab"][data-tab="chat"] span');
+    const r = s.getBoundingClientRect();
+    return { word: s.innerText.trim(), lines: Math.round(r.height / parseFloat(getComputedStyle(s).lineHeight || 18)), clipped: s.scrollWidth > s.clientWidth + 1,
+      size: parseFloat(getComputedStyle(s).fontSize), btnClipped: s.closest('button').scrollWidth > s.closest('button').clientWidth + 1 };
+  });
+  const heading = (await page.locator('.boss-body h2').first().innerText()).trim();
+  await page.click('[data-action="sign-out"]');
+  await page.waitForSelector('.name-btn');
+  await signIn(page, 'Jake R.');
+  const btn = (await page.locator('[data-to="chat-list"]').innerText()).replace(/\d+/g, '').trim();
+  const errs = [];
+  if (new Set([tab.word, heading, btn]).size !== 1) errs.push(`tab "${tab.word}", page heading "${heading}", worker button "${btn}"`);
+  if (tab.size < 15) errs.push(`tab label is ${tab.size}px`);
+  if (tab.clipped || tab.btnClipped || tab.lines > 1) errs.push(`tab label "${tab.word}" doesn't fit: ${JSON.stringify(tab)}`);
+  if (errs.length) throw new Error(errs.join('; '));
+  return page;
+});
+
+// ---------- UX-R24: the hours stay with the times ----------
+t('UX-R24 390 Today: the hours ("4.0 h") never sit alone on a line starting with "·"', async (browser) => {
+  const page = await open(browser);
+  await boss(page, 'today');
+  await page.waitForSelector('.shift');
+  const bad = await page.evaluate(() => {
+    const out = [];
+    document.querySelectorAll('.shift').forEach((row) => {
+      const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+      let n; let lastTimeTop = null;
+      while ((n = walker.nextNode())) {
+        const rects = (s, e) => { const r = document.createRange(); r.setStart(n, s); r.setEnd(n, e); return [...r.getClientRects()].filter((x) => x.width > 0); };
+        let m; const reT = /\d{1,2}:\d{2}[\s  ]?[AP]M/g;
+        while ((m = reT.exec(n.data))) { const rs = rects(m.index, m.index + m[0].length); if (rs.length) lastTimeTop = Math.round(rs[rs.length - 1].top); }
+        const reH = /(·\s*)?\d+\.\d\s?h\b/g;
+        while ((m = reH.exec(n.data))) {
+          const rs = rects(m.index, m.index + m[0].length);
+          if (!rs.length) continue;
+          const top = Math.round(rs[0].top);
+          if (m[1] && (lastTimeTop == null || Math.abs(top - lastTimeTop) > 2)) out.push(`${row.querySelector('.shift-name').innerText}: "${m[0]}" on its own line`);
+        }
+      }
+    });
+    return out;
+  });
+  if (bad.length) throw new Error(bad.join('; '));
+  return page;
+});
+
+// ---------- UX-R25: Start-here avatar contrast ----------
+for (const scheme of ['light', 'dark']) {
+  t(`UX-R25 ${scheme}: the Start-here card's avatar initials have at least 4.5:1 contrast`, async (browser) => {
+    const page = await open(browser, PHONE, 13.5, scheme);
+    const r = await page.evaluate(() => {
+      const parse = (c) => { const m = c.match(/rgba?\(([^)]+)\)/); const p = m[1].split(/[ ,/]+/).filter(Boolean).map(Number); return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }; };
+      const over = (top, under) => ({ r: top.r * top.a + under.r * (1 - top.a), g: top.g * top.a + under.g * (1 - top.a), b: top.b * top.a + under.b * (1 - top.a), a: 1 });
+      const bgOf = (el) => { const stack = []; for (let e = el; e; e = e.parentElement) stack.push(parse(getComputedStyle(e).backgroundColor)); let c = { r: 255, g: 255, b: 255, a: 1 }; for (const x of stack.reverse()) c = over(x, c); return c; };
+      const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b); };
+      const av = document.querySelector('.start-btn .avatar');
+      if (!av) return null;
+      const bg = bgOf(av); const fg = over(parse(getComputedStyle(av).color), bg);
+      const [hi, lo] = [lum(fg), lum(bg)].sort((a, b) => b - a);
+      return { ratio: (hi + 0.05) / (lo + 0.05), fg: getComputedStyle(av).color, bg: getComputedStyle(av).backgroundColor };
+    });
+    if (!r) throw new Error('no Start-here avatar');
+    if (r.ratio < 4.5) throw new Error(`initials ${r.fg} on ${r.bg}: ${r.ratio.toFixed(2)}:1`);
+    return page;
+  });
+}
 
 (async () => {
   const only = process.argv[2];
