@@ -13,7 +13,7 @@ serve(async (req, body) => {
   const items = Array.isArray(body.items) ? body.items : [];
   const result = await ingest(claims, items, repo());
   // Alerts are best effort: a push outage must never make the phone resend its punches.
-  if (result.alerts.length) await alertBoss(claims.org_id, result.alerts).catch((e) => console.error('push failed', e));
+  if (result.alerts.length) await alertBoss(claims.org_id, result.alerts).catch((e) => console.error('push failed', e instanceof Error ? e.name : 'unknown'));
   return { accepted: result.accepted, rejected: result.rejected.map((r) => r.id), reasons: result.rejected };
 });
 
