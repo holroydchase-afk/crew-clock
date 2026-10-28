@@ -36,6 +36,15 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
   (`bannedWords` in `studio-checks.json`), covers `sw.js` and `config.js`, and Edge logs start with
   a fixed `function:step` tag (`http:serve`, `sync:alert` plus the upstream status). CI and
   `tests/sql/run.sh` now also run the retention and harden SQL.
+  privacy-security fixes on the branch, failing tests first: PS-M112-1: a turned-off worker's own
+  punches are kept only up to 15 min after `deactivated_at`; later ones, any foreman's punch for
+  them, and anything else from a turned-off caller (teammate punches, consent, edits) are refused
+  "Turned off", which the phone drops like other permission refusals; photo-url, digest and
+  geocode refuse a turned-off caller (`requireActive`); demo the same. PS-M112-2: when sync drops
+  a punch's GPS (bad reading or no consent) it stores no hash or signature, the device row keeps
+  `dropped` instead of that hash, and the next punch stores no `prev_hash` to it (PRIVACY L3a).
+  PS-M112-3: the harden migration cleans old out-of-range rows (drops bad GPS with its hash, pulls
+  times into 2020..2100, cuts long names/addresses) and adds the checks validated.
 
 - `M1.11` UI to 8/10 (release run 2026-10-28). ux-reviewer scored the demo 6.5/10 before (0 P0,
   7 P1, 10 P2: `UX-R1..R17`). qa-tdd wrote `tests/e2e-polish.js` (16 cases, red first), engineer
@@ -261,11 +270,18 @@ sign-in and server hardening (F-03, F-06, F-12, F-13, F-15), failing tests first
 - **M1.12: a second clock-out counts as a duplicate only within 12 hours** of the one that closed
   the shift and with no clock-in between (JS and SQL alike). Later than that it stays its own
   "No clock-in" row, so a forgotten clock-in the next day is not hidden.
-- **M1.12: a turned-off worker's punches are kept whatever their time**, flagged `crew_inactive`
-  (high, so the boss gets a push), not only those made before `deactivated_at`. Never drop a punch;
-  the boss decides. Their sign-in stays refused.
-- **M1.12: the new SQL checks are `NOT VALID`**: new and changed rows are checked, rows already in
-  the database are not, so the migration can't fail on old data. Run `validate constraint` later.
+- **M1.12: a turned-off worker's own punches are kept up to 15 min after they were turned off**
+  (PS-M112-1), flagged `crew_inactive`; later ones and a foreman's punch for them are refused
+  "Turned off" and dropped by the phone. A consent record from a turned-off worker is refused too,
+  withdrawal included (they can't sign in, so no location is read anyway). photo-upload still
+  answers a turned-off caller so their early punch can carry its photo; their refresh token died
+  when they were turned off.
+- **M1.12: a punch's `prev_hash` is stored only when it links to a punch kept with its hash**
+  (PS-M112-2); after a dropped punch the next link is taken on trust (its signature still checks),
+  and a chain gap stores no `prev_hash`.
+- **M1.12: old out-of-range rows are cleaned by the migration, then the checks are validated**
+  (PS-M112-3): a punch time before 2020 or from 2100 on moves to the nearest edge, a bad job pin
+  is cleared (the boss re-pins it), long names and addresses are cut.
 - **M1.12: the private-mode banner shows in the crew app too**, not only the demo (same risk).
 - **M1.12: `scripts/check-logs.mjs` gained `bannedWords`** (whole-word, camelCase/underscore aware)
   in this repo's copy; it should go upstream to studio-agents so a re-sync doesn't drop it.

@@ -88,3 +88,36 @@ do $$ declare n int; total numeric; dup int; begin
   if dup <> 1 then raise exception 'HRD-11 the shift does not note the duplicate clock-out'; end if;
   raise notice 'OK HRD-11 a second clock-out for the same shift is one shift, noted, no extra hours';
 end $$;
+
+-- ---------- PS-M112-3: the checks hold for every row, old ones too ----------
+-- A NOT VALID check leaves old out-of-range rows in place, and the next update of such a row (a
+-- boss erasing a worker's data) would fail on it. The migration cleans old rows, then validates.
+do $$ declare bad text; begin
+  select string_agg(conname, ', ') into bad from pg_constraint
+    where conname in ('crew_name_len', 'jobs_name_len', 'jobs_address_len', 'jobs_lat_range', 'jobs_lng_range',
+                      'punches_lat_range', 'punches_lng_range', 'punches_accuracy_nonneg', 'punches_phone_at_range')
+      and not convalidated;
+  if bad is not null then raise exception 'PS-M112-3 checks not validated (old rows unchecked): %', bad; end if;
+  if (select count(*) from pg_constraint where conname in ('crew_name_len', 'jobs_name_len', 'jobs_address_len', 'jobs_lat_range',
+      'jobs_lng_range', 'punches_lat_range', 'punches_lng_range', 'punches_accuracy_nonneg', 'punches_phone_at_range')) <> 9 then
+    raise exception 'PS-M112-3 a harden check constraint is missing';
+  end if;
+  raise notice 'OK PS-M112-3 all nine harden checks are validated';
+end $$;
+
+-- The boss erases the data of a worker whose punches sit on the edge values: it goes through.
+insert into punches (id, org_id, crew_id, by_crew_id, job_id, type, phone_at, lat, lng, accuracy_m, hash, signature) values
+  ('00000000-0000-0000-0012-000000000021', '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0012-0000000000b2', '00000000-0000-0000-0012-0000000000b2', '00000000-0000-0000-0012-0000000000c5', 'out', '2099-12-31 23:59Z', -90, 180, 0, 'h-test-edge', 's-test-edge');
+set role authenticated;
+select set_config('request.jwt.claims', '{"org_id":"00000000-0000-0000-0000-0000000000a1","crew_id":"00000000-0000-0000-0000-0000000000b0","crew_role":"boss"}', false);
+do $$ begin
+  perform public.erase_crew_data('00000000-0000-0000-0012-0000000000b2');
+  raise notice 'OK PS-M112-3 erasing a worker with edge-valued punches (2099, lat -90, lng 180, accuracy 0) succeeds';
+end $$;
+reset role;
+select set_config('request.jwt.claims', '', false);
+do $$ begin
+  if exists (select 1 from punches where crew_id = '00000000-0000-0000-0012-0000000000b2' and (lat is not null or hash is not null)) then
+    raise exception 'PS-M112-3 erase left GPS or a hash on the edge-valued punches';
+  end if;
+end $$;

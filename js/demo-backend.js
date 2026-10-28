@@ -154,8 +154,9 @@
       };
     },
     sync(db, req) {
-      // PS-4: a worker the boss turned off can't sign in, but punches their phone made before
-      // still sync (flagged for the boss). Nothing else from that phone is taken.
+      // PS-4: a worker the boss turned off can't sign in, but their own punches made before (plus
+      // 15 min, PS-M112-1) still sync, flagged for the boss. Nothing else from that phone is taken,
+      // and nobody else's punch for them. Same rules and words as core.ts ingestPunch.
       const off = req.auth && db.crew.find((c) => c.id === req.auth.crewId && c.active === false);
       const me = off && String(off.pin) === String(req.auth.pin) ? off : authed(db, req.auth);
       const accepted = [];
@@ -169,6 +170,11 @@
           const who = db.crew.find((c) => c.id === item.crewId);
           if (!who) { refuse(item.id, 'Unknown crew member'); continue; }
           if (forOther && me.role === 'crew') { refuse(item.id, 'Only a foreman can clock in a teammate'); continue; }
+          if (forOther && me.active === false) { refuse(item.id, 'Turned off'); continue; }
+          if (who.active === false && (forOther || !(item.at <= (who.deactivatedAt || NaN) + 15 * 60000))) {
+            refuse(item.id, 'Turned off');
+            continue;
+          }
           if (!db.punches.some((p) => p.id === item.id)) {
             const p = {
               id: item.id, crewId: item.crewId, byCrewId: me.id, jobId: item.jobId, type: item.type,

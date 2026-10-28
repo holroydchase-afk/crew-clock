@@ -55,6 +55,49 @@ test('PS-4 demo (guard): a turned-off worker still cannot sign in', async () => 
   assert.ok(!list.crew.some((c) => c.id === 'c2'), 'a turned-off worker is still on the sign-in list');
 });
 
+// ---------- PS-M112-1: a turned-off worker's punches are kept only up to 15 minutes after ----------
+
+const turnOff = (call, boss, id, name, role) =>
+  call('sync', { auth: boss, items: [{ kind: 'crew', id: 'e-off-' + id, data: { id, name, role, active: false } }] });
+const late = (o) => Object.assign({ kind: 'punch', id: 'p-x', crewId: 'c2', byCrewId: 'c2', jobId: 'j1', type: 'in', at: Date.now(), lat: null, lng: null, accuracy: null }, o);
+
+test('PS-M112-1 demo: a turned-off worker\'s own punch made more than 15 min after is refused "Turned off", not stored', async () => {
+  const { db, call } = loadDemo();
+  const boss = (await call('demoLogin', { crewId: 'c0' })).auth;
+  const jake = (await call('demoLogin', { crewId: 'c2' })).auth;
+  await turnOff(call, boss, 'c2', 'Jake R.', 'crew');
+  const r = await call('sync', { auth: jake, items: [late({ id: 'p-late', at: Date.now() + 20 * 60000 })] });
+  assert.deepStrictEqual(r.reasons, [{ id: 'p-late', reason: 'Turned off' }], JSON.stringify(r));
+  assert.ok(!db().punches.some((p) => p.id === 'p-late'), 'the late punch was stored');
+});
+
+test('PS-M112-1 demo: a foreman\'s punch for a turned-off teammate is refused "Turned off"', async () => {
+  const { db, call } = loadDemo();
+  const boss = (await call('demoLogin', { crewId: 'c0' })).auth;
+  const ray = (await call('demoLogin', { crewId: 'c1' })).auth;
+  await turnOff(call, boss, 'c2', 'Jake R.', 'crew');
+  const r = await call('sync', { auth: ray, items: [late({ id: 'p-mate', byCrewId: 'c1', type: 'out', at: Date.now() - 10 * 60000 })] });
+  assert.deepStrictEqual(r.reasons, [{ id: 'p-mate', reason: 'Turned off' }], JSON.stringify(r));
+  assert.ok(!db().punches.some((p) => p.id === 'p-mate'));
+});
+
+test('PS-M112-1 demo: a turned-off foreman cannot clock in an active teammate', async () => {
+  const { db, call } = loadDemo();
+  const boss = (await call('demoLogin', { crewId: 'c0' })).auth;
+  const ray = (await call('demoLogin', { crewId: 'c1' })).auth;
+  await turnOff(call, boss, 'c1', 'Ray T.', 'foreman');
+  const r = await call('sync', { auth: ray, items: [late({ id: 'p-for-cody', crewId: 'c3', byCrewId: 'c1', at: Date.now() - 10 * 60000 })] });
+  assert.deepStrictEqual(r.reasons, [{ id: 'p-for-cody', reason: 'Turned off' }], JSON.stringify(r));
+  assert.ok(!db().punches.some((p) => p.id === 'p-for-cody'));
+});
+
+test('PS-M112-1 the phone drops a "Turned off" refusal like other permission refusals (no stub kept)', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
+  const m = src.match(/const PERMISSION = \/(.+)\/(\w*);/);
+  assert.ok(m, 'PERMISSION pattern not found in js/app.js');
+  assert.ok(new RegExp(m[1], m[2]).test('Turned off'), 'a "Turned off" refusal would sit on the phone as a stub forever');
+});
+
 // ---------- HRD-11: worker and foreman both close the same shift offline ----------
 
 test('HRD-11 worker and foreman both clock out the same shift: one shift, the second out is a flagged duplicate, no extra hours', () => {

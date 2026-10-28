@@ -47,6 +47,10 @@ Rules:
   stored without its location (`core.ts` `ingestPunch`), and a consent record the server refuses is
   forgotten on the phone, so they're asked again. [true] `js/app.js` `startPunch`,
   tested in `tests/e2e-consent.js` CON-2
+- **L3a** When sync drops a punch's location (no consent, or an impossible reading), it drops that
+  punch's hash and signature too, and the next punch keeps no pointer to that hash, since they cover
+  the location and could let it be guessed back. [true] `core.ts` `ingestPunch`, tested in
+  `tests/edge/harden.test.ts` PS-M112-2
 - **L4** Pictures are re-drawn on the phone at 1024 px before upload, which strips the camera's
   EXIF data, including any GPS tag. The stamp says name, job and time, not coordinates.
   [true] `js/app.js` `stampPhoto`

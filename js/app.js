@@ -184,7 +184,7 @@
   }
 
   // Server refusals that mean "this phone may never send this": safe to drop.
-  const PERMISSION = /^(Only a foreman|Unknown crew member|Boss only|Not yours)/i;
+  const PERMISSION = /^(Only a foreman|Unknown crew member|Boss only|Not yours|Turned off)/i;
   function rejectWords(reason) {
     if (/too old/i.test(reason || '')) return "Punch too old. Check the phone's clock and date are right, then tell the boss.";
     return `The office couldn't take it (${reason || 'no reason given'}). Tell the boss.`;

@@ -1,26 +1,47 @@
 -- M1.12 Harden (HRD-14, HRD-11).
 -- HRD-14: the database refuses values no phone or boss screen can make. The sync Edge Function
 -- drops bad coordinates and caps a future phone time before insert, so a real clock-in never hits
--- these checks; they are the last line, not the first. NOT VALID: new and changed rows are checked,
--- rows already stored are left as they are (a deploy never fails on old data).
+-- these checks; they are the last line, not the first.
 -- There is deliberately no "phone_at <= now()" check: a phone clock running fast would turn into a
 -- server error and a stuck outbox. Sync caps future times instead.
+-- PS-M112-3: the checks are validated, so they hold for old rows too (a NOT VALID check let an old
+-- out-of-range row block its next update, such as the boss erasing that worker's data). Rows already
+-- stored are cleaned first, the same way sync treats new ones, so the deploy can't fail on them:
+-- an impossible location is dropped (with the hash, signature and next punch's pointer that cover
+-- it, like app.apply_retention), a time outside 2020..2100 is pulled to the nearest edge, and an
+-- over-long name or address is cut.
+
+update public.crew set name = left(name, 60) where char_length(name) > 60;
+update public.jobs set name = left(name, 60) where char_length(name) > 60;
+update public.jobs set address = left(address, 200) where char_length(address) > 200;
+update public.jobs set lat = null, lng = null
+  where abs(lat) > 90 or abs(lng) > 180;
+
+do $$ begin
+  perform app.unlink_hashes(array(select hash from public.punches
+    where (abs(lat) > 90 or abs(lng) > 180 or accuracy_m < 0) and hash is not null));
+end $$;
+update public.punches set lat = null, lng = null, accuracy_m = null, address = null,
+    hash = null, signature = null, prev_hash = null
+  where abs(lat) > 90 or abs(lng) > 180 or accuracy_m < 0;
+update public.punches set phone_at = '2020-01-01 00:00Z' where phone_at < '2020-01-01 00:00Z';
+update public.punches set phone_at = '2099-12-31 23:59:59Z' where phone_at >= '2100-01-01 00:00Z';
 
 alter table public.crew
-  add constraint crew_name_len check (char_length(name) <= 60) not valid;
+  add constraint crew_name_len check (char_length(name) <= 60);
 
 alter table public.jobs
-  add constraint jobs_name_len check (char_length(name) <= 60) not valid,
-  add constraint jobs_address_len check (char_length(address) <= 200) not valid,
-  add constraint jobs_lat_range check (lat between -90 and 90) not valid,
-  add constraint jobs_lng_range check (lng between -180 and 180) not valid;
+  add constraint jobs_name_len check (char_length(name) <= 60),
+  add constraint jobs_address_len check (char_length(address) <= 200),
+  add constraint jobs_lat_range check (lat between -90 and 90),
+  add constraint jobs_lng_range check (lng between -180 and 180);
 
 alter table public.punches
-  add constraint punches_lat_range check (lat between -90 and 90) not valid,
-  add constraint punches_lng_range check (lng between -180 and 180) not valid,
-  add constraint punches_accuracy_nonneg check (accuracy_m >= 0) not valid,
+  add constraint punches_lat_range check (lat between -90 and 90),
+  add constraint punches_lng_range check (lng between -180 and 180),
+  add constraint punches_accuracy_nonneg check (accuracy_m >= 0),
   add constraint punches_phone_at_range
-    check (phone_at >= '2020-01-01 00:00Z' and phone_at < '2100-01-01 00:00Z') not valid;
+    check (phone_at >= '2020-01-01 00:00Z' and phone_at < '2100-01-01 00:00Z');
 
 -- HRD-11: a worker and their foreman can both clock out the same shift while offline. A second
 -- clock-out within 12 hours of the one that closed the shift, with no clock-in between, is noted on
