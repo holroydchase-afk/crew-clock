@@ -217,6 +217,7 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 .job-dist { font-weight: 700; color: var(--muted); font-size: 16px; white-space: nowrap; }
 .for-mate { background: var(--amber-soft); color: var(--amber); border-radius: 12px; padding: 10px 14px; font-size: 17px; }
 .notice { background: var(--amber-soft); color: var(--amber); border-radius: 14px; padding: 14px 16px; display: flex; gap: 8px; align-items: center; margin: 0; font-weight: 500; text-align: left; }
+.empty { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
 
 /* Locating */
 .spinner { width: 72px; height: 72px; border-radius: 50%; border: 7px solid var(--blue-soft); border-top-color: var(--blue); animation: spin 0.9s linear infinite; }
@@ -251,6 +252,8 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 .tabbar button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 0 8px; font-size: 13px; font-weight: 600; color: var(--muted); }
 .tabbar button svg { width: 26px; height: 26px; }
 .tabbar button.on { color: var(--blue); }
+/* iPhone Safari in the browser: Safari 26's floating toolbar sits over the page bottom (class set in app.js) */
+.ios-safari-tab .tabbar { padding-bottom: calc(env(safe-area-inset-bottom) + 28px); }
 .team-map { position: absolute; inset: 0; }
 .map-legend { position: absolute; left: 10px; bottom: 34px; /* clear of the Leaflet attribution (UX-6) */ z-index: 500; display: flex; flex-wrap: wrap; gap: 6px; max-width: calc(100% - 20px); }
 .map-legend .chip { box-shadow: var(--shadow); font-size: 13px; }
