@@ -89,7 +89,74 @@
     return d.getTime();
   }
 
-  const api = { SEVERITY, worse, pairShifts, shiftsForDay, lastPunchByCrew, startOfDay };
+  // ---------- weekly timesheet (M1.13 ENH-3) ----------
+  const DAY = 86400000;
+
+  // Monday 00:00 (local) of the week holding ms.
+  function weekStart(ms) {
+    const d = new Date(startOfDay(ms));
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return startOfDay(d.getTime());
+  }
+
+  // The seven local midnights from Monday, safe across a clock change.
+  function weekDays(ws) {
+    const out = [];
+    const d = new Date(ws);
+    for (let i = 0; i < 7; i++) { out.push(startOfDay(d.getTime())); d.setDate(d.getDate() + 1); }
+    return out;
+  }
+
+  // Shifts that started in the week, each with the index of the day it started.
+  function weekShifts(punches, ws) {
+    const days = weekDays(ws);
+    const end = startOfDay(days[6] + DAY + 3600000);
+    return pairShifts(punches).filter((s) => s.inAt != null && s.inAt >= ws && s.inAt < end)
+      .map((s) => Object.assign({ dayIndex: days.filter((d) => d <= s.inAt).length - 1 }, s));
+  }
+
+  const round2 = (x) => Math.round(x * 100) / 100;
+
+  // { days: [7 midnights], byCrew: { crewId: { days: [7 hours], total } } }. Open shifts add nothing.
+  function weekTotals(punches, ws) {
+    const byCrew = {};
+    for (const s of weekShifts(punches, ws)) {
+      if (s.hours == null) continue;
+      const c = byCrew[s.crewId] = byCrew[s.crewId] || { days: [0, 0, 0, 0, 0, 0, 0], total: 0 };
+      c.days[s.dayIndex] = round2(c.days[s.dayIndex] + s.hours);
+      c.total = round2(c.total + s.hours);
+    }
+    return { days: weekDays(ws), byCrew };
+  }
+
+  // One spreadsheet cell. A cell a spreadsheet would run as a formula (= + - @, tab, return) gets a
+  // leading ' so it stays text; commas, quotes and line breaks are quoted.
+  function csvCell(v) {
+    let s = String(v == null ? '' : v);
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }
+
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const ymd = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+  const clock = (ms) => {
+    if (ms == null) return '';
+    const d = new Date(ms);
+    const h = d.getHours();
+    return `${h % 12 || 12}:${pad2(d.getMinutes())} ${h < 12 ? 'AM' : 'PM'}`;
+  };
+
+  // Name, date, in, out, hours: one row per shift that started in the week. Nothing else leaves
+  // (no GPS, job pin, photo, risk or ids). names: { crewId: name }.
+  function timesheetCsv(punches, names, ws) {
+    const rows = weekShifts(punches, ws).map((s) => ({ name: (names && names[s.crewId]) || 'Unknown', s }))
+      .sort((a, b) => a.name.localeCompare(b.name) || a.s.inAt - b.s.inAt);
+    const lines = [['Name', 'Date', 'In', 'Out', 'Hours']].concat(rows.map(({ name, s }) =>
+      [name, ymd(s.inAt), clock(s.inAt), clock(s.outAt), s.hours == null ? '' : s.hours.toFixed(2)]));
+    return lines.map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
+  }
+
+  const api = { SEVERITY, worse, pairShifts, shiftsForDay, lastPunchByCrew, startOfDay, weekStart, weekDays, weekTotals, csvCell, timesheetCsv };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Report = api;
 })(typeof self !== 'undefined' ? self : this);

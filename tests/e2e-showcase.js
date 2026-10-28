@@ -133,6 +133,22 @@ async function walk(browser, viewport, colorScheme) {
     await page.click(`[data-action="boss-tab"][data-tab="${tab}"]`);
     await check(page, `boss ${tab}`, found);
   }
+  // M1.13: the tamper check (verified, then tampered), the week view, and "No signal" turned on.
+  await page.click('[data-action="boss-tab"][data-tab="today"]');
+  await page.waitForSelector('.verify.ok, .verify.bad', { timeout: 8000 });
+  await check(page, 'boss today (verified)', found);
+  await page.click('[data-action="demo-tamper"]');
+  await page.waitForSelector('.verify.bad', { timeout: 8000 });
+  await check(page, 'boss today (tampered)', found);
+  await page.click('[data-action="demo-untamper"]');
+  await page.waitForSelector('.verify.ok', { timeout: 8000 });
+  await page.click('[data-action="today-view"][data-view="week"]');
+  await page.waitForSelector('table.week');
+  await check(page, 'boss week', found);
+  await page.click('[data-action="today-view"][data-view="day"]');
+  await page.click('[data-action="demo-offline"]');
+  await check(page, 'boss today (no signal on)', found);
+  await page.click('[data-action="demo-offline"]');
   await page.click('[data-action="boss-tab"][data-tab="jobs"]');
   await page.click('[data-action="job-new"]');
   await page.waitForSelector('[data-action="job-save"]');

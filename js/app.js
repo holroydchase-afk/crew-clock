@@ -40,6 +40,8 @@
     screen: null,
     flow: null, // the punch being built
     bossTab: Store.local.get('bossTab', 'map'),
+    todayView: Store.local.get('todayView', 'day'), // boss Today: 'day' or 'week' (M1.13 ENH-3)
+    weekBack: false, // the week view shows the week before
   };
 
   // ---------- helpers ----------
@@ -261,9 +263,11 @@
 
   async function loadTeam() {
     try {
-      const res = await Api.team(state.auth);
+      // From the Monday a week before this week's, so the week view can show last week too (ENH-3)
+      const res = await Api.team(state.auth, Report.weekStart(Date.now() - 86400000) - 7 * 86400000);
       const keep = state.team && state.team.consents; // an unreadable status keeps the last one
-      state.team = { punches: res.punches, crew: res.crew, jobs: res.jobs, consents: res.consents || keep || null, at: Date.now() };
+      state.team = { punches: res.punches, crew: res.crew, jobs: res.jobs, consents: res.consents || keep || null,
+        devices: Array.isArray(res.devices) ? res.devices : null, at: Date.now() };
       Store.local.set('team', state.team);
     } catch (e) { /* keep the cached copy */ }
   }
@@ -565,9 +569,12 @@
   // One line on every demo screen (SEP-3, SEP-4); the crew app never shows it (SEP-5).
   function demoBanner() {
     return Api.isDemo ? `<div class="demo-banner" role="note"><span>Sample data, made-up crew, saved only in this browser</span>
-      <span class="demo-actions"><button type="button" data-action="demo-reset">Reset sample data</button>
+      <span class="demo-actions">${demoControls() ? `<button type="button" class="demo-switch" role="switch" aria-checked="${DemoBackend.isOffline()}" data-action="demo-offline"><span class="knob" aria-hidden="true"></span>No signal</button>` : ''}<button type="button" data-action="demo-reset">Reset sample data</button>
       <a href="https://chaseholroyd.com/">Back to chaseholroyd.com</a></span></div>` : '';
   }
+  // The demo's own controls ("No signal", "Try tampering"): the public demo build only, never the
+  // crew app, nor a crew build that fell back to demo (same guard as fakeGps, M1.13).
+  function demoControls() { return Api.isDemo && cfg.backend === 'demo' && !!self.DemoBackend && !!DemoBackend.setOffline; }
 
   screens.names = () => {
     loadNames().then((list) => {
@@ -861,6 +868,9 @@
     const flags = Risk.assess(p, { crewHistory, deviceHistory, receivedAt: p.receivedAt });
     // PS-4 (demo): synced after the boss turned this person off.
     if (p.crewInactive) flags.push({ code: 'crew_inactive', level: Risk.RULES.crew_inactive.level });
+    // ENH-1: this screen's own check found the punch changed since its phone signed it.
+    const v = verifyResults();
+    if (v && (v[p.id] === 'changed' || v[p.id] === 'broken_chain')) flags.push({ code: 'bad_signature', level: Risk.RULES.bad_signature.level });
     return flags;
   }
   function riskHtml(flags) {
@@ -935,7 +945,7 @@
 
   function punchPopup(c, p, job, status = p.status) {
     const verb = p.type === 'in' ? 'Clocked in' : 'Clocked out';
-    const late = p.receivedAt && p.receivedAt - p.at > 15 * 60000 ? `<br><span class="muted">Sent at ${time(p.receivedAt)} (no signal)</span>` : '';
+    const late = sentLate(p) ? `<br><span class="muted">${sentLate(p)}</span>` : '';
     const dist = p.distanceFt != null && p.status !== 'onsite' ? ` · ${Geo.formatDistance(p.distanceFt)} away` : '';
     return `<div class="popup"><b>${esc(c.name)}</b><br>${verb} ${dayLabel(p.at).toLowerCase()} ${time(p.at)}<br>
       ${esc(job ? job.name : '')}<br>${chip(status, p.hasPhoto)}${dist}
@@ -973,8 +983,117 @@
     return { today0, sampleYesterday, shifts };
   }
 
+  // Sent well after the tap: the phone had no signal. Five minutes, so a phone clock a little off
+  // never reads as no signal (M1.13 ENH-2; the map popup said 15 minutes before).
+  const LATE_MS = 5 * 60000;
+  function sentLate(p) {
+    return p && p.receivedAt && p.receivedAt - p.at > LATE_MS ? `Sent at ${time(p.receivedAt)} (no signal)` : '';
+  }
+
+  // ---------- ENH-1: the visible tamper check ----------
+  // Runs in this browser with the phones' public keys. The crew app's team view carries no keys
+  // yet, so it shows no line rather than a claim it can't check.
+  function teamKeys() {
+    const d = state.team && state.team.devices;
+    if (!Array.isArray(d) || !d.length || !self.Chain || !Chain.verifyAll || !(self.crypto && crypto.subtle)) return null;
+    return Object.fromEntries(d.map((x) => [x.id, x.publicKey]));
+  }
+  function verifyResults() {
+    return state.verify && state.verify.team === state.team ? state.verify.res : null;
+  }
+  function startVerify() {
+    const team = state.team;
+    const keys = teamKeys();
+    if (!keys || state.verifying === team) return;
+    state.verifying = team;
+    Chain.verifyAll(team.punches, keys).then((res) => {
+      if (state.team !== team) return;
+      state.verify = { team, res };
+      if (state.screen === 'boss' && state.bossTab === 'today') render();
+    }, () => { /* can't check on this browser: no line */ });
+  }
+  const KIND = { in: 'clock-in', out: 'clock-out', void: 'fix' };
+  function verifyHtml(dayPunches) {
+    if (!teamKeys() || !dayPunches.length) return '';
+    const res = verifyResults();
+    if (!res) {
+      startVerify();
+      return `<div class="verify" data-verify-line>${Icons.lock}<span>Checking punches…</span></div>`;
+    }
+    const bad = dayPunches.filter((p) => res[p.id] === 'changed' || res[p.id] === 'broken_chain').sort((a, b) => a.at - b.at);
+    const ok = dayPunches.filter((p) => res[p.id] === 'ok').length;
+    const unchecked = dayPunches.length - ok - bad.length;
+    let line;
+    if (bad.length) {
+      const p = bad[0];
+      const c = crewById(p.crewId) || { name: 'Someone' };
+      line = `<div class="verify bad" data-verify-line role="alert">${Icons.alert}<span>${esc(c.name)}'s ${time(p.at)} ${KIND[p.type] || 'punch'} was changed after it was sent.${bad.length > 1 ? ` ${bad.length - 1} more changed.` : ''}</span></div>`;
+    } else {
+      line = `<div class="verify ok" data-verify-line>${Icons.lock}<span>Verified: ${ok} of ${dayPunches.length} punches signed and chained${unchecked ? `. ${unchecked} not signed (older phone).` : ''}</span></div>`;
+    }
+    let demo = '';
+    if (demoControls()) {
+      demo = DemoBackend.isTampered()
+        ? `<div class="verify-demo"><button class="btn secondary sm" data-action="demo-untamper">Undo the change</button></div>`
+        : ok ? `<div class="verify-demo"><button class="btn secondary sm" data-action="demo-tamper">Try tampering</button>
+          <span class="muted small">Demo: changes one saved time, like someone editing the records.</span></div>` : '';
+    }
+    return line + demo;
+  }
+
+  // ---------- ENH-3: the week view and its CSV ----------
+  function shownWeek() {
+    const ws = Report.weekStart(bossDay().today0);
+    return state.weekBack ? Report.weekStart(ws - 86400000) : ws;
+  }
+  function weekNames() {
+    const names = {};
+    ((state.team && state.team.crew) || state.crew).forEach((c) => { names[c.id] = c.name; });
+    return names;
+  }
+  function bossWeekHtml() {
+    const ws = shownWeek();
+    const w = Report.weekTotals(teamPunches(), ws);
+    const names = weekNames();
+    const ids = [...new Set(teamCrew().map((c) => c.id).concat(Object.keys(w.byCrew)))]
+      .sort((a, b) => String(names[a] || '').localeCompare(String(names[b] || '')));
+    const hrs = (h) => (h ? h.toFixed(1) : '–');
+    const dayTotals = w.days.map((_, i) => ids.reduce((a, id) => a + ((w.byCrew[id] || { days: [] }).days[i] || 0), 0));
+    const all = dayTotals.reduce((a, b) => a + b, 0);
+    const head = w.days.map((d) => {
+      const dt = new Date(d);
+      return `<th scope="col"><span>${dt.toLocaleDateString([], { weekday: 'short' })}</span><small>${dt.getDate()}</small></th>`;
+    }).join('');
+    const rows = ids.map((id) => {
+      const r = w.byCrew[id] || { days: [0, 0, 0, 0, 0, 0, 0], total: 0 };
+      return `<tr><th scope="row">${esc(names[id] || '?')}</th>${r.days.map((h) => `<td>${hrs(h)}</td>`).join('')}<td class="tot">${hrs(r.total)}</td></tr>`;
+    }).join('');
+    const from = new Date(ws).toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return `<div class="week-head"><h3>Week of ${esc(from)}</h3>
+        <div class="week-nav">${state.weekBack
+          ? `<button class="btn secondary sm" data-action="week-this">This week <span class="flip">${Icons.back}</span></button>`
+          : `<button class="btn secondary sm" data-action="week-back">${Icons.back} Last week</button>`}</div></div>
+      <div class="week-wrap" tabindex="0" role="region" aria-label="Hours per person, Monday to Sunday">
+      <table class="week"><thead><tr><th scope="col">Name</th>${head}<th scope="col">Total</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr><th scope="row">All</th>${dayTotals.map((h) => `<td>${hrs(h)}</td>`).join('')}<td class="tot">${hrs(all)}</td></tr></tfoot></table></div>
+      <p class="muted small">Hours from finished shifts, on the day they started.</p>
+      <div class="actions"><button class="btn secondary" data-action="week-csv">${Icons.sheet} Download CSV</button></div>`;
+  }
+
   function bossTodayHtml() {
-    const { sampleYesterday, shifts } = bossDay();
+    const { today0, sampleYesterday, shifts } = bossDay();
+    const view = state.todayView === 'week' ? 'week' : 'day';
+    const seg = `<div class="seg view-seg" role="group" aria-label="Show">${[['day', 'Day'], ['week', 'Week']].map(([k, l]) =>
+      `<button class="${view === k ? 'on' : ''}" data-action="today-view" data-view="${k}" aria-pressed="${view === k}">${l}</button>`).join('')}</div>`;
+    if (view === 'week') {
+      return `<div class="pad">
+        <h2>Timesheet</h2>
+        ${seg}
+        ${bossWeekHtml()}
+      </div>`;
+    }
+    const dayPunches = teamPunches().filter((p) => p.at >= today0 && p.at < today0 + 86400000);
     const crew = teamCrew();
     const inToday = new Set(shifts.map((s) => s.crewId));
     const notIn = crew.filter((c) => !inToday.has(c.id));
@@ -988,11 +1107,12 @@
       const flags = [punchById[s.inId], punchById[s.outId], ...dupes].filter(Boolean).flatMap(riskFor);
       // Times never break mid-value (UX-R12): each one is a no-wrap piece of the line.
       const span = `<span class="nw">${s.inAt ? time(s.inAt) : '?'} –</span> ${s.outAt ? `<span class="nw">${time(s.outAt)}</span>` : s.open ? '<b class="on-clock nw">on the clock</b>' : '<b class="warn nw">no clock-out</b>'}`;
+      const late = sentLate(punchById[s.inId]) || sentLate(punchById[s.outId]); // ENH-2
       return `<div class="shift">
         <span class="avatar">${esc(initials(c.name))}</span>
         <div class="grow"><div class="shift-name">${esc(c.name)}</div>
           <div class="muted small">${esc(job ? job.name : '')}</div>
-          <div class="muted small shift-times">${span}${s.hours != null ? ` <span class="nw">· ${s.hours.toFixed(1)} h</span>` : ''}${dupes.length ? ' <span class="nw">· clocked out twice</span>' : ''}</div>${riskHtml(flags)}</div>
+          <div class="muted small shift-times">${span}${s.hours != null ? ` <span class="nw">· ${s.hours.toFixed(1)} h</span>` : ''}${dupes.length ? ' <span class="nw">· clocked out twice</span>' : ''}${late ? ` <span class="nw">· ${late}</span>` : ''}</div>${riskHtml(flags)}</div>
         <div class="shift-right">${chip(s.status)}
           ${photoP ? `<button class="mini" data-action="show-photo" data-id="${esc(photoP.id)}">${Icons.camera}</button>` : ''}</div>
       </div>`;
@@ -1012,6 +1132,8 @@
     }
     return `<div class="pad">
       <h2>${sampleYesterday ? 'Yesterday (sample day)' : 'Today'}</h2>
+      ${seg}
+      ${verifyHtml(dayPunches)}
       ${summary}
       ${notIn.length ? `<div class="not-in"><div class="not-in-title">${Icons.alert} ${sampleYesterday ? 'Not in' : 'Not in yet'} (${notIn.length})</div>
         <div>${notIn.map((c) => `<span class="pill">${esc(c.name)}</span>`).join('')}</div></div>` : ''}
@@ -1263,6 +1385,15 @@
       startPunch('in', { fixing: Object.assign({}, orig, { photo: state.flow.photo }) });
     },
     'demo-fake': (el) => Store.local.set('demoFake', el.checked),
+    // Demo only (ENH-2): "No signal" makes the sample server act like there is no signal; turning
+    // it off sends whatever waited on this phone.
+    'demo-offline': () => {
+      if (!demoControls()) return;
+      const on = !DemoBackend.isOffline();
+      DemoBackend.setOffline(on);
+      document.querySelectorAll('[data-action="demo-offline"]').forEach((x) => x.setAttribute('aria-checked', String(on)));
+      if (on) updateSyncLine(); else syncNow();
+    },
     // Demo only (M1.4): forget this visit and start again from the sample crew.
     'demo-reset': () => {
       if (!Api.isDemo || !confirm('Start over with the sample crew? Everything you did in this demo is cleared.')) return;
@@ -1278,6 +1409,46 @@
       render();
     },
     'boss-back': () => setScreen('boss'),
+    'today-view': (el) => {
+      state.todayView = el.dataset.view === 'week' ? 'week' : 'day';
+      Store.local.set('todayView', state.todayView);
+      render();
+    },
+    'week-back': () => { state.weekBack = true; render(); },
+    'week-this': () => { state.weekBack = false; render(); },
+    // Name, date, in, out, hours only (no GPS, job pins, photos or risk), made on this phone.
+    'week-csv': () => {
+      const ws = shownWeek();
+      const csv = Report.timesheetCsv(teamPunches(), weekNames(), ws);
+      const d = new Date(ws);
+      const name = `timesheet-week-of-${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}.csv`;
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    },
+    // Demo only (ENH-1): edit one saved punch in the sample records, then check again.
+    'demo-tamper': async () => {
+      if (!demoControls()) return;
+      // A signed punch on the day on screen, Jake R.'s clock-in when it is there
+      const { today0 } = bossDay();
+      const res = verifyResults() || {};
+      const day = teamPunches().filter((p) => p.at >= today0 && p.at < today0 + 86400000 && res[p.id] === 'ok').sort((a, b) => a.at - b.at);
+      const pick = day.find((p) => p.crewId === 'c2' && p.type === 'in') || day.find((p) => p.type === 'in') || day[0];
+      DemoBackend.tamper(pick && pick.id);
+      await loadTeam();
+      render();
+    },
+    'demo-untamper': async () => {
+      if (!demoControls()) return;
+      DemoBackend.untamper();
+      await loadTeam();
+      render();
+    },
     'ai-summary': async (el) => {
       if (!AI.onWifi() && !confirm('This downloads about 400 MB once. Use cell data anyway?')) return;
       el.disabled = true;

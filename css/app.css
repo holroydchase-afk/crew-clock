@@ -445,3 +445,42 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
   .pick .name-btn:not(.start-btn):hover { border-color: var(--blue); }
   .pick .name-btn .name-role { margin-top: -2px; }
 }
+
+/* ---------- M1.13 ---------- */
+/* ENH-1: the tamper check. Green ink on green-soft / red on red-soft, both AA in light and dark. */
+.verify { display: flex; gap: 10px; align-items: flex-start; border-radius: var(--radius); padding: 12px 16px; font-weight: 600; font-size: 16px;
+  background: var(--card); box-shadow: var(--shadow); color: var(--muted); }
+.verify svg { width: 20px; height: 20px; flex: none; margin-top: 1px; }
+.verify.ok { background: var(--green-soft); color: var(--ink); box-shadow: none; }
+.verify.ok svg { color: var(--green); }
+.verify.bad { background: var(--red-soft); color: var(--red); box-shadow: none; }
+.verify-demo { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin-top: -4px; }
+.verify-demo .btn.sm { min-height: 44px; padding: 8px 14px; font-size: 16px; }
+/* ENH-2: "No signal" in the demo banner, the same 44px row as Reset */
+.demo-actions .demo-switch { gap: 8px; text-decoration: none; }
+.demo-switch .knob { position: relative; width: 34px; height: 20px; border-radius: 10px; border: 2px solid currentColor; box-sizing: border-box; flex: none; }
+.demo-switch .knob::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: currentColor; transition: left .15s; }
+.demo-switch[aria-checked="true"] .knob { background: currentColor; }
+.demo-switch[aria-checked="true"] .knob::after { left: 16px; background: var(--banner-bg); }
+.demo-switch:focus-visible { outline: 3px solid var(--blue); outline-offset: -3px; border-radius: 8px; }
+/* ENH-3: Day | Week, and the week table (scrolls inside its box on a narrow phone, never the page) */
+.view-seg { max-width: 280px; }
+.view-seg button { padding: 10px 6px; }
+.week-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; }
+.week-head h3 { margin: 0; font-size: 18px; }
+.week-nav { display: flex; gap: 8px; }
+.week-nav .btn.sm { min-height: 44px; padding: 8px 12px; font-size: 15px; }
+.week-nav .btn { gap: 4px; }
+.week-nav .flip svg { transform: scaleX(-1); }
+.week-wrap { overflow-x: auto; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); }
+.week-wrap:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+table.week { width: 100%; border-collapse: collapse; font-size: 15px; font-variant-numeric: tabular-nums; }
+table.week th, table.week td { padding: 10px 6px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.week th:first-child { text-align: left; padding-left: 14px; font-weight: 600; }
+table.week td:last-child, table.week th:last-child { padding-right: 14px; }
+table.week thead th { font-size: 13px; color: var(--muted); font-weight: 600; }
+table.week thead th span, table.week thead th small { display: block; }
+table.week thead th small { font-weight: 400; }
+table.week .tot, table.week tfoot { font-weight: 700; }
+table.week tfoot th, table.week tfoot td { border-bottom: 0; }
+@media (max-width: 420px) { table.week { font-size: 14px; } table.week th, table.week td { padding: 10px 4px; } }
