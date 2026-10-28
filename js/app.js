@@ -1157,8 +1157,13 @@
       if (!Api.isDemo || !confirm('Start over with the sample crew? Everything you did in this demo is cleared.')) return;
       try { Object.keys(localStorage).filter((k) => k.startsWith('cc.')).forEach((k) => localStorage.removeItem(k)); } catch (e) { /* private mode */ }
       if (window.DemoBackend) window.DemoBackend.reset();
-      ['crewclock', 'crewclock-chat', 'crewclock-keys'].forEach((db) => { try { indexedDB.deleteDatabase(db); } catch (e) { /* ok */ } });
-      location.reload();
+      // Wait for the deletes: reloading first can leave the visitor's unsent punches in the outbox,
+      // and they would sync straight back into the fresh sample data.
+      const gone = (db) => new Promise((done) => {
+        try { const r = indexedDB.deleteDatabase(db); r.onsuccess = r.onerror = r.onblocked = () => done(); } catch (e) { done(); }
+        setTimeout(done, 2000);
+      });
+      Promise.all(['crewclock', 'crewclock-chat', 'crewclock-keys'].map(gone)).then(() => location.reload());
     },
     'boss-tab': (el) => {
       state.bossTab = el.dataset.tab;
