@@ -97,7 +97,15 @@
     if (shifts.length) parts.push(`${onsite} of ${shifts.length} shifts were fully on site${busiest ? `; ${busiest[0]} had the most crew` : ''}.`);
     // Each person once, and no ".." when a name ends in a period ("Ray T.") (UX-8).
     const end = (t) => (/\.$/.test(t) ? t : t + '.');
-    if (flagged.length) parts.push(end(`Check ${[...new Set(flagged.map((s) => names[s.crewId] || 'someone'))].join(', ')}`));
+    // Each person once, under the reason from their worst shift, worst first (UX-R12):
+    // "Check: off site for Ray T.; no GPS for Billy S.; near the job for Cody M."
+    const REASONS = [['offsite', 'off site'], ['nogps', 'no GPS'], ['missingOut', 'no clock-out'], ['near', 'near the job']];
+    const reasonOf = (s) => (s.status === 'offsite' ? 0 : s.status === 'nogps' ? 1 : s.missingOut ? 2 : 3);
+    const worst = {};
+    flagged.forEach((s) => { if (worst[s.crewId] == null || reasonOf(s) < worst[s.crewId]) worst[s.crewId] = reasonOf(s); });
+    const groups = REASONS.map(([, words], i) => [words, Object.keys(worst).filter((id) => worst[id] === i).map((id) => names[id] || 'someone')])
+      .filter(([, who]) => who.length);
+    if (groups.length) parts.push(end(`Check: ${groups.map(([words, who]) => `${words} for ${who.join(', ')}`).join('; ')}`));
     if (notIn && notIn.length) parts.push(end(`Didn't clock in: ${notIn.join(', ')}`));
     return parts.join(' ');
   }

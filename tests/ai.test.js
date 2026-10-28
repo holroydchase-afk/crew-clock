@@ -33,6 +33,6 @@ test('plain summary names who to check and who did not show', () => {
   ], { a: 'Jake', b: 'Cody' }, { j1: 'Smith kitchen' }, ['Travis']);
   assert.match(s, /2 people worked 15\.5 hours across 1 job/);
   assert.match(s, /1 of 2 shifts were fully on site; Smith kitchen had the most crew/);
-  assert.match(s, /Check Cody/);
+  assert.match(s, /Check: off site for Cody/);
   assert.match(s, /Didn't clock in: Travis/);
 });

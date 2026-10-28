@@ -312,7 +312,7 @@
       <button class="back" data-action="chat-back">${Icons.back} Messages</button>
       <h1>New group</h1>
       <label class="field"><span>Group name</span><input id="chat-name" placeholder="Smith kitchen crew" autocomplete="off"></label>
-      <div class="field"><span>Who's in it?</span>
+      <div class="field people" role="group" aria-labelledby="people-label"><span id="people-label">Who's in it?</span>
         <div class="list">${people.map((c) => `<label class="row-card pick">
           <input type="checkbox" value="${esc(c.id)}" ${view.picking.includes(c.id) ? 'checked' : ''}>
           <span class="avatar">${esc(initials(c.name))}</span><span class="grow">${esc(c.name)}</span></label>`).join('')}</div></div>
@@ -348,13 +348,13 @@
     'chat-create': async () => {
       const name = (document.getElementById('chat-name').value || '').trim() || 'Crew';
       const ids = [...document.querySelectorAll('.pick input:checked')].map((i) => i.value);
-      if (!ids.length) return toast('Pick at least one person');
+      if (!ids.length) return App.fieldError(document.querySelector('.field.people'), 'Pick at least one person');
       try {
         const r = await createGroup(name, ids);
-        if (r.notReady.length) toast(`${r.notReady.map(nameOf).join(', ')} need to open Messages once, then add them.`);
         await refresh();
         view.open = r.id;
         App.setScreen('chat-thread');
+        if (r.notReady.length) toast(`${r.notReady.map(nameOf).join(', ')} need to open Messages once, then add them.`);
       } catch (e) {
         toast(e.offline ? 'Need signal to start a group' : e.message);
       }

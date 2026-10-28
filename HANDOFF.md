@@ -2,7 +2,7 @@
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-10-28 (release run: M1.10 works for real)
+Updated: 2026-10-28 (release run: M1.11 UI polish)
 
 ## What it is
 
@@ -14,6 +14,18 @@ Plan and milestone IDs: [PLAN.md](PLAN.md). Hard rules: [CLAUDE.md](CLAUDE.md). 
 contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
+
+- `M1.11` UI to 8/10 (release run 2026-10-28). ux-reviewer scored the demo 6.5/10 before (0 P0,
+  7 P1, 10 P2: `UX-R1..R17`). qa-tdd wrote `tests/e2e-polish.js` (16 cases, red first), engineer
+  fixed: sign-in leads with the pitch and a full-width "Travis K. · Clock in as a worker" button in
+  the first screen, pitch beside the app on a laptop; one gutter (20px) and one column (560px)
+  everywhere; boss tabs become a top row at >= 960px; map and Today share one status per shift
+  (`bossDay()`), clocked-out dots are hollow with a "Clocked out" legend chip; inline form errors
+  (role="alert", aria-invalid, focus) and toasts cleared on screen change; clock-out done is blue
+  and says "You worked X h Y min"; "Switch" is "Sign out"; Refresh is a real button; foreman
+  photo screen says "Clock out Jake R."; Today times never wrap and "Check:" says why; 44px job
+  pins, 15px labels; placeholders that aren't sample data; quieter dark banner.
+  Portfolio / public presence: the demo's first screen and laptop layout changed.
 
 - `M1.10` works for real (release run 2026-10-28, Chase's 7-phase plan). Chase's 11:20 PM phone
   screenshots were the old cached build (fixed by #22); on current main the map pins, Today line
@@ -218,6 +230,16 @@ sign-in and server hardening (F-03, F-06, F-12, F-13, F-15), failing tests first
 "Erase their data" button and the B2 purge function if Chase wants M1.4's leftovers first.
 
 ## Decisions to review
+
+- **M1.11: laptop boss tabs move to the top** (≥ 960px), inside the 560px content column that the
+  header, lists and forms now share (`--col`, `--gutter: 20px` in `css/app.css`). Phones keep the
+  bottom bar. Undo: drop the `@media (min-width: 960px)` tabbar block.
+- **M1.11: the Today summary's "Check" sentence groups people by reason**, worst first: "Check: no
+  GPS for Billy S.; near the job for Cody M." (a name ending in "." can't be followed by "(why)"
+  without reading as two sentences). Unit tests `ai.test.js` and `harden.test.js` match the new words.
+- **M1.11: clock-out success is blue** (clock-in stays green), and the done screen says "You worked
+  6 h 27 min" for the shift just closed. A clocked-out worker's map dot is hollow with a dashed ring.
+- **M1.11: "Switch" is now "Sign out"** in the boss header (it always signed out).
 
 - **M1.10: a demo visitor who already made chat groups doesn't get the sample group** (the seed
   marks their store done so nothing mixes); "Reset sample data" brings it back.

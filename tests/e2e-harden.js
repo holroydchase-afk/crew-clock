@@ -145,7 +145,7 @@ t('HRD-1 Jake leaves 2 unsent punches, the boss signs in and syncs: they stay qu
   if (sentByBoss.length) {
     throw new Error(`boss's sync sent Jake's punches: ${sentByBoss.length} of 2 recorded with byCrewId=${sentByBoss.map((p) => p.byCrewId).join(',')}`);
   }
-  await page.getByRole('button', { name: 'Switch' }).click();
+  await page.getByRole('button', { name: 'Sign out' }).click();
   await page.waitForSelector('.name-btn');
   await signIn(page, 'Jake R.', '1111');
   await syncAndWait(page);
