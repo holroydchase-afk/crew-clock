@@ -376,6 +376,43 @@ t('UX-R12 390 Today: no time wraps mid-value, and the "Check ..." sentence says 
   return page;
 });
 
+// ---------- UX-R27: a Today time range never splits ----------
+for (const vp of [{ width: 360, height: 740 }, PHONE]) {
+  t(`UX-R27 ${vp.width}: every Today time range ("6:54 AM – on the clock", "7:30 AM – 11:30 AM") is on one line, inside its column`, async (browser) => {
+    const page = await open(browser, vp);
+    await boss(page, 'today');
+    await page.waitForSelector('.shift');
+    const bad = await page.evaluate(() => {
+      const out = [];
+      const re = /\d{1,2}:\d{2}[\s  ]?[AP]M\s*–\s*(\d{1,2}:\d{2}[\s  ]?[AP]M|on the clock|no clock-out)/;
+      document.querySelectorAll('.shift').forEach((row) => {
+        const el = row.querySelector('.shift-times');
+        const m = re.exec(el.textContent);
+        if (!m) { out.push(`no time range in "${el.textContent}"`); return; }
+        // A range over the text nodes from the start of the line to the end of the time range
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        let pos = 0; let n; let start = null; let end = null;
+        while ((n = walker.nextNode())) {
+          const len = n.data.length;
+          if (!start && m.index < pos + len) start = [n, m.index - pos];
+          if (m.index + m[0].length <= pos + len) { end = [n, m.index + m[0].length - pos]; break; }
+          pos += len;
+        }
+        const r = document.createRange();
+        r.setStart(...start); r.setEnd(...end);
+        const rects = [...r.getClientRects()].filter((x) => x.width > 0);
+        const tops = new Set(rects.map((x) => Math.round(x.top)));
+        const g = row.querySelector('.grow').getBoundingClientRect();
+        if (tops.size > 1) out.push(`"${m[0]}" splits over ${tops.size} lines`);
+        if (rects.some((x) => x.right > g.right + 1)) out.push(`"${m[0]}" runs past its column`);
+      });
+      return out;
+    });
+    if (bad.length) throw new Error(bad.join('; '));
+    return page;
+  });
+}
+
 // ---------- UX-R13: targets and small text ----------
 t('UX-R13 390: map job pins >= 44x44, demo checkbox row >= 44px, sign-in role labels >= 15px', async (browser) => {
   const page = await open(browser);

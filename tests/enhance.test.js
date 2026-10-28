@@ -251,3 +251,89 @@ test('ENH-3 csvCell: plain cells are left alone', () => {
   assert.strictEqual(Report.csvCell(8.5), '8.5');
   assert.strictEqual(Report.csvCell("'already"), "'already");
 });
+
+// ---------- M1.13 round 2: privacy-security and ux-reviewer findings ----------
+const D = 86400000;
+
+test('PS-M113-1 Report.dropOldGps: punches older than 8 days keep their times but lose lat, lng, accuracy, address and distance', () => {
+  const now = new Date(2026, 9, 28, 13, 30).getTime();
+  const gps = { lat: 38.4543, lng: -81.9286, accuracy: 15, address: 'Near 38.4543, -81.9286', distanceFt: 40 };
+  const old = pin('old', 'c2', 'in', now - 9 * D, Object.assign({}, gps));
+  const edge = pin('edge', 'c2', 'out', now - 8 * D - 60000, Object.assign({}, gps));
+  const recent = pin('new', 'c2', 'in', now - 7 * D, Object.assign({}, gps));
+  const out = Report.dropOldGps([old, edge, recent], now);
+  for (const p of [out[0], out[1]]) {
+    for (const f of ['lat', 'lng', 'accuracy', 'address', 'distanceFt']) assert.ok(p[f] == null, `${p.id} still has ${f}`);
+    assert.ok(p.at && p.type && p.crewId && p.jobId && p.status, `${p.id} lost what the week view needs`);
+  }
+  assert.strictEqual(out[2].lat, 38.4543, 'a punch from the last 8 days keeps its GPS (Today and the map use it)');
+  assert.strictEqual(old.lat, 38.4543, 'the input punches are not changed');
+});
+
+test('PS-M113-1 the crew app\'s team view hands back no GPS older than 8 days (it is held and cached in cc.team)', async () => {
+  const SB = 'https://fake.supabase.test';
+  const now = Date.now();
+  const row = (id, at) => ({ id, crew_id: 'c2', by_crew_id: 'c2', job_id: 'j1', type: 'in', phone_at: new Date(at).toISOString(),
+    received_at: new Date(at + 30000).toISOString(), lat: 38.4543, lng: -81.9286, accuracy_m: 15, distance_ft: 40,
+    status: 'onsite', address: 'Near 38.4543, -81.9286', risk: [] });
+  const json = (body) => ({ ok: true, status: 200, json: async () => body });
+  const fetch = async (url) => {
+    if (url.includes('/rest/v1/punches')) return json([row('old', now - 12 * D), row('new', now - 2 * D)]);
+    if (url.includes('/rest/v1/crew') || url.includes('/rest/v1/jobs') || url.includes('/rpc/')) return json([]);
+    throw new Error('unexpected fetch ' + url);
+  };
+  const ls = new Map([['cc.sbSession', JSON.stringify({ accessToken: 'at', refreshToken: 'rt', expiresAt: now + 3600000, crewId: 'boss', me: { id: 'boss', role: 'boss' } })]]);
+  const sandbox = {
+    APP_CONFIG: { backend: 'supabase', supabaseUrl: SB, supabaseAnonKey: 'anon' }, Report,
+    Store: { outbox: { add: async (it) => it }, local: { get: (k, d) => d, set() {} } },
+    localStorage: { getItem: (k) => (ls.has(k) ? ls.get(k) : null), setItem: (k, v) => ls.set(k, v), removeItem: (k) => ls.delete(k) },
+    fetch, Blob, atob, URLSearchParams, AbortController, setTimeout, clearTimeout, console, Date,
+  };
+  sandbox.self = sandbox;
+  vm.createContext(sandbox);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/api-supabase.js'), 'utf8'), sandbox);
+  const team = await sandbox.SupabaseApi.team({ crewId: 'boss' }, now - 13 * D);
+  const old = team.punches.find((p) => p.id === 'old');
+  const recent = team.punches.find((p) => p.id === 'new');
+  for (const f of ['lat', 'lng', 'accuracy', 'address', 'distanceFt']) assert.ok(old[f] == null, `a 12-day-old punch still has ${f}`);
+  assert.ok(old.at, 'the old punch keeps its time');
+  assert.strictEqual(recent.lat, 38.4543);
+});
+
+test('PS-M113-3 csvCell: a formula after leading spaces is escaped too', () => {
+  assert.strictEqual(Report.csvCell(' =1+1'), "' =1+1");
+  assert.strictEqual(Report.csvCell('  +1'), "'  +1");
+  assert.strictEqual(Report.csvCell(' -2'), "' -2");
+  assert.strictEqual(Report.csvCell('   @SUM(A1)'), "'   @SUM(A1)");
+  assert.strictEqual(Report.csvCell(' Jake R.'), ' Jake R.');
+});
+
+test('UX-R35 the day summary says "1 of 1 shift was" for a single shift', () => {
+  const AI = require('../js/ai.js');
+  const s = AI.plainSummary([{ crewId: 'a', jobId: 'j1', status: 'onsite', hours: 8 }], { a: 'Jake' }, { j1: 'Smith kitchen' }, []);
+  assert.match(s, /1 of 1 shift was fully on site/);
+  assert.doesNotMatch(s, /shifts were/);
+});
+
+test('PS-M113-2 docs/PRIVACY.md: the team cache row says GPS for 8 days only, and the weekly CSV has its own row', () => {
+  const doc = fs.readFileSync(path.join(__dirname, '../docs/PRIVACY.md'), 'utf8');
+  const cache = doc.split('\n').find((l) => l.includes('`cc.team`'));
+  assert.match(cache, /13 days/);
+  assert.match(cache, /GPS only for the last 8/);
+  const csv = doc.split('\n').find((l) => /^\|\s*Weekly (timesheet )?CSV/i.test(l));
+  assert.ok(csv, 'no retention row for the weekly CSV');
+  assert.match(csv, /Downloads/);
+  assert.match(csv, /Name, Date, In, Out, Hours/);
+  assert.match(csv, /no GPS/i);
+});
+
+test('UX-R33 weekTotals with { now }: a shift still open counts its hours so far and is marked open on its day', () => {
+  const punches = [pin('a', 'c2', 'in', day(2, 7)), pin('b', 'c3', 'in', day(2, 7)), pin('c', 'c3', 'out', day(2, 11))];
+  const w = Report.weekTotals(punches, monday, { now: day(2, 13.6) });
+  assert.strictEqual(w.byCrew.c2.days[2], 6.6);
+  assert.strictEqual(w.byCrew.c2.total, 6.6);
+  assert.deepStrictEqual(w.byCrew.c2.open, [false, false, true, false, false, false, false]);
+  assert.deepStrictEqual(w.byCrew.c3.open, [false, false, false, false, false, false, false]);
+  const plain = Report.weekTotals(punches, monday);
+  assert.strictEqual((plain.byCrew.c2 || { total: 0 }).total, 0, 'without now, open shifts still add nothing (the CSV)');
+});

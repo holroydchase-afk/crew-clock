@@ -117,23 +117,44 @@
 
   const round2 = (x) => Math.round(x * 100) / 100;
 
-  // { days: [7 midnights], byCrew: { crewId: { days: [7 hours], total } } }. Open shifts add nothing.
-  function weekTotals(punches, ws) {
+  // { days: [7 midnights], byCrew: { crewId: { days: [7 hours], total, open: [7 booleans] } } }.
+  // Open shifts add nothing, unless opts.now is given: then a shift still open adds its hours so far
+  // and marks its day open (the boss's screen shows "6.6+", UX-R33; the CSV never passes now).
+  function weekTotals(punches, ws, opts) {
+    const now = opts && opts.now;
     const byCrew = {};
     for (const s of weekShifts(punches, ws)) {
-      if (s.hours == null) continue;
-      const c = byCrew[s.crewId] = byCrew[s.crewId] || { days: [0, 0, 0, 0, 0, 0, 0], total: 0 };
-      c.days[s.dayIndex] = round2(c.days[s.dayIndex] + s.hours);
-      c.total = round2(c.total + s.hours);
+      const running = s.hours == null && now != null && s.open && now > s.inAt;
+      if (s.hours == null && !running) continue;
+      const h = running ? Math.round((now - s.inAt) / 360000) / 10 : s.hours;
+      const c = byCrew[s.crewId] = byCrew[s.crewId] || { days: [0, 0, 0, 0, 0, 0, 0], total: 0, open: [false, false, false, false, false, false, false] };
+      c.days[s.dayIndex] = round2(c.days[s.dayIndex] + h);
+      c.total = round2(c.total + h);
+      if (running) c.open[s.dayIndex] = true;
     }
     return { days: weekDays(ws), byCrew };
   }
 
-  // One spreadsheet cell. A cell a spreadsheet would run as a formula (= + - @, tab, return) gets a
-  // leading ' so it stays text; commas, quotes and line breaks are quoted.
+  // PS-M113-1: the boss's phone holds up to 13 days of team punches for the week view, but GPS only
+  // for the last 8 (docs/PRIVACY.md). Older punches keep their times, job and status; their lat, lng,
+  // accuracy, the address made from them and the distance are dropped. Returns new objects.
+  const GPS_DAYS = 8;
+  function dropOldGps(punches, now) {
+    const cut = (now == null ? Date.now() : now) - GPS_DAYS * DAY;
+    return (punches || []).map((p) => {
+      if (!(p.at < cut)) return p;
+      const out = Object.assign({}, p);
+      ['lat', 'lng', 'accuracy', 'address', 'distanceFt'].forEach((k) => { if (k in out) out[k] = null; });
+      return out;
+    });
+  }
+
+  // One spreadsheet cell. A cell a spreadsheet would run as a formula (= + - @ as the first
+  // character after any spaces, or a leading tab or return) gets a leading ' so it stays text
+  // (PS-M113-3); commas, quotes and line breaks are quoted.
   function csvCell(v) {
     let s = String(v == null ? '' : v);
-    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    if (/^[\t\r]|^ *[=+\-@]/.test(s)) s = "'" + s;
     return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   }
 
@@ -156,7 +177,7 @@
     return lines.map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
   }
 
-  const api = { SEVERITY, worse, pairShifts, shiftsForDay, lastPunchByCrew, startOfDay, weekStart, weekDays, weekTotals, csvCell, timesheetCsv };
+  const api = { SEVERITY, worse, pairShifts, shiftsForDay, lastPunchByCrew, startOfDay, weekStart, weekDays, weekTotals, dropOldGps, csvCell, timesheetCsv };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Report = api;
 })(typeof self !== 'undefined' ? self : this);

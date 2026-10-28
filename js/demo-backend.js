@@ -60,7 +60,7 @@
     const consents = ['c1', 'c2', 'c3', 'c5'].map((crewId, i) => ({
       id: 'k' + (i + 1), crewId, action: 'agree', textVersion: 'loc-v1', at: installDay + i * 60000, deviceId: null, receivedAt: installDay + i * 60000 + 5000,
     }));
-    return { jobs, crew, punches, earlier, photos: {}, consents, devices: [] };
+    return { jobs, crew, punches, earlier, photos: {}, consents, devices: [], sampleDay: base };
   }
 
   // M1.13 ENH-3: the weekdays in the 9 days before the sample day, so the boss's week view has a
@@ -325,6 +325,8 @@
         // Public keys only, so the boss's screen can check every punch (ENH-1)
         devices: (db.devices || []).map((d) => ({ id: d.id, publicKey: d.publicKey })),
         jobs: db.jobs,
+        // The sample day's midnight, so the boss's Today keeps it when a visitor punches the next morning (UX-R28)
+        sampleDay: db.sampleDay != null ? db.sampleDay : null,
         // Status only (latest action and text version), like the real crew_consent_status()
         consents: Object.values(latestConsents(db)).map((c) => ({ crewId: c.crewId, action: c.action, textVersion: c.textVersion })),
       };

@@ -98,7 +98,7 @@
     const parts = [];
     const worked = running.length ? `${people.size === 1 ? 'has' : 'have'} worked ${hours.toFixed(1)} hours so far today` : `worked ${hours.toFixed(1)} hours`;
     parts.push(`${people.size} ${people.size === 1 ? 'person' : 'people'} ${worked} across ${Object.keys(byJob).length} ${Object.keys(byJob).length === 1 ? 'job' : 'jobs'}.`);
-    if (shifts.length) parts.push(`${onsite} of ${shifts.length} shifts were fully on site${busiest ? `; ${busiest[0]} had the most crew` : ''}.`);
+    if (shifts.length) parts.push(`${onsite} of ${shifts.length} ${shifts.length === 1 ? 'shift was' : 'shifts were'} fully on site${busiest ? `; ${busiest[0]} had the most crew` : ''}.`);
     // Each person once, and no ".." when a name ends in a period ("Ray T.") (UX-8).
     const end = (t) => (/\.$/.test(t) ? t : t + '.');
     // Each person once, under the reason from their worst shift, worst first (UX-R12):

@@ -26,8 +26,9 @@ function watchPage() {
 }
 
 let lastPage = null;
-async function open(browser) {
-  const ctx = await browser.newContext(CONTEXT);
+// opts.viewport, and opts.hour to start the page clock at that hour today (8.3 = 8:18 AM)
+async function open(browser, opts = {}) {
+  const ctx = await browser.newContext(Object.assign({}, CONTEXT, opts.viewport ? { viewport: opts.viewport } : {}));
   const page = await ctx.newPage();
   lastPage = page;
   page.errors = [];
@@ -35,6 +36,10 @@ async function open(browser) {
   page.on('dialog', (d) => d.accept());
   await ctx.route((u) => u.origin !== ORIGIN, (r) => r.fulfill({ status: 204, body: '' }));
   await page.addInitScript(watchPage);
+  if (opts.hour != null) {
+    const when = new Date(); when.setHours(Math.floor(opts.hour), Math.round((opts.hour % 1) * 60), 0, 0);
+    await page.clock.install({ time: when });
+  }
   await page.goto(BASE);
   await page.waitForSelector('.name-btn');
   return page;
@@ -75,14 +80,15 @@ async function until(fn, ms, what) {
   }
   throw new Error(`timed out: ${what}`);
 }
-const VERIFIED = /Verified: (\d+) of (\d+) punches signed and chained/;
+// UX-R32: plain words, singular for one punch
+const VERIFIED = /^Verified: (?:all (\d+) punches match what the phones sent|(1) punch matches what the phone sent)\.$/;
 async function verifiedCount(page) {
   const line = page.locator('[data-verify-line]');
   return until(async () => {
     if (!(await line.count())) return null;
     const m = VERIFIED.exec(await text(line));
-    return m && +m[1] === +m[2] ? +m[1] : null;
-  }, 8000, 'the verify line says every punch is signed and chained');
+    return m ? +(m[1] || m[2]) : null;
+  }, 8000, 'the verify line says every punch matches what the phones sent');
 }
 // No hashes, signatures, keys or coordinates anywhere on screen
 async function noSecretsOnScreen(page, where) {
@@ -115,9 +121,9 @@ t('ENH-1b "Try tampering" edits one stored punch; the check turns red and names 
   const line = page.locator('[data-verify-line]');
   const said = await until(async () => {
     const s = (await line.count()) ? await text(line) : '';
-    return /changed after it was sent/.test(s) ? s : null;
+    return /was changed to/.test(s) ? s : null;
   }, 8000, 'the check names the changed punch');
-  if (!/Jake R\.'s \d{1,2}:\d{2}\s?[AP]M clock-in was changed after it was sent/.test(said)) throw new Error(`the red line does not name Jake R.'s clock-in plainly: ${JSON.stringify(said)}`);
+  if (!/Jake R\.'s clock-in was changed to \d{1,2}:\d{2}\s?[AP]M after their phone signed it\./.test(said)) throw new Error(`the red line does not name Jake R.'s clock-in plainly: ${JSON.stringify(said)}`);
   if (!(await line.evaluate((el) => el.classList.contains('bad')))) throw new Error('the verify line is not marked bad (red)');
   if (VERIFIED.test(said)) throw new Error('still says Verified');
   const after = (await demoDb(page)).punches.find((p) => p.id === before.id);
@@ -215,7 +221,8 @@ t('ENH-3a Today has Day | Week; Week shows hours per person Mon to Sun with tota
   await week.click();
   await page.waitForSelector('table.week');
   if (await week.getAttribute('aria-pressed') !== 'true') throw new Error('Week is not marked as the chosen view');
-  const head = await page.locator('table.week thead th').allInnerTexts();
+  // Full day names are in each heading (a phone shows one letter, UX-R29, with the name as its title)
+  const head = await page.locator('table.week thead th').evaluateAll((ths) => ths.map((th) => th.textContent.trim()));
   const want = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Total'];
   for (const w of want) if (!head.some((h) => h.startsWith(w))) throw new Error(`week header lacks ${w}: ${head.join('|')}`);
   const rows = await page.locator('table.week tbody tr').evaluateAll((trs) => trs.map((tr) => [...tr.children].map((c) => c.textContent.trim())));
@@ -255,6 +262,174 @@ t('ENH-3b "Download CSV" gives name, date, in, out, hours, and no GPS, job pins,
   if (/-?\d{1,3}\.\d{4,}/.test(csv)) throw new Error('the CSV carries a coordinate');
   if (/photo|risk|hash|signature|lat|lng|accuracy/i.test(csv)) throw new Error('the CSV carries a field it should not');
   if (/\bj\d\b|\bc\d\b/.test(csv)) throw new Error('the CSV carries an internal id');
+  return page;
+});
+
+// ---------- M1.13 round 2: ux-reviewer findings UX-R28 to UX-R34 ----------
+const SMALL = [{ width: 360, height: 740 }, { width: 390, height: 844 }];
+async function travisClocksIn(page) {
+  await signIn(page, 'Travis K.');
+  await page.click('.punch.in');
+  await page.waitForSelector('.job-btn');
+  await page.click('.job-btn[data-id="j1"]');
+  await page.waitForSelector('.big-check');
+  await page.getByRole('button', { name: 'OK', exact: true }).click();
+  await page.waitForSelector('.punch.out');
+  await until(async () => /All sent/.test(await text(page.locator('[data-sync-line]'))), 8000, 'the clock-in is sent');
+}
+// Edits the demo's stored records the way a test fixture would (before the boss signs in)
+const editDb = (page, fn) => page.evaluate((src) => {
+  const k = Object.keys(localStorage).find((x) => x.startsWith('cc.demo.db'));
+  const db = JSON.parse(localStorage.getItem(k));
+  (0, eval)(`(${src})`)(db);
+  localStorage.setItem(k, JSON.stringify(db));
+}, fn.toString());
+
+t('UX-R28 at 8:18 AM a visitor\'s clock-in is added to the sample day; the boss still sees the sample crew', async (browser) => {
+  const page = await open(browser, { hour: 8.3 });
+  await bossToday(page);
+  const n = await verifiedCount(page);
+  if (!/sample day/.test(await text(page.locator('.boss-body h2')))) throw new Error('setup: before 9 AM the sample day should be yesterday');
+  await signOut(page);
+  await travisClocksIn(page);
+  await signOut(page);
+  await bossToday(page);
+  const m = await verifiedCount(page); // the team list has loaded
+  const h2 = await text(page.locator('.boss-body h2'));
+  if (!/sample day/.test(h2)) throw new Error(`the sample day was replaced: heading "${h2}"`);
+  const rows = await page.locator('.shift').count();
+  if (rows < 5) throw new Error(`only ${rows} people on Today after the visitor's clock-in`);
+  const travis = page.locator('.shift', { hasText: 'Travis K.' });
+  if (!(await travis.count())) throw new Error('the visitor\'s own row is missing');
+  if (!/on the clock/.test(await text(travis))) throw new Error('the visitor\'s row does not say on the clock');
+  const notIn = (await page.locator('.not-in').count()) ? await text(page.locator('.not-in')) : '';
+  if (/Travis/.test(notIn)) throw new Error('Travis is listed as not in');
+  if (m !== n + 1) throw new Error(`verify line counts ${m}, want ${n + 1}`);
+  return page;
+});
+
+for (const vp of SMALL) {
+  t(`UX-R29 ${vp.width}: the Week table fits its box for this week and last week, with one-letter day headings and 14px numbers`, async (browser) => {
+    const page = await open(browser, { viewport: vp, hour: 13.5 });
+    await bossToday(page);
+    await page.getByRole('button', { name: 'Week', exact: true }).click();
+    await page.waitForSelector('table.week');
+    const errs = [];
+    for (const which of ['this week', 'last week']) {
+      if (which === 'last week') { await page.getByRole('button', { name: 'Last week' }).click(); await page.waitForTimeout(200); }
+      const r = await page.evaluate(() => {
+        const w = document.querySelector('.week-wrap');
+        const heads = [...document.querySelectorAll('table.week thead th')].slice(1, 8).map((th) => th.innerText.trim().split(/\s+/)[0]);
+        return { sw: w.scrollWidth, cw: w.clientWidth, heads, px: parseFloat(getComputedStyle(document.querySelector('table.week td')).fontSize) };
+      });
+      if (r.sw > r.cw) errs.push(`${which}: .week-wrap scrolls (${r.sw} > ${r.cw})`);
+      if (r.heads.join('') !== 'MTWTFSS') errs.push(`${which}: day headings ${JSON.stringify(r.heads)}`);
+      if (r.px < 14) errs.push(`${which}: ${r.px}px numbers`);
+    }
+    if (errs.length) throw new Error(errs.join('; '));
+    return page;
+  });
+
+  t(`UX-R30 ${vp.width}: "Sent at … (no signal)" is its own wrapping line with a cloud-off icon, inside the text column, clear of the chip`, async (browser) => {
+    const page = await open(browser, { viewport: vp, hour: 13.5 });
+    await editDb(page, (db) => { const p = db.punches.find((x) => x.crewId === 'c2' && x.type === 'in'); p.receivedAt = p.at + 10 * 60000; });
+    await bossToday(page);
+    await verifiedCount(page);
+    const r = await page.evaluate(() => {
+      const row = [...document.querySelectorAll('.shift')].find((x) => /Jake R\./.test(x.innerText));
+      const grow = row.querySelector('.grow').getBoundingClientRect();
+      const times = row.querySelector('.shift-times').getBoundingClientRect();
+      const right = [...row.querySelectorAll('.shift-right > *')].map((e) => e.getBoundingClientRect());
+      const els = [...row.querySelectorAll('.grow *')].filter((e) => /Sent at .*\(no signal\)/.test(e.innerText) &&
+        ![...e.children].some((c) => /Sent at .*\(no signal\)/.test(c.innerText)));
+      const el = els[0] && els[0].closest('div'); // the line holding the words
+      if (!el) return null;
+      const b = el.getBoundingClientRect();
+      const overlaps = right.some((c) => !(b.right <= c.left || b.left >= c.right || b.bottom <= c.top || b.top >= c.bottom));
+      const sticking = [...document.querySelectorAll('.shift')].flatMap((s) => {
+        const g = s.querySelector('.grow').getBoundingClientRect();
+        return [...s.querySelectorAll('.shift-times, .shift-times *')].filter((e) => e.getBoundingClientRect().right > g.right + 1).map((e) => e.innerText);
+      });
+      return { text: el.innerText.trim(), icon: !!el.querySelector('svg'), right: b.right, growRight: grow.right, top: b.top, timesBottom: times.bottom,
+        inTimes: !!el.closest('.shift-times'), overlaps, sticking };
+    });
+    if (!r) throw new Error('Jake\'s row does not say "Sent at … (no signal)"');
+    const errs = [];
+    if (/^·/.test(r.text)) errs.push(`starts with a dot: "${r.text}"`);
+    if (!r.icon) errs.push('no icon');
+    if (r.inTimes || r.top < r.timesBottom - 1) errs.push('not on its own line under the times');
+    if (r.right > r.growRight + 1) errs.push(`runs past the text column (${Math.round(r.right)} > ${Math.round(r.growRight)})`);
+    if (r.overlaps) errs.push('overlaps the status chip');
+    if (r.sticking.length) errs.push(`.shift-times pieces past the column: ${JSON.stringify(r.sticking)}`);
+    if (errs.length) throw new Error(errs.join('; '));
+    return page;
+  });
+}
+
+t('UX-R31 after "Try tampering" the red line says what changed in plain words, the row drops "no signal", and "Show me" scrolls to it', async (browser) => {
+  const page = await open(browser, { hour: 13.5 });
+  await bossToday(page);
+  await verifiedCount(page);
+  await page.getByRole('button', { name: 'Try tampering' }).click();
+  const line = page.locator('[data-verify-line]');
+  const said = await until(async () => { const s = await text(line); return /changed/.test(s) ? s : null; }, 8000, 'the red line');
+  if (!/^Jake R\.'s clock-in was changed to 6:33\sAM after their phone signed it\./.test(said)) throw new Error(`red line: ${JSON.stringify(said)}`);
+  const row = page.locator('.shift', { hasText: 'Jake R.' });
+  if (/no signal/.test(await text(row))) throw new Error('the tampered punch is labeled as sent with no signal');
+  if (/\blate\b/i.test(await text(row))) throw new Error('the tampered punch is labeled late');
+  const show = page.getByRole('link', { name: 'Show me' }).or(page.getByRole('button', { name: 'Show me' }));
+  if (await show.count() !== 1) throw new Error('no "Show me" link on the red line');
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await show.click();
+  await page.waitForTimeout(800);
+  const inView = await row.evaluate((el) => { const b = el.getBoundingClientRect(); return b.top >= 0 && b.bottom <= innerHeight; });
+  if (!inView) throw new Error('"Show me" did not bring Jake\'s row into view');
+  return page;
+});
+
+t('UX-R32/R35 with a single punch the verify line and the summary use the singular', async (browser) => {
+  const page = await open(browser, { hour: 13.5 });
+  await editDb(page, (db) => { db.punches = db.punches.filter((p) => p.crewId === 'c2' && p.type === 'in'); });
+  await bossToday(page);
+  const n = await verifiedCount(page);
+  if (n !== 1) throw new Error(`verified ${n}`);
+  if (!/1 punch matches what the phone sent/.test(await text(page.locator('[data-verify-line]')))) throw new Error('not singular');
+  const summary = await text(page.locator('.summary'));
+  if (!/1 of 1 shift was/.test(summary)) throw new Error(`summary: ${summary}`);
+  const hint = await text(page.locator('.verify-demo'));
+  if (!/signed on the phone and chained/.test(hint)) throw new Error(`the demo hint does not say how: ${hint}`);
+  return page;
+});
+
+t('UX-R33 Week shows hours so far for shifts still open today as "6.6+", with a footnote', async (browser) => {
+  const page = await open(browser, { hour: 13.5 });
+  await bossToday(page);
+  await page.getByRole('button', { name: 'Week', exact: true }).click();
+  await page.waitForSelector('table.week');
+  const r = await page.evaluate(() => {
+    const col = (new Date().getDay() + 6) % 7 + 1;
+    const rows = [...document.querySelectorAll('table.week tbody tr')].map((tr) => ({ name: tr.children[0].innerText.trim(), today: tr.children[col].innerText.trim(), total: tr.children[8].innerText.trim() }));
+    return { rows, foot: document.querySelector('.boss-body').innerText };
+  });
+  const jake = r.rows.find((x) => x.name === 'Jake R.');
+  const billy = r.rows.find((x) => x.name === 'Billy S.');
+  const errs = [];
+  if (!/^\d+\.\d\+$/.test(jake.today)) errs.push(`Jake today "${jake.today}"`);
+  if (!/\+$/.test(jake.total)) errs.push(`Jake total "${jake.total}"`);
+  if (/\+/.test(billy.today)) errs.push(`Billy (clocked out) "${billy.today}"`);
+  if (!/\+ still on the clock/.test(r.foot)) errs.push('no "+ still on the clock" footnote');
+  if (errs.length) throw new Error(errs.join('; '));
+  return page;
+});
+
+t('UX-R34 demo worker Home invites a visitor to try No signal, until it is on', async (browser) => {
+  const page = await open(browser);
+  await signIn(page, 'Travis K.');
+  const hint = page.getByText('Demo: turn on No signal above, then clock in.');
+  if (await hint.count() !== 1) throw new Error('no hint on worker Home');
+  await page.getByRole('switch', { name: 'No signal' }).click();
+  await page.waitForTimeout(200);
+  if (await hint.count()) throw new Error('the hint stays while No signal is on');
   return page;
 });
 
@@ -314,6 +489,7 @@ t('ENH-1d/ENH-2c the crew app (backend: supabase) never shows "Try tampering" or
     if (await page.getByRole('checkbox', { name: /No signal/ }).count()) found.push(`${where}: No signal switch`);
     if (await page.getByRole('switch', { name: /No signal/ }).count()) found.push(`${where}: No signal switch`);
     if (await page.locator('[data-action="demo-tamper"], [data-action="demo-offline"]').count()) found.push(`${where}: demo control in the page`);
+    if (await page.getByText(/Demo: turn on No signal/).count()) found.push(`${where}: demo No signal hint`);
   };
   await look('sign-in');
   await pinIn(page, 'Test Boss', '1234');

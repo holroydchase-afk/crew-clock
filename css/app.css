@@ -483,4 +483,25 @@ table.week thead th span, table.week thead th small { display: block; }
 table.week thead th small { font-weight: 400; }
 table.week .tot, table.week tfoot { font-weight: 700; }
 table.week tfoot th, table.week tfoot td { border-bottom: 0; }
-@media (max-width: 420px) { table.week { font-size: 14px; } table.week th, table.week td { padding: 10px 4px; } }
+table.week thead th .d-short { display: none; text-decoration: none; }
+/* UX-R29: on a phone the whole week fits its box: one-letter days, tight cells, 14px numbers, no "Name" word */
+@media (max-width: 420px) {
+  table.week { font-size: 14px; font-variant-numeric: normal; }
+  table.week th, table.week td { padding: 10px 2px; }
+  table.week th:first-child { padding-left: 8px; white-space: normal; }
+  table.week td:last-child, table.week th:last-child { padding-right: 8px; }
+  table.week thead th .d-long { display: none; }
+  table.week thead th .d-short { display: block; }
+  table.week .name-head { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+/* UX-R30: "Sent at … (no signal)" on its own line, allowed to wrap */
+.sent-late { display: flex; gap: 6px; align-items: flex-start; margin-top: 2px; }
+.sent-late svg { width: 16px; height: 16px; flex: none; margin-top: 2px; }
+/* UX-R31: "Show me" on the red line, in the line's own colour */
+.verify .verify-show { color: inherit; font-size: inherit; font-weight: 600; text-decoration: underline; padding: 12px 4px; margin: -12px 0; min-height: 0; }
+.shift:focus { outline: none; }
+.shift:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+/* UX-R27: a Today time range ("6:54 AM – on the clock") stays on one line inside its column:
+   a smaller avatar on a phone, none on the narrowest (the name is right beside it) */
+@media (max-width: 420px) { .shift { gap: 10px; } .shift > .avatar { width: 34px; height: 34px; font-size: 14px; } }
+@media (max-width: 380px) { .shift > .avatar { display: none; } }
