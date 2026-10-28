@@ -389,6 +389,20 @@ t('UX-R31 after "Try tampering" the red line says what changed in plain words, t
   return page;
 });
 
+t('UX-R31b a redraw of the boss\'s Today (like the check finishing) keeps where the boss had scrolled to', async (browser) => {
+  const page = await open(browser, { hour: 13.5, viewport: { width: 390, height: 600 } });
+  await bossToday(page);
+  await verifiedCount(page);
+  const top = await page.evaluate(() => { const b = document.querySelector('.boss-body'); b.scrollTop = b.scrollHeight; return b.scrollTop; });
+  if (top < 100) throw new Error(`setup: Today does not scroll (scrollTop ${top})`);
+  // A redraw without moving the page: the Day button, pressed from script
+  await page.evaluate(() => document.querySelector('[data-action="today-view"][data-view="day"]').click());
+  await page.waitForTimeout(200);
+  const after = await page.evaluate(() => document.querySelector('.boss-body').scrollTop);
+  if (Math.abs(after - top) > 2) throw new Error(`scroll jumped from ${top} to ${after} on a redraw`);
+  return page;
+});
+
 t('UX-R32/R35 with a single punch the verify line and the summary use the singular', async (browser) => {
   const page = await open(browser, { hour: 13.5 });
   await editDb(page, (db) => { db.punches = db.punches.filter((p) => p.crewId === 'c2' && p.type === 'in'); });
@@ -406,6 +420,7 @@ t('UX-R32/R35 with a single punch the verify line and the summary use the singul
 t('UX-R33 Week shows hours so far for shifts still open today as "6.6+", with a footnote', async (browser) => {
   const page = await open(browser, { hour: 13.5 });
   await bossToday(page);
+  await verifiedCount(page); // the team's punches have loaded
   await page.getByRole('button', { name: 'Week', exact: true }).click();
   await page.waitForSelector('table.week');
   const r = await page.evaluate(() => {
