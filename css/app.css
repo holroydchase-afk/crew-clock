@@ -445,3 +445,63 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
   .signin-pick .name-btn:not(.start-btn):hover { border-color: var(--blue); }
   .signin-pick .name-btn .name-role { margin-top: -2px; }
 }
+
+/* ---------- M1.13 ---------- */
+/* ENH-1: the tamper check. Green ink on green-soft / red on red-soft, both AA in light and dark. */
+.verify { display: flex; gap: 10px; align-items: flex-start; border-radius: var(--radius); padding: 12px 16px; font-weight: 600; font-size: 16px;
+  background: var(--card); box-shadow: var(--shadow); color: var(--muted); }
+.verify svg { width: 20px; height: 20px; flex: none; margin-top: 1px; }
+.verify.ok { background: var(--green-soft); color: var(--ink); box-shadow: none; }
+.verify.ok svg { color: var(--green); }
+.verify.bad { background: var(--red-soft); color: var(--red); box-shadow: none; }
+.verify-demo { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin-top: -4px; }
+.verify-demo .btn.sm { min-height: 44px; padding: 8px 14px; font-size: 16px; }
+/* ENH-2: "No signal" in the demo banner, the same 44px row as Reset */
+.demo-actions .demo-switch { gap: 8px; text-decoration: none; }
+.demo-switch .knob { position: relative; width: 34px; height: 20px; border-radius: 10px; border: 2px solid currentColor; box-sizing: border-box; flex: none; }
+.demo-switch .knob::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: currentColor; transition: left .15s; }
+.demo-switch[aria-checked="true"] .knob { background: currentColor; }
+.demo-switch[aria-checked="true"] .knob::after { left: 16px; background: var(--banner-bg); }
+.demo-switch:focus-visible { outline: 3px solid var(--blue); outline-offset: -3px; border-radius: 8px; }
+/* ENH-3: Day | Week, and the week table (scrolls inside its box on a narrow phone, never the page) */
+.view-seg { max-width: 280px; }
+.view-seg button { padding: 10px 6px; }
+.week-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; }
+.week-head h3 { margin: 0; font-size: 18px; }
+.week-nav { display: flex; gap: 8px; }
+.week-nav .btn.sm { min-height: 44px; padding: 8px 12px; font-size: 15px; }
+.week-nav .btn { gap: 4px; }
+.week-nav .flip svg { transform: scaleX(-1); }
+.week-wrap { overflow-x: auto; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); }
+.week-wrap:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+table.week { width: 100%; border-collapse: collapse; font-size: 15px; font-variant-numeric: tabular-nums; }
+table.week th, table.week td { padding: 10px 6px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.week th:first-child { text-align: left; padding-left: 14px; font-weight: 600; }
+table.week td:last-child, table.week th:last-child { padding-right: 14px; }
+table.week thead th { font-size: 13px; color: var(--muted); font-weight: 600; }
+table.week thead th span, table.week thead th small { display: block; }
+table.week thead th small { font-weight: 400; }
+table.week .tot, table.week tfoot { font-weight: 700; }
+table.week tfoot th, table.week tfoot td { border-bottom: 0; }
+table.week thead th .d-short { display: none; text-decoration: none; }
+/* UX-R29: on a phone the whole week fits its box: one-letter days, tight cells, 14px numbers, no "Name" word */
+@media (max-width: 420px) {
+  table.week { font-size: 14px; font-variant-numeric: normal; }
+  table.week th, table.week td { padding: 10px 2px; }
+  table.week th:first-child { padding-left: 8px; white-space: normal; }
+  table.week td:last-child, table.week th:last-child { padding-right: 8px; }
+  table.week thead th .d-long { display: none; }
+  table.week thead th .d-short { display: block; }
+  table.week .name-head { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+/* UX-R30: "Sent at … (no signal)" on its own line, allowed to wrap */
+.sent-late { display: flex; gap: 6px; align-items: flex-start; margin-top: 2px; }
+.sent-late svg { width: 16px; height: 16px; flex: none; margin-top: 2px; }
+/* UX-R31: "Show me" on the red line, in the line's own colour */
+.verify .verify-show { color: inherit; font-size: inherit; font-weight: 600; text-decoration: underline; padding: 12px 4px; margin: -12px 0; min-height: 0; }
+.shift:focus { outline: none; }
+.shift:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+/* UX-R27: a Today time range ("6:54 AM – on the clock") stays on one line inside its column:
+   a smaller avatar on a phone, none on the narrowest (the name is right beside it) */
+@media (max-width: 420px) { .shift { gap: 10px; } .shift > .avatar { width: 34px; height: 34px; font-size: 14px; } }
+@media (max-width: 380px) { .shift > .avatar { display: none; } }

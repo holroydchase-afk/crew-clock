@@ -71,7 +71,36 @@
     return { ok: true, chain: 'linked' };
   }
 
-  const api = { VERSION, canonical, sha256, sha256Bytes, generateKey, exportPublic, signPunch, verifyPunch, b64url, fromB64url };
+  // Checks a whole list at once, the way the boss's screen shows it (M1.13 ENH-1).
+  // keys: { deviceId: public JWK }. Returns { punchId: 'ok' | 'changed' | 'broken_chain' |
+  // 'unsigned' | 'unknown_device' }. 'changed': the punch no longer matches what its phone signed.
+  // 'broken_chain': signed, but it doesn't point at the punch before it from the same phone.
+  // A punch missing from the list (older than the window) is not counted against the next one.
+  async function verifyAll(punches, keys) {
+    const out = {};
+    const byDevice = {};
+    for (const p of punches) {
+      if (!p.signature || !p.hash) { out[p.id] = 'unsigned'; continue; }
+      const key = keys && keys[p.deviceId];
+      if (!key) { out[p.id] = 'unknown_device'; continue; }
+      let v;
+      try { v = await verifyPunch(p, key); } catch (e) { v = { ok: false }; }
+      if (!v.ok) { out[p.id] = 'changed'; continue; }
+      out[p.id] = 'ok';
+      (byDevice[p.deviceId] = byDevice[p.deviceId] || []).push(p);
+    }
+    for (const list of Object.values(byDevice)) {
+      list.sort((a, b) => a.seq - b.seq);
+      for (let i = 1; i < list.length; i++) {
+        const prev = list[i - 1];
+        const p = list[i];
+        if (p.seq === prev.seq || (p.seq === prev.seq + 1 && p.prevHash !== prev.hash)) out[p.id] = 'broken_chain';
+      }
+    }
+    return out;
+  }
+
+  const api = { VERSION, canonical, sha256, sha256Bytes, generateKey, exportPublic, signPunch, verifyPunch, verifyAll, b64url, fromB64url };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Chain = api;
 })(typeof self !== 'undefined' ? self : globalThis);

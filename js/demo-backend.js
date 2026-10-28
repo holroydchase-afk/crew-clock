@@ -1,7 +1,8 @@
 // Stand-in for the Apps Script backend, used when no backendUrl is set.
 // Same actions and rules as backend/Code.gs, stored in this browser only.
 (function (root) {
-  const KEY = 'cc.demo.db.v6'; // v2: boss renamed from "Dad"; v3: job pins rounded (SEP-6); v4: location consents (M1.2); v5: daytime sample day (M1.6); v6: finished day in the evening (M1.10)
+  const KEY = 'cc.demo.db.v7'; // v2: boss renamed from "Dad"; v3: job pins rounded (SEP-6); v4: location consents (M1.2); v5: daytime sample day (M1.6); v6: finished day in the evening (M1.10); v7: signed punches and earlier sample days (M1.13)
+  const OFFLINE_KEY = 'cc.demoOffline'; // the demo's "No signal" switch (M1.13 ENH-2); Reset clears it with the other cc. keys
   const H = 3600000;
 
   // The sample day: today, or yesterday before 9 AM (not enough of today yet). `done` means
@@ -53,12 +54,70 @@
       );
     }
     punches.forEach((p) => { p.receivedAt = p.at + 30000; });
+    const earlier = earlierDays(base, jobs);
     // Everyone agreed to location on install day except Billy S., so a visitor sees the consent screen once.
     const installDay = day - 20 * 24 * H + 7 * H;
     const consents = ['c1', 'c2', 'c3', 'c5'].map((crewId, i) => ({
       id: 'k' + (i + 1), crewId, action: 'agree', textVersion: 'loc-v1', at: installDay + i * 60000, deviceId: null, receivedAt: installDay + i * 60000 + 5000,
     }));
-    return { jobs, crew, punches, photos: {}, consents };
+    return { jobs, crew, punches, earlier, photos: {}, consents, devices: [], sampleDay: base };
+  }
+
+  // M1.13 ENH-3: the weekdays in the 9 days before the sample day, so the boss's week view has a
+  // few days of work. Kept apart from the sample day's punches (db.earlier), and returned only in
+  // the boss's team view. Daytime only; each day's GPS a little different, so no reading repeats.
+  // Travis K. (c5) has none: he is the visitor's "Start here" worker and starts with a clean slate.
+  function earlierDays(base, jobs) {
+    const out = [];
+    const plan = [['c1', 'j1', 6.8, 15.3], ['c2', 'j1', 7.0, 15.5], ['c3', 'j2', 7.1, 15.2], ['c4', 'j3', 7.4, 14.4]];
+    for (let k = 1; k <= 9; k++) {
+      const d = new Date(base);
+      d.setDate(d.getDate() - k);
+      const day = root.Report.startOfDay(d.getTime());
+      const dow = new Date(day).getDay();
+      if (dow === 0 || dow === 6) continue;
+      plan.forEach(([crewId, jobId, inH, outH], i) => {
+        if (crewId === 'c4' && k % 3 === 0) return; // Billy S. works part of the week
+        const job = jobs.find((j) => j.id === (crewId === 'c4' && k % 2 ? 'j4' : jobId));
+        const wiggle = (n) => (((k * 7 + i * 3 + n) % 9) + 1) * 0.00003;
+        const at = (h) => day + Math.round(h * 10) * 360000; // whole tenths of an hour
+        const gps = (n) => (crewId === 'c4' ? [null, null, null] : [job.lat + wiggle(n), job.lng - wiggle(n + 4), 8 + ((k + i + n) % 9)]);
+        const shift = (k % 4) * 0.1;
+        out.push(mk(`e${k}-${crewId}-in`, crewId, job.id, 'in', at(inH + shift), ...gps(0)));
+        out.push(mk(`e${k}-${crewId}-out`, crewId, job.id, 'out', at(outH + shift), ...gps(1)));
+      });
+    }
+    out.forEach((p) => { p.receivedAt = p.at + 30000; });
+    return out;
+  }
+
+  // M1.13 ENH-1: each sample worker's phone signs and chains their punches, like a real phone does
+  // (js/device.js), with a key made here in this browser. The private half is never kept: only the
+  // public key is stored, so the boss's screen can check every punch. No WebCrypto: left unsigned.
+  async function signSeed(db) {
+    const Chain = root.Chain;
+    if (!Chain || !root.crypto || !root.crypto.subtle) return;
+    try {
+      const all = db.earlier.concat(db.punches);
+      const signed = {};
+      const devices = [];
+      for (const c of db.crew) {
+        const mine = all.filter((p) => p.crewId === c.id).sort((a, b) => a.at - b.at);
+        if (!mine.length) continue;
+        const keys = await Chain.generateKey();
+        const deviceId = 'sample-phone-' + c.id;
+        let prev = { seq: 0, hash: 'genesis' };
+        for (const p of mine) {
+          const s = await Chain.signPunch(Object.assign({}, p, { deviceId }), keys.privateKey, prev);
+          prev = { seq: s.seq, hash: s.hash };
+          signed[p.id] = s;
+        }
+        devices.push({ id: deviceId, crewId: c.id, publicKey: await Chain.exportPublic(keys.publicKey) });
+      }
+      db.punches = db.punches.map((p) => signed[p.id] || p);
+      db.earlier = db.earlier.map((p) => signed[p.id] || p);
+      db.devices = devices;
+    } catch (e) { /* an old browser: the sample stays unsigned */ }
   }
 
   // Address search answers in the demo: made-up sample places, rounded like the job pins.
@@ -73,16 +132,29 @@
     return { id, crewId, byCrewId: crewId, jobId, type, at, lat, lng, accuracy };
   }
 
-  function load() {
+  function stored() {
     let db = null;
     try { db = JSON.parse(localStorage.getItem(KEY)); } catch (e) { /* private mode */ }
-    if (!db) db = root.__demoDb || null; // writes failed earlier in this tab (HRD-13)
-    if (!db) {
-      db = seed();
-      db.punches.forEach((p) => score(db, p));
-      save(db);
+    return db || root.__demoDb || null; // writes failed earlier in this tab (HRD-13)
+  }
+
+  // Signing takes a moment, so the store is written only once the sample is signed, and two
+  // first requests share one seed.
+  let seeding = null;
+  function load() {
+    const db = stored();
+    if (db) return Promise.resolve(db);
+    if (!seeding) {
+      seeding = (async () => {
+        const fresh = seed();
+        await signSeed(fresh);
+        fresh.punches.forEach((p) => score(fresh, p));
+        fresh.earlier.forEach((p) => score(fresh, p));
+        save(fresh);
+        return fresh;
+      })().finally(() => { seeding = null; });
     }
-    return db;
+    return seeding;
   }
 
   // After "Reset sample data" the page reloads: a request still in flight must not write the visit back.
@@ -165,6 +237,12 @@
       const accepted = [];
       const rejected = [];
       const reasons = []; // same words as the real server (supabase/functions/_shared/core.ts)
+      // This browser's phone key, first time it is seen (the real app registers it at sign-in)
+      const dev = req.device;
+      db.devices = db.devices || [];
+      if (dev && dev.deviceId && dev.publicKey && !db.devices.some((d) => d.id === dev.deviceId)) {
+        db.devices.push({ id: String(dev.deviceId), crewId: me.id, publicKey: dev.publicKey });
+      }
       const refuse = (id, reason) => { rejected.push(id); reasons.push({ id, reason }); };
       for (const item of req.items || []) {
         if (me.active === false && item.kind !== 'punch') { refuse(item.id, 'Turned off'); continue; }
@@ -187,7 +265,16 @@
             if (who.active === false) p.crewInactive = true; // shown to the boss as crew_inactive
             // Like the real server: no current consent at the time of the punch, no location stored (L3)
             const c = (db.consents || []).filter((x) => x.crewId === item.crewId && x.at <= item.at).sort((x, y) => x.at - y.at).pop();
-            if (!c || c.action !== 'agree' || c.textVersion !== 'loc-v1') { p.lat = null; p.lng = null; p.accuracy = null; }
+            const signedBy = item.signature && db.devices.some((d) => d.id === item.deviceId);
+            if (signedBy) {
+              Object.assign(p, { deviceId: item.deviceId, seq: item.seq, prevHash: item.prevHash, hash: item.hash,
+                signature: item.signature, photoSha256: item.photoSha256 || null });
+            }
+            if (!c || c.action !== 'agree' || c.textVersion !== 'loc-v1') {
+              // Like the server (PS-M112-2): when the GPS is dropped, its hash and signature go too
+              if (p.lat != null || p.lng != null || p.accuracy != null) { delete p.hash; delete p.signature; delete p.prevHash; }
+              p.lat = null; p.lng = null; p.accuracy = null;
+            }
             if (item.photo) db.photos[item.id] = item.photo;
             if (p.type !== 'void') score(db, p);
             db.punches.push(p);
@@ -233,9 +320,13 @@
       if (me.role === 'crew') throw new Error('Boss only');
       const since = req.since || root.Report.startOfDay(Date.now()) - 7 * 24 * H;
       return {
-        punches: db.punches.filter((p) => p.at >= since).map(stripPunch),
+        punches: (db.earlier || []).concat(db.punches).filter((p) => p.at >= since).map(stripPunch),
         crew: db.crew.map(publicCrew),
+        // Public keys only, so the boss's screen can check every punch (ENH-1)
+        devices: (db.devices || []).map((d) => ({ id: d.id, publicKey: d.publicKey })),
         jobs: db.jobs,
+        // The sample day's midnight, so the boss's Today keeps it when a visitor punches the next morning (UX-R28)
+        sampleDay: db.sampleDay != null ? db.sampleDay : null,
         // Status only (latest action and text version), like the real crew_consent_status()
         consents: Object.values(latestConsents(db)).map((c) => ({ crewId: c.crewId, action: c.action, textVersion: c.textVersion })),
       };
@@ -262,23 +353,22 @@
   function handle(action, req) {
     return new Promise((resolve, reject) => {
       setTimeout(() => {
-        if (root.navigator && root.navigator.onLine === false) {
+        if ((root.navigator && root.navigator.onLine === false) || isOffline()) {
           const off = new Error('No signal');
           off.offline = true;
           return reject(off);
         }
-        try {
-          const db = load();
+        load().then((db) => {
           if (!actions[action]) throw new Error('Unknown action');
-          Promise.resolve(actions[action](db, req || {})).then((res) => {
+          return Promise.resolve(actions[action](db, req || {})).then((res) => {
             save(db);
             resolve(Object.assign({ ok: true }, res));
-          }, reject);
-        } catch (e) {
+          });
+        }).catch((e) => {
           const err = new Error(e.message);
           err.server = true;
           reject(err);
-        }
+        });
       }, 150);
     });
   }
@@ -289,11 +379,51 @@
     try {
       ['cc.sbSession', 'cc.orgCode'].forEach((k) => localStorage.removeItem(k));
       const auth = JSON.parse(localStorage.getItem('cc.auth'));
-      if (auth && !load().crew.some((c) => c.id === auth.crewId)) {
+      if (auth && !(stored() || seed()).crew.some((c) => c.id === auth.crewId)) {
         ['auth', 'me', 'last', 'team', 'jobs', 'crew', 'crewNames', 'locPrimed'].forEach((k) => localStorage.removeItem('cc.' + k));
       }
     } catch (e) { /* private mode: nothing was kept */ }
   }
 
-  root.DemoBackend = { handle, forgetCrewApp, sampleDay, reset: () => { stopped = true; try { localStorage.removeItem(KEY); } catch (e) { /* private mode */ } root.__demoDb = null; } };
+  // ---------- demo-only controls (M1.13) ----------
+  // ENH-2 "No signal": every request fails the way it does with no signal, so the phone's outbox
+  // holds what the visitor does until they turn it off.
+  let offlineMem = false;
+  function isOffline() {
+    try { return localStorage.getItem(OFFLINE_KEY) === 'true'; } catch (e) { return offlineMem; }
+  }
+  function setOffline(on) {
+    offlineMem = !!on;
+    try { if (on) localStorage.setItem(OFFLINE_KEY, 'true'); else localStorage.removeItem(OFFLINE_KEY); } catch (e) { /* kept in memory */ }
+  }
+
+  // ENH-1 "Try tampering": move Jake R.'s sample clock-in 30 minutes earlier in the stored records,
+  // the way someone editing the database would, keeping its old hash and signature. Undo puts it back.
+  // id: the punch to change (the boss screen passes one from the day it shows); by default Jake's.
+  function tamper(id) {
+    const db = stored();
+    if (!db) return null;
+    if (db.tampered) return { id: db.tampered.id };
+    const p = (id && db.punches.find((x) => x.id === id && x.signature))
+      || db.punches.find((x) => x.crewId === 'c2' && x.type === 'in' && x.signature) || db.punches.find((x) => x.signature);
+    if (!p) return null;
+    db.tampered = { id: p.id, at: p.at };
+    const earlier = p.at - 30 * 60000;
+    // Stays on the same day, so it stays on the list the boss is looking at
+    p.at = root.Report.startOfDay(earlier) === root.Report.startOfDay(p.at) ? earlier : p.at + 30 * 60000;
+    save(db);
+    return { id: p.id };
+  }
+  function untamper() {
+    const db = stored();
+    if (!db || !db.tampered) return;
+    const p = db.punches.find((x) => x.id === db.tampered.id);
+    if (p) p.at = db.tampered.at;
+    delete db.tampered;
+    save(db);
+  }
+  const isTampered = () => { const db = stored(); return !!(db && db.tampered); };
+
+  root.DemoBackend = { handle, forgetCrewApp, sampleDay, setOffline, isOffline, tamper, untamper, isTampered,
+    reset: () => { stopped = true; try { localStorage.removeItem(KEY); } catch (e) { /* private mode */ } root.__demoDb = null; } };
 })(self);

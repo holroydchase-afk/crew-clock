@@ -2,7 +2,7 @@
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-10-28 (release run: M1.12 Harden)
+Updated: 2026-10-28 (M1.13 Enhancements, review round 2)
 
 ## What it is
 
@@ -14,6 +14,54 @@ Plan and milestone IDs: [PLAN.md](PLAN.md). Hard rules: [CLAUDE.md](CLAUDE.md). 
 contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
+
+- `M1.13` Enhancements for a recruiter's 90-second visit (2026-10-28, staff-pm's picks). qa-tdd
+  wrote red tests first (`tests/enhance.test.js` 17 cases, `tests/e2e-enhance.js` 8 cases, added
+  to `test:e2e`; showcase axe walk now covers Today verified/tampered, Week and "No signal" on);
+  engineer made them green. Why each was picked: **ENH-1** shows engineering depth no other
+  time-clock demo has, in 10 seconds; **ENH-2** proves the headline "works with no signal";
+  **ENH-3** is business value: it replaces paper timesheets.
+  ENH-1 visible tamper check: `Chain.verifyAll` (shared, synced) checks every punch's hash,
+  signature and link in the boss's browser. The demo seed is now signed and chained at seed time
+  with one in-browser P-256 key per sample worker (private half never stored, store key v7); a
+  visitor's own punches are signed by `Device.sign` as before and the demo learns this phone's
+  public key on sync. Boss Today shows "Verified: N of N punches signed and chained" (lock icon) or,
+  in red, "Jake R.'s 6:33 AM clock-in was changed after it was sent." (the time the record now says) with a "Punch was changed
+  after it left the phone" flag on the row. Demo only: "Try tampering" moves one stored punch on
+  the day shown 30 min earlier; "Undo the change" (or Reset sample data) puts it back. No hashes,
+  keys or coordinates on screen. The crew app shows no line (its team view has no public keys) and
+  never the demo controls (tested). ENH-2: a "No signal" switch in the demo banner makes the demo
+  server fail like no signal; the outbox holds the punch ("Saved on your phone…", "1 waiting to
+  send…"), turning it off sends it, and boss Today says "Sent at 8:18 AM (no signal)" for a punch
+  sent over 5 min after the tap. ENH-3: Today has Day | Week; Week shows hours per person Mon–Sun
+  with day and week totals, last week / this week, and "Download CSV" (Name, Date, In, Out, Hours
+  only; cells starting = + - @ get a leading '). The demo has earlier sample days (weekdays in the
+  9 days before the sample day, `db.earlier`, returned only in the boss's team view).
+  Test fixes on the way (no test weakened): CON-6 looked the demo store up under a hard-coded v6
+  key; it now finds whatever version is there.
+  Portfolio / public presence: boss Today and the demo banner changed (new verify line, tamper
+  button, "No signal" switch, Week view).
+  **Round 2 (privacy-security and ux-reviewer findings on M1.13)**, each red first in
+  `tests/enhance.test.js` (+7), `tests/e2e-enhance.js` (+9) and `tests/e2e-polish.js` (UX-R27 x2):
+  PS-M113-1 `Report.dropOldGps` (shared, synced) drops lat, lng, accuracy, address and distance
+  from team punches older than 8 days, in `SupabaseApi.team()` and again in `loadTeam()` before
+  `state.team` / `cc.team`; PRIVACY row now "up to 13 days of times, GPS only for the last 8".
+  PS-M113-2 PRIVACY row for the weekly CSV. PS-M113-3 `csvCell` escapes = + - @ after leading
+  spaces. UX-R28 the demo's team view says which day it seeded (`sampleDay`); before 9 AM a
+  visitor's own punches are added to "Yesterday (sample day)" with a line saying so. UX-R29 week
+  table under 420px: one-letter days (full name in the heading's `abbr`), 2px cells, 14px, names
+  may wrap, "Name" visually hidden; fits at 360 and 390 both weeks. UX-R30 "Sent at … (no
+  signal)" is its own line with a cloud-off icon. UX-R27 the whole time range is one no-wrap
+  piece; the Today avatar is 34px under 420px and hidden under 380px so it fits. UX-R31 no
+  late-sent label on a punch that failed the check; red line "Jake R.'s clock-in was changed to
+  6:33 AM after their phone signed it." with "Show me" (scrolls to and focuses the row). UX-R32
+  "Verified: all N punches match what the phones sent." / "1 punch matches what the phone sent.";
+  "signed on the phone and chained" moved to the demo hint. UX-R33 Week counts open shifts so far
+  as "6.6+" (`weekTotals(..., { now })`; the CSV still leaves them out) with "+ still on the
+  clock". UX-R34 worker Home (demo, switch off): "Demo: turn on No signal above, then clock in."
+  UX-R35 "1 of 1 shift was". Test copy updated to the new words (ENH-1a/b verify regexes; ENH-3a
+  reads full day names from the heading's text, since a phone now shows one letter); no case
+  weakened or skipped.
 
 - `M1.12` Harden (release run 2026-10-28). qa-tdd wrote red tests first (`tests/harden2.test.js`,
   `tests/check-logs.test.js` CRW-R3..R5, `tests/edge/harden.test.ts`, `tests/sql/harden_test.sql`,
@@ -273,6 +321,39 @@ sign-in and server hardening (F-03, F-06, F-12, F-13, F-15), failing tests first
 "Erase their data" button and the B2 purge function if Chase wants M1.4's leftovers first.
 
 ## Decisions to review
+
+- **M1.13 round 2: "after their phone signed it"** (engineer), not "his" as the review wrote, so the
+  line fits any worker.
+- **M1.13 round 2: Today avatars shrink (34px) under 420px and hide under 380px** (engineer), so
+  "6:54 AM – on the clock" fits on one line beside the status chip (UX-R27); the name is beside it.
+- **M1.13 round 2: GPS older than 8 days is dropped on the phone, not by the server query**
+  (engineer), so the week view still gets times from one request; distance in feet goes too.
+- **M1.13 round 2: before 9 AM the demo's day summary still says "so far today"** when the
+  visitor is on the clock, under the "Yesterday (sample day)" heading; left as is.
+- **M1.13 CI fix: ENH-3a/3b wait for the team's punches before opening Week** (qa-tdd). CI clicked
+  Week before the team list loaded and downloaded a CSV with no rows; the tests now wait for the
+  verify line, as a person would see the day load first.
+  CI then showed two real bugs, each with a red test first: (1) a redraw of the boss's Today (the
+  team refreshing, then the check finishing) threw the list back toward the top, so "Show me" could
+  land off screen (UX-R31b; `paint()` now keeps the boss's scroll spot across redraws of the same
+  tab); (2) the Week total could read 16.1 while its days added to 16.0 (totals now add up the
+  tenths shown; the CSV keeps hundredths). UX-R33 also waits for the team to load.
+- **M1.13: the crew app shows no verify line yet** (engineer). Its team view has no phone public
+  keys (RLS lets a worker read only their own `devices` row), so the boss's screen can't check
+  signatures there; the server already checks each punch at sync (`sig_ok`, `bad_signature` flag).
+  Showing keys to the boss would need an RLS change: architect and privacy-security first.
+- **M1.13: "sent late (no signal)" means more than 5 minutes after the tap** (engineer), on Today
+  rows and map popups (the popup said 15 min). Long enough that a phone clock a little off doesn't
+  read as no signal.
+- **M1.13: the boss's team view loads from the Monday a week before this week** (engineer), up to
+  13 days instead of 7–8, so the week view can show last week. Same data the boss could already read.
+- **M1.13: week hours count finished shifts on the day they started** (engineer); an open shift adds
+  nothing; the CSV has one row per shift (open ones with no Out or Hours).
+- **M1.13: the demo's earlier sample days live in `db.earlier`** (engineer), apart from the sample
+  day's punches, and only the boss's team view returns them; Travis K. (the visitor's "Start here")
+  has none, so the map and his Home stay as they were.
+- **M1.13: "No signal" is a switch button (role="switch"), not a checkbox** (engineer), so the banner
+  adds no form field to every screen.
 
 - **M1.12: an impossible GPS reading is dropped, not refused** (qa-tdd). Sync keeps the punch with
   no location and flags `bad_location`; CLAUDE.md "never block a clock-in" wins over strict input
