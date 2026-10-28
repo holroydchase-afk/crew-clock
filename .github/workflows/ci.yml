@@ -26,6 +26,8 @@ jobs:
 
       - name: Unit tests
         run: npm test
+      - name: Agent roster matches CLAUDE.md
+        run: bash scripts/check-agents.sh
       - name: Shared modules in sync
         run: ./scripts/sync-shared.sh && git diff --exit-code
 

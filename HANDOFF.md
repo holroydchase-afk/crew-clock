@@ -2,7 +2,7 @@
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-10-28 (stale live demo fix)
+Updated: 2026-10-28 (studio refresh: agents by default)
 
 ## What it is
 
@@ -14,6 +14,16 @@ Plan and milestone IDs: [PLAN.md](PLAN.md). Hard rules: [CLAUDE.md](CLAUDE.md). 
 contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
+
+- Studio refresh (2026-10-28, Chase's ask): re-synced `.claude/agents/` from studio-agents (adds
+  `architect`, updates `engineer`) and ran its `install-rules.sh`. The CLAUDE.md "Studio agents"
+  section is now the studio template: the main session is Chase's chief of staff and sends each
+  piece of work to the agent the table names, in order (staff-pm, qa-tdd red, engineer, qa-tdd 3x,
+  then ux-reviewer / privacy-security / positioning). New `agents-check` PR workflow fails a PR
+  without an `Agents:` line (or one that changes code without naming qa-tdd), and
+  `scripts/check-agents.sh` (in `npm test` and CI) fails if the table and `.claude/agents/` drift.
+  Also installed `scripts/check-logs.mjs` + `studio-checks.json` (roots `js`, `supabase/functions`),
+  not wired into CI yet (see Exact next step).
 
 - Stale live demo (2026-10-28): Pages had deployed `b410caa` (PRs #18-#21) fine, but phones
   that had opened an older deploy kept showing it ("Dad", old pins, no sample day). The service
@@ -178,6 +188,12 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
 
 ## Exact next step
 
+Log check: `node scripts/check-logs.mjs` reports 2 findings, both P2 until privacy-security rates
+them (a whole error object in Edge logs could carry punch or user data): CRW-R1
+`supabase/functions/_shared/http.ts:28`, CRW-R2 `supabase/functions/sync/index.ts:16`. In their own
+PR: qa-tdd failing case first, log `e.name` or a fixed word, privacy-security review, and add
+`check-logs` to `npm test` and CI in that same PR.
+
 Chase: the three steps in `docs/reviews/2026-10-24-recruiter-ready.md` (confirm the demo pins and
 names are made up, merge #18 then #19 then #20, open the live demo on his phone), then review the
 M1.4 PR and decide on consent-record retention (Decisions to review). Next build task: `M1.9` crew
@@ -185,6 +201,11 @@ sign-in and server hardening (F-03, F-06, F-12, F-13, F-15), failing tests first
 "Erase their data" button and the B2 purge function if Chase wants M1.4's leftovers first.
 
 ## Decisions to review
+
+- **Studio refresh: kept this repo's `handoff-check.yml`.** install-rules reported it as "kept
+  existing"; ours is newer than the template (skips Dependabot, checkout@v7), so nothing to merge.
+  `.claude/settings.json` was already identical. `agents-check.yml` bumped to checkout@v7 to match.
+  Worth porting the Dependabot skip back to studio-agents' template.
 
 - **M1.4: consent records are kept for good.** PRIVACY C6 said "on the crew + 3 years, then
   deleted", but CLAUDE.md's hard rule says consent records are never edited or deleted, and the

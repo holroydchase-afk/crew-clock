@@ -1,0 +1,6 @@
+{
+  "logs": {
+    "roots": ["js", "supabase/functions"],
+    "banned": []
+  }
+}

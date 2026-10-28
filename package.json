@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "GPS clock-in app for construction crews",
   "scripts": {
-    "test": "node --test tests/*.test.js",
+    "test": "node --test tests/*.test.js && bash scripts/check-agents.sh",
     "test:sql": "sh tests/sql/run.sh",
     "test:edge": "deno test --config supabase/functions/deno.json --no-npm tests/edge/",
     "test:mls": "cd messenger && npm test",
