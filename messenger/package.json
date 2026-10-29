@@ -2,7 +2,7 @@
   "name": "crew-clock-messenger",
   "version": "1.0.0",
   "scripts": {
-    "build": "esbuild src/mls.js --bundle --minify --format=iife --global-name=CrewMLS --target=es2020,safari14 --outfile=../js/vendor/crew-mls.js",
+    "build": "esbuild src/mls.js --bundle --minify --format=iife --global-name=CrewMLS --target=es2020,safari14.1 --outfile=../js/vendor/crew-mls.js",
     "test": "node --test mls.test.mjs"
   },
   "dependencies": {

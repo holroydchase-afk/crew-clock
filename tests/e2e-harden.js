@@ -598,7 +598,7 @@ t('UX-4 pick-teammate: one button per row, at least 96x48, "Clock in" when off a
   await page.getByRole('button', { name: /teammate/ }).click();
   await page.waitForSelector('.row-card');
   await page.waitForFunction(() => self.CrewClock.state.team); // the team list arrives after sign-in; the rows redraw
-  await page.waitForTimeout(50);
+  await page.locator('.row-card .mate-btn').first().waitFor({ state: 'visible' }); // UX-R36: buttons only once it has
   const rows = await page.$$eval('.row-card', (els) => els.map((r) => ({
     text: r.innerText,
     buttons: [...r.querySelectorAll('button')].map((b) => { const x = b.getBoundingClientRect(); return { label: b.innerText.trim(), w: x.width, h: x.height }; }),
@@ -613,6 +613,45 @@ t('UX-4 pick-teammate: one button per row, at least 96x48, "Clock in" when off a
     if (b.w < 96 || b.h < 48) throw new Error(`${name}: button is ${b.w}x${b.h}, needs at least 96x48`);
     if (!line.test(r.text)) throw new Error(`${name}: status line missing; row says ${JSON.stringify(r.text)}`);
   }
+  return page;
+});
+
+// UX-R36: before the team list arrives the phone can't tell who is on the clock, so it shows a loading
+// line, not a "Clock in" for everyone (that was also the UX-4 flake: rows redrawn mid-measure).
+t('UX-R36 pick-teammate waits for the team list: a loading line, no punch buttons, then the right ones', async (browser) => {
+  const { page } = await open(browser, 'auto', JOBS.j1);
+  await page.evaluate(() => {
+    const team = self.Api.team;
+    window.__teamGate = new Promise((ok) => { window.__openTeam = ok; });
+    self.Api.team = async (...a) => { await window.__teamGate; return team.apply(self.Api, a); };
+  });
+  await signIn(page, 'Ray T.', '3333');
+  await page.getByRole('button', { name: /teammate/ }).click();
+  await page.waitForSelector('h1:has-text("Which teammate?")');
+  const before = await page.$$eval('.mate-btn', (els) => els.length);
+  if (before) throw new Error(`${before} punch buttons before the team list loaded`);
+  const status = page.getByRole('status').filter({ hasText: /Loading the crew/ });
+  if (!(await status.count())) throw new Error(`no loading line; screen says ${JSON.stringify(await page.locator('main').innerText())}`);
+  await page.evaluate(() => window.__openTeam());
+  const jake = page.locator('.row-card', { hasText: 'Jake R.' }).locator('.mate-btn');
+  await jake.waitFor({ state: 'visible' });
+  const label = (await jake.innerText()).trim();
+  if (label !== 'Clock out') throw new Error(`Jake R. (on the clock) offered ${JSON.stringify(label)}`);
+  if (await status.count()) throw new Error('loading line still showing after the team list loaded');
+  return page;
+});
+
+// UX-R36: with no signal the team list never comes; after a few seconds the buttons show anyway
+// (never block a clock-in), from the crew list this phone already has.
+t('UX-R36b pick-teammate never blocks: buttons show within 5 s when the team list does not arrive', async (browser) => {
+  const { page } = await open(browser, 'auto', JOBS.j1);
+  await page.evaluate(() => { self.Api.team = () => new Promise(() => {}); });
+  await signIn(page, 'Ray T.', '3333');
+  await page.getByRole('button', { name: /teammate/ }).click();
+  await page.waitForSelector('h1:has-text("Which teammate?")');
+  await page.clock.runFor(5000);
+  const n = await page.$$eval('.mate-btn', (els) => els.length);
+  if (n < 4) throw new Error(`${n} punch buttons 5 s after the team list stalled, expected one per teammate`);
   return page;
 });
 
