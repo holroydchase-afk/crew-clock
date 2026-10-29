@@ -5,6 +5,16 @@ on:
     branches: [main]
 
 jobs:
+  # F-15: fail on any key, token or password anywhere in the history, not just this change.
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Secret scan (gitleaks, whole history)
+        run: docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" -w /repo ghcr.io/gitleaks/gitleaks:v8.28.0 git --redact --no-banner --exit-code 1 .
+
   test:
     runs-on: ubuntu-latest
     services:
@@ -37,7 +47,7 @@ jobs:
         run: |
           psql -h localhost -U postgres -c 'create database crewclock_test'
           psql -h localhost -U postgres -d crewclock_test -v ON_ERROR_STOP=1 -q \
-            -f tests/sql/supabase_stub.sql -f supabase/migrations/20261022000000_init.sql -f supabase/migrations/20261023000000_auth_hook.sql -f supabase/migrations/20261023100000_location_consents.sql -f supabase/migrations/20261024000000_retention.sql -f supabase/migrations/20261028000000_harden.sql -f tests/sql/rls_test.sql -f tests/sql/auth_test.sql -f tests/sql/consent_test.sql -f tests/sql/retention_test.sql -f tests/sql/harden_test.sql
+            -f tests/sql/supabase_stub.sql -f supabase/migrations/20261022000000_init.sql -f supabase/migrations/20261023000000_auth_hook.sql -f supabase/migrations/20261023100000_location_consents.sql -f supabase/migrations/20261024000000_retention.sql -f supabase/migrations/20261028000000_harden.sql -f supabase/migrations/20261029000000_crew_auth.sql -f tests/sql/rls_test.sql -f tests/sql/auth_test.sql -f tests/sql/consent_test.sql -f tests/sql/retention_test.sql -f tests/sql/harden_test.sql -f tests/sql/m19_test.sql
 
       - name: Edge Functions (logic + type check)
         run: |

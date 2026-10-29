@@ -42,24 +42,28 @@ and a computer with [Deno](https://deno.com) and the [Supabase CLI](https://supa
 
 ## 3. Secrets and functions
 
-Make push keys once: `npx web-push generate-vapid-keys`. Make two random secrets
-(`openssl rand -hex 32`) for `CRON_SECRET` and `REPORT_TOKEN`. Then:
+Make push keys once: `npx web-push generate-vapid-keys`. Make three random secrets
+(`openssl rand -hex 32`, one each) for `CRON_SECRET`, `REPORT_TOKEN` and `RATE_HMAC_KEY` (the sign-in
+limits count tries under a hash of the IP made with it, so no address is stored). Then:
 
     supabase secrets set \
       B2_KEY_ID=<key id> B2_APPLICATION_KEY=<key> B2_BUCKET=crewclock-photos B2_REGION=us-east-005 \
       VAPID_PUBLIC_KEY=<public> VAPID_PRIVATE_KEY=<private> VAPID_SUBJECT=mailto:you@example.com \
-      CRON_SECRET=<random> REPORT_TOKEN=<random> \
+      CRON_SECRET=<random> REPORT_TOKEN=<random> RATE_HMAC_KEY=<random> \
       APP_ORIGIN=https://clock.example.com
 
     supabase functions deploy
 
 ## 4. The company and the boss
 
-    deno run scripts/new-company.ts "Example Construction" <CODE> "Dad" <boss PIN>
+    deno run scripts/new-company.ts "Example Construction" random "Dad" <boss PIN>
 
-Paste the printed SQL into the Supabase SQL editor and run it. `<CODE>` is the company code: pick
-6 or more random letters (not the town or company name) and keep it out of this repo, since anyone
-with it sees the crew name list.
+Paste the printed SQL into the Supabase SQL editor and run it. `random` makes the company code: 8
+random letters and numbers, printed once on the screen. Write it down; it goes in `ORG_CODE` (step 5)
+and the install link (step 8), and never in this repo, since anyone with it sees the crew name list.
+A code you type yourself must be 8 or more letters and numbers. The name list and PIN screen are
+limited per phone network (30 lists and 20 PIN tries an hour) and per company (40 PIN tries an hour), and the third PIN lockout in a day
+blocks that PIN until Dad sets a new one in the Crew tab; Dad gets an alert on every lockout.
 Dad adds the crew himself from the app's **Crew** tab after that.
 
 ## 5. The app (two builds: the public demo and the crew's app)

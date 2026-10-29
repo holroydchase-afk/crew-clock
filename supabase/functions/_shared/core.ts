@@ -51,8 +51,19 @@ export async function verifyPin(pin: string, stored: string | null): Promise<boo
   return diff === 0;
 }
 
-// Five wrong PINs locks that person out for 15 minutes.
-export const LOCKOUT = { maxFails: 5, minutes: 15 };
+// A clock-in picture's B2 key names the company, the day, the uploader and the punch (M1.9 PS-M19-4),
+// so a leaked punch id never lets someone else's picture land on it: sync keeps only the caller's own.
+export const photoKeyFor = (claims: Claims, punchId: string, now = Date.now()) =>
+  `${claims.org_id}/${new Date(now).toISOString().slice(0, 10)}/${claims.crew_id}/${punchId}.jpg`;
+export function photoKeyOk(claims: Claims, punchId: string, key: string | null | undefined): boolean {
+  if (!key) return false;
+  const m = /^([0-9a-f-]{36})\/\d{4}-\d{2}-\d{2}\/([0-9a-f-]{36})\/([0-9a-f-]{36})\.jpg$/i.exec(key);
+  return !!m && m[1] === claims.org_id && m[2] === claims.crew_id && m[3] === punchId;
+}
+
+// What a boss setting a new PIN clears: the wrong-PIN count, a timed lock, the day's lock rounds and
+// a blocked PIN (M1.9 F-03; the lockout rules are in guard.ts).
+export const PIN_RESET = { failed_pins: 0, locked_until: null, lock_rounds: 0, lock_rounds_from: null, pin_blocked: false };
 
 // ---------- punch ingest ----------
 
@@ -233,7 +244,7 @@ async function ingestPunch(claims: Claims, p: PunchItem, repo: Repo, now: number
     // A fast phone clock is capped (risk future_time says so); the signed time stays in the hash.
     phone_at: new Date(Math.min(p.at, now + FUTURE_CAP_MS)).toISOString(),
     lat: p.lat ?? null, lng: p.lng ?? null, accuracy_m: p.accuracy ?? null,
-    photo_key: p.photoKey || null, photo_sha256: p.photoSha256 || null,
+    photo_key: photoKeyOk(claims, p.id, p.photoKey) ? p.photoKey : null, photo_sha256: p.photoSha256 || null,
     // prev_hash only when it points at a punch kept with its hash (never at one whose GPS was dropped).
     seq: p.seq ?? null, prev_hash: linked ? p.prevHash ?? null : null,
     hash: dropGps ? null : p.hash ?? null, signature: dropGps ? null : p.signature ?? null,
@@ -296,7 +307,7 @@ async function applyEdit(claims: Claims, item: EditItem, repo: Repo) {
   } else {
     const role = ['crew', 'foreman', 'boss'].includes(String(d.role)) ? String(d.role) : 'crew';
     const row: Record<string, unknown> = { id, org_id: claims.org_id, name, role, active: d.active !== false };
-    if (d.pin) { row.pin_hash = await hashPin(String(d.pin)); row.failed_pins = 0; row.locked_until = null; }
+    if (d.pin) Object.assign(row, { pin_hash: await hashPin(String(d.pin)) }, PIN_RESET);
     await repo.upsertCrew(row);
   }
 }

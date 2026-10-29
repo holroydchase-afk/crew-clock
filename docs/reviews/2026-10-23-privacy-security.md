@@ -32,19 +32,19 @@ F-06 (setup points the crew at the demo host) must be closed before M2.1 to M2.5
 | --- | --- | --- | --- | --- |
 | F-01 | P0 | Public Pages site becomes the live crew app as soon as repo variables are set | ASVS 2 V14.1 (build and deploy), LINDDUN Disclosure | Required now, M0.1 / M1.1 |
 | F-02 | P0 | Nothing records a worker's location consent | LINDDUN Unawareness, Non-compliance | Required now, M1.2 (blocks M2.5) |
-| F-03 | P1 | Real company code is in the public repo; crew list is open to anyone with it; 4-digit PIN guessing and lockout abuse | ASVS 2 V2.2.1, V11.1.4; STRIDE Spoofing, DoS | Required before M2.1 |
+| F-03 | P1 | Real company code is in the public repo; crew list is open to anyone with it; 4-digit PIN guessing and lockout abuse | ASVS 2 V2.2.1, V11.1.4; STRIDE Spoofing, DoS | **Closed, M1.9 (2026-10-29)** |
 | F-04 | P1 | No retention: GPS, pictures, chat ciphertext and devices kept forever | ASVS 2 V8.3.8; LINDDUN Non-compliance | Required now, M1.4 (live in M2.4) |
 | F-05 | P1 | No deletion path; foreign keys block deleting a worker; leaving keeps devices, push, chat membership | ASVS 2 V8.3.2; LINDDUN Non-compliance | Required now, M1.4 |
-| F-06 | P1 | SETUP still sends the crew, CORS and `APP_ORIGIN` to the demo's github.io host; functions fall back to `*` CORS | ASVS 2 V14.5.3 | Required before M2.2 |
+| F-06 | P1 | SETUP still sends the crew, CORS and `APP_ORIGIN` to the demo's github.io host; functions fall back to `*` CORS | ASVS 2 V14.5.3 | **Closed, M1.9 (2026-10-29)** (B2 rule and CSP stay M2.2) |
 | F-07 | P2 | Demo names are made up; demo pins sit on real roads at ~10 m precision | LINDDUN Identifiability | Required now (Chase confirms), M1.1 SEP-6 |
 | F-08 | P2 | GPS watch keeps running up to 20 s after backing out of "Finding you" | LINDDUN Detectability; data minimization | M1.3 |
 | F-09 | P2 | No test proves location is read only in the punch flow | ASVS 2 V1.1 (verified controls) | M1.3 |
 | F-10 | P2 | README says the server "only ever sees ciphertext"; it also sees group names, members, sender and time. Phone chat history never trimmed | Surface must match code; LINDDUN Linkability | M1.7 (wording), M1.4 (trim) |
 | F-11 | P2 | Old Sheets backend keeps the PIN in phone storage | ASVS 2 V2.10, V8.2.2 | M1.1 |
-| F-12 | P2 | Any signed-in worker can get an upload link that overwrites a same-day picture of another punch | ASVS 2 V4.2.1 (IDOR) | Scheduled, M1.5 |
-| F-13 | P2 | `REPORT_TOKEN` compared with `!==` and is global, though commented as per-company | ASVS 2 V2.9, V6.2 | Scheduled, M1.5 |
+| F-12 | P2 | Any signed-in worker can get an upload link that overwrites a same-day picture of another punch | ASVS 2 V4.2.1 (IDOR) | **Closed, M1.9 (2026-10-29)** |
+| F-13 | P2 | `REPORT_TOKEN` compared with `!==` and is global, though commented as per-company | ASVS 2 V2.9, V6.2 | **Closed, M1.9 (2026-10-29)** |
 | F-14 | P2 | Foremen read every punch with GPS, all time, whole company | Data minimization, LINDDUN Disclosure | Accepted for beta (crew of 5, foreman needs the map); revisit at M2.6 |
-| F-15 | P2 | No secret scanning in CI or GitHub push protection | Supply chain (gitleaks) | Scheduled, M1.5 |
+| F-15 | P2 | No secret scanning in CI or GitHub push protection | Supply chain (gitleaks) | **Closed, M1.9 (2026-10-29)** (GitHub push protection: Chase checks one box) |
 
 ### F-01 (P0) Public demo vs live backend
 - **Evidence:** committed `main` `.github/workflows/pages.yml` passed `vars.SUPABASE_URL`,
@@ -71,7 +71,7 @@ F-06 (setup points the crew at the demo host) must be closed before M2.1 to M2.5
   version bump re-asks, works offline, no GPS read without consent including teammate punches).
 
 ### F-03 (P1) Company code, open crew list, PIN guessing
-- **Evidence:** `docs/SETUP.md:58,60,87,115` give `TEAYS` as the real company code (and the code
+- **Evidence:** `docs/SETUP.md:58,60,87,115` give `<old code>` as the real company code (and the code
   names the area). `supabase/functions/crew-list/index.ts:6-13` returns every active name and
   role for a code, no sign-in. The crew app's `config.js` will carry the Supabase URL publicly
   (by design). `pin-login/index.ts:36-43` and `_shared/core.ts:55`: 4-digit PINs, 5 tries then
@@ -110,11 +110,11 @@ F-06 (setup points the crew at the demo host) must be closed before M2.1 to M2.5
 ### F-06 (P1) Setup points the crew at the demo host
 - **Evidence (working tree):** `docs/SETUP.md:40` B2 CORS `allowedOrigins` github.io;
   `docs/SETUP.md:52` `APP_ORIGIN=https://holroydchase-afk.github.io`; `docs/SETUP.md:115` install
-  link on github.io with `?org=TEAYS`. Step 5 now says "never use the demo's address for the
+  link on github.io with `?org=<old code>`. Step 5 now says "never use the demo's address for the
   crew", so the file contradicts itself. `supabase/functions/_shared/http.ts:4` falls back to
   `Access-Control-Allow-Origin: *` when `APP_ORIGIN` is unset.
 - **Update (M0.1):** SETUP steps 2, 3, 4, 5 and 8 now use `clock.example.com` and a `<CODE>`
-  placeholder; `TEAYS` is gone from SETUP. `http.ts` and the CSP are still open.
+  placeholder; `<old code>` is gone from SETUP. `http.ts` and the CSP are still open.
 - **Done when:** SETUP steps 2, 3 and 8 use the crew app's own address (placeholder) everywhere;
   `http.ts` throws at start without `APP_ORIGIN` (Edge test); `_headers` gets a
   `Content-Security-Policy` for the crew host (scheduled, M2.2).
@@ -196,7 +196,7 @@ F-06 (setup points the crew at the demo host) must be closed before M2.1 to M2.5
 - **History** (`git log --all -p`, added lines): same result; no secret was ever committed and
   removed.
 - **Identity in the repo (not secret, worth knowing):** `HANDOFF.md:9` names Putnam and Kanawha
-  counties, WV; SETUP's `TEAYS` names the area; "Dad" is the boss; `LICENSE` and the demo URL
+  counties, WV; SETUP's `<old code>` names the area; "Dad" is the boss; `LICENSE` and the demo URL
   name Chase. Together they point to Chase's father's business. Fine for a portfolio piece once
   F-03 removes the real company code. Three merge commits carry Chase's own email as author (GitHub web
   merges), already shown on GitHub. Removing it would need a history rewrite; not recommended.
@@ -223,3 +223,26 @@ F-06 (setup points the crew at the demo host) must be closed before M2.1 to M2.5
 - **Needs Chase:** confirm SEP-6 names (F-07); WV record-keeping and monitoring-notice check
   (docs/PRIVACY.md "Needs Chase"); pick a random company code at setup (F-03); turn on secret
   scanning and push protection (F-15); check the two claude.ai links' sharing (removed from HANDOFF).
+
+## Closed in M1.9 (2026-10-29)
+
+Each item had a failing test first, then the fix (`supabase/functions/_shared/guard.ts`, migration
+`20261029000000_crew_auth.sql`).
+
+- **F-03:** `scripts/new-company.ts ... random ...` makes an 8-character code and refuses one under 8;
+  the old code is gone from the repo, this review included (`tests/m19.test.js`, by hash). `pin-login`
+  counts every try first, 20 an hour per IP and 40 per company (HMAC keys with their own secret, kept a
+  day, advisory-locked), then the person's lock; wrong PINs go through the row-locked `pin_fail`; the
+  third 15-minute lockout in 24 hours blocks the PIN until the boss sets a new one, and the boss gets a
+  push on every lockout. `crew-list` allows 30 lists an hour per IP. Round 2 fixed PS-M19-1..6. Tests: `tests/edge/m19.test.ts`
+  F-03a..k, `tests/sql/m19_test.sql`.
+- **F-06:** `corsFor` throws at start on a missing, `*` or plain-http `APP_ORIGIN` (F-06 test). SETUP
+  already used the crew app's placeholder address. The B2 rule and the crew host's CSP are M2.2.
+- **F-12:** `photoCheck`: a link only for a punch not synced yet, or the caller's own (or one they made
+  for a teammate) that has no picture yet; never another company's (F-12a..e). Keys name the uploader
+  and sync keeps only the caller's own key for that punch (F-12f..g).
+- **F-13:** `tokenOk` compares in constant time and treats a token under 32 characters as not set up;
+  `reportPayload` sends only shift and name fields, so GPS can never leak into the Sheet (F-13a..b).
+  The comment no longer says the token is per company.
+- **F-15:** CI's `secrets` job runs gitleaks v8.28.0 over the whole history on every PR and push to
+  main. GitHub push protection is a repo setting for Chase.

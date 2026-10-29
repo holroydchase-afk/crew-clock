@@ -128,6 +128,8 @@ federal; West Virginia's own rules are a "needs Chase" check (see the end).
 | Chat on the phone (decrypted) | Phone IndexedDB `crewclock-chat` | **90 days** | Trimmed by the app | [to build, M1.4; today kept forever] |
 | Consent records | Supabase `location_consents` | For good | Never edited or deleted (CLAUDE.md hard rule). Was "on the crew + 3 years"; that needs Chase to change the hard rule (HANDOFF, Decisions to review) | [true: nothing deletes them; tested in `tests/sql/retention_test.sql` RET-2g, DEL-3] |
 | Phone keys and user agent | Supabase `devices` | While in use; 90 days after revoked (`revoked_at`) or the worker leaves | Deleted | [built, M1.4] |
+| Sign-in limit counts: a keyed hash (HMAC with `RATE_HMAC_KEY`) of the caller's IP, or of the company for the company cap, and the time, per scope; never the IP itself | Supabase `app.rate_hits` (no phone can read it) | **1 day** | Deleted by `app.apply_retention` | [built, M1.9: `20261029000000_crew_auth.sql`, `tests/sql/m19_test.sql`] |
+| Wrong-PIN count, lock time, lock rounds and "PIN blocked" | Supabase `crew` (server-only columns) | Until the next good PIN (count), the end of the lock, or the boss sets a new PIN (rounds, block) | Reset to 0/null/false | [built, M1.9: `guard.ts` `pinFailure`, `PIN_RESET`; `tests/edge/m19.test.ts`] |
 | Push subscriptions | Supabase `push_subscriptions` | While in use | Deleted when the worker leaves or the browser retires it | [partly true: retired ones are deleted, `_shared/push.ts:28`] |
 | Boss and foreman's team cache | Their phone, localStorage `cc.team` | Up to 13 days of punch times (from the Monday a week before this week, for the week view); GPS only for the last 8 days | Lat, lng, accuracy, address and distance are dropped from any punch older than 8 days before it is held or cached; replaced on each refresh; cleared on sign-out | [true, PS-M113-1] `Report.dropOldGps` in `js/api-supabase.js` `team()` and `js/app.js` `loadTeam()`; `tests/enhance.test.js` |
 | Weekly CSV (timesheet) | Made on the boss's phone, saved to their Downloads | Until the boss deletes it | The boss owns the file; the app keeps no copy and sends it nowhere. Name, Date, In, Out, Hours only: no GPS, ids, photos or risk flags; cells a spreadsheet would run as a formula are escaped | [true, M1.13] `Report.timesheetCsv`; `tests/enhance.test.js` ENH-3, PS-M113-3 |
@@ -218,11 +220,16 @@ Rules:
   build fails if `config.js` names any backend. [in the working tree, not yet merged: M0.1;
   `pages.yml:38`, `build-site.mjs` `assertDemo`]
 - **S2** The crew's Supabase URL, key and company code exist only in the Cloudflare project's
-  variables, never in the repo, never in GitHub variables. The real company code is not
-  `TEAYS` or any word written in this repo. [to build, M2.1/M2.2]
+  variables, never in the repo, never in GitHub variables. The real company code is random, 8 or
+  more characters (`scripts/new-company.ts ... random ...`), and not any word written in this repo.
+  The old code is in public git history (and its hash in `tests/m19.test.js`, which only detects it),
+  so it is retired for good: never use it as a live code.
+  [built, M1.9: `tests/m19.test.js` fails on the old code anywhere in the repo; the variables are
+  M2.1/M2.2]
 - **S3** CORS (`APP_ORIGIN`, the B2 bucket rule) lists only the crew app's address, never the
-  demo's, and the functions refuse to start without `APP_ORIGIN`. [to build, M1.1 / M2.2; today
-  `http.ts:4` falls back to `*` and SETUP still names github.io]
+  demo's, and the functions refuse to start without `APP_ORIGIN`. [functions true since M1.9:
+  `guard.ts` `corsFor` throws on a missing, `*` or plain-http origin (`tests/edge/m19.test.ts` F-06);
+  SETUP uses the crew app's placeholder address; the B2 rule and CSP are M2.2]
 - **S4** The demo always says it is sample data and never asks for a real name, PIN, picture of a
   person, or location it keeps. "Pretend I'm at the job" exists only in the demo. [true since M1.1:
   every demo screen shows "Sample data, made-up crew, saved only in this browser" with a link back

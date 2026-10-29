@@ -1,9 +1,11 @@
 // Name + PIN in, Supabase Auth session out. Registers this phone's public key for punch signatures.
 // This function never signs a token: once the PIN checks out it has Supabase Auth issue
 // a normal session for that person's Auth user, signed with the project's private key.
-import { HttpError, LOCKOUT, verifyPin } from '../_shared/core.ts';
-import { serve } from '../_shared/http.ts';
+import { HttpError, verifyPin } from '../_shared/core.ts';
+import { capAlert, clientIp, ipKey, lockoutAlert, pinGate, RATE } from '../_shared/guard.ts';
+import { env, serve } from '../_shared/http.ts';
 import { admin, anon } from '../_shared/db.ts';
+import { bossIds, pushTo } from '../_shared/push.ts';
 
 // Auth users need an email. Crew never see it and no mail is sent; .invalid is a reserved domain.
 const authEmail = (crewId: string) => `${crewId}@crew.invalid`;
@@ -32,17 +34,42 @@ serve(async (req, body) => {
   const device = (body.device || {}) as { deviceId?: string; publicKey?: JsonWebKey };
   const db = admin();
   const { data: me } = await db.from('crew').select('*').eq('id', crewId).eq('active', true).maybeSingle();
-  if (!me) throw new HttpError(401, "That PIN didn't work");
-  if (me.locked_until && Date.parse(me.locked_until) > Date.now()) {
-    throw new HttpError(429, 'Too many tries. Wait 15 minutes or ask the boss.');
+  // F-03: every try counts before the PIN is checked: 20 an hour from one IP, 40 an hour for the whole
+  // company (that one holds even if someone fakes a new IP each time). Counting first means a burst of
+  // parallel guesses can't slip past (PS-M19-2). An unknown name counts against the IP only.
+  const secret = env('RATE_HMAC_KEY');
+  const ip = clientIp(req);
+  const limits = [
+    ip ? { p_key: await ipKey('pin', ip, secret), p_limit: RATE.pinTriesPerIp, org: null } : null,
+    me ? { p_key: await ipKey('pin-org', me.org_id, secret), p_limit: RATE.pinTriesPerOrg, org: me.org_id as string } : null,
+  ];
+  for (const l of limits) {
+    if (!l) continue;
+    const { data: allowed, error } = await db.rpc('rate_limit', { p_key: l.p_key, p_limit: l.p_limit, p_window_s: RATE.windowSeconds, p_add: true });
+    if (error) throw error;
+    if (allowed) continue;
+    if (l.org) { // the company cap tripped: tell the boss, once an hour (PS-M19-8)
+      const once = await db.rpc('rate_limit', { p_key: await ipKey('pin-alert', l.org, secret), p_limit: 1, p_window_s: RATE.windowSeconds, p_add: true });
+      if (once.data) await pushTo(await bossIds(l.org), capAlert()).catch((e) => console.error('pin-login:cap', e instanceof Error ? e.name : 'unknown'));
+    }
+    throw new HttpError(429, 'Too many tries. Wait an hour or ask the boss.');
   }
+  if (!me) throw new HttpError(401, "That PIN didn't work");
+  pinGate(me);
   if (!(await verifyPin(pin, me.pin_hash))) {
-    const fails = (me.failed_pins || 0) + 1;
-    const lock = fails >= LOCKOUT.maxFails ? new Date(Date.now() + LOCKOUT.minutes * 60000).toISOString() : null;
-    await db.from('crew').update({ failed_pins: lock ? 0 : fails, locked_until: lock }).eq('id', me.id);
+    const { data: lockout, error } = await db.rpc('pin_fail', { p_crew: me.id });
+    if (error) throw error;
+    if (lockout === 'timed' || lockout === 'blocked') {
+      // The boss hears about every lockout, so a guessing script (or a locked-out worker) is noticed.
+      await pushTo(await bossIds(me.org_id), lockoutAlert(me.name, lockout))
+        .catch((e) => console.error('pin-login:alert', e instanceof Error ? e.name : 'unknown'));
+    }
     throw new HttpError(401, "That PIN didn't work");
   }
-  await db.from('crew').update({ failed_pins: 0, locked_until: null }).eq('id', me.id);
+  // Right PIN: signs in only if a wrong guess in the same burst didn't just lock them (PS-M19-7).
+  const ok = await db.rpc('pin_ok', { p_crew: me.id });
+  if (ok.error) throw ok.error;
+  if (!ok.data) throw new HttpError(429, 'Too many tries. Wait 15 minutes or ask the boss.');
 
   let deviceId: string | undefined;
   if (device.deviceId && device.publicKey && device.publicKey.kty === 'EC') {

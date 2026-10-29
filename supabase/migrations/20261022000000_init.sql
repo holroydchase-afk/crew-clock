@@ -34,7 +34,7 @@ language sql stable as $$ select app.crew_role() = 'boss' $$;
 create table public.orgs (
   id uuid primary key default gen_random_uuid(),
   name text not null,
-  code text not null unique,          -- short code crews type once, e.g. TEAYS
+  code text not null unique,          -- short code crews type once, e.g. EXAMPLE1 (random, 8+ characters: scripts/new-company.ts)
   timezone text not null default 'America/New_York',
   created_at timestamptz not null default now()
 );
