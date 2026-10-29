@@ -34,7 +34,9 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
   caller's own key for that punch, so a leaked id can't get someone else's picture onto it.
   F-13: report token compared in constant time, under 32 characters counts as not set up, payload
   whitelisted to shift and name fields. F-15: CI `secrets` job runs gitleaks v8.28.0 over the whole
-  history (not run here: the sandbox may not run downloaded binaries, so CI is its first run).
+  history. Its first CI run found 5 hits, all made-up MLS key package labels in
+  `tests/sql/retention_test.sql` (`kp-test-...`), checked by hand and listed by exact fingerprint in
+  `.gitleaksignore` (a test fails if an entry points outside `tests/`). No real secret in the history.
   PRIVACY: two new retention rows (rate hits, lock fields), S2 and S3 updated.
   privacy-security on the first build: 2 P1 (spoofable first `x-forwarded-for` entry; parallel
   guesses sharing one strike) and 4 P2 (one shared bucket with no IP; photo key before sync; HMAC key

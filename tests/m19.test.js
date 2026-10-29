@@ -108,3 +108,8 @@ test('M1.9 the new migration and SQL test run locally and in CI', () => {
     assert.match(src, /tests\/sql\/m19_test\.sql/, f);
   }
 });
+
+test('F-15 .gitleaksignore only waves through test fixtures, one exact finding at a time', () => {
+  const lines = read('.gitleaksignore').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
+  for (const l of lines) assert.match(l, /^[0-9a-f]{40}:tests\/[^:]+:[a-z0-9-]+:\d+$/, `ignore entry ${l}`);
+});
