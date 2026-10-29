@@ -37,6 +37,10 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
   history. Its first CI run found 5 hits, all made-up MLS key package labels in
   `tests/sql/retention_test.sql` (`kp-test-...`), checked by hand and listed by exact fingerprint in
   `.gitleaksignore` (a test fails if an entry points outside `tests/`). No real secret in the history.
+  Open flake seen on this PR's first CI run (not this change): `tests/e2e-update.js` "after a
+  redeploy, reopening the demo shows the new build" got 'old' once; it waits fixed 2 s / 1 s for the
+  new service worker, too short on a slow runner. Green on the next run and 3x locally. Fix: wait for
+  the new worker to activate instead of a fixed sleep (failing test first).
   PRIVACY: two new retention rows (rate hits, lock fields), S2 and S3 updated.
   privacy-security on the first build: 2 P1 (spoofable first `x-forwarded-for` entry; parallel
   guesses sharing one strike) and 4 P2 (one shared bucket with no IP; photo key before sync; HMAC key
