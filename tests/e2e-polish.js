@@ -734,6 +734,10 @@ t('UX-R54 390 -> 500 -> 390 fresh demo, 1:30 PM: crossing 420px keeps focus on "
   await boss(page, 'today');
   await page.waitForSelector('.shift');
   await page.waitForSelector('[data-action="send-report"]');
+  // Wait for the day to finish loading (team list, then the check), as a person would see it
+  // settle; on a slow CI runner those redraws landed after the focus and moved it to BODY.
+  await page.waitForFunction(() => /^Verified/.test((document.querySelector('[data-verify-line]') || {}).textContent || ''));
+  await page.waitForTimeout(500);
   await page.focus('[data-action="send-report"]');
   await page.waitForTimeout(200);
   const look = () => page.evaluate(() => {

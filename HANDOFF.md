@@ -31,7 +31,9 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
   visible; R45 48px header and Day/Week buttons; R46/R50/R51 the summary says "Not in yet" during
   the day and "Didn't clock in" after it, drops "so far today" on the sample yesterday, and totals
   match the Week cell; R53 README says **Reset** as the phone does and its 3 screenshots are
-  retaken; R54 turning the phone keeps focus and scroll on boss Today.
+  retaken; R54 turning the phone keeps focus and scroll on boss Today. (CI: the R54 case first
+  focused the button before the day finished loading, and the later redraw moved focus; it now
+  waits for the Verified line, as UX-R31b's tests do. Its assertions are unchanged.)
   UI score (ux-reviewer): 6/10 before round 1, 8.5/10 after round 4. Next gap below P2: a phone
   held sideways (740x360) shows about one Today row under the banner and header.
   Portfolio / public presence: the demo's phone banner, boss Today layout, chat screen and the
