@@ -2,7 +2,7 @@
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-10-28 (M1.14 Demo verify)
+Updated: 2026-10-29 (known-bug fixes: UX-4 flake, esbuild bump)
 
 ## What it is
 
@@ -14,6 +14,19 @@ Plan and milestone IDs: [PLAN.md](PLAN.md). Hard rules: [CLAUDE.md](CLAUDE.md). 
 contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
+
+- Known-bug fixes (2026-10-29, Chase's "yes" after the bug list). UX-R36: before the first team list
+  arrives, the foreman's "Which teammate?" screen shows "Loading the crew…" instead of a "Clock in"
+  for everyone; after 4 s with no list (no signal) it shows the buttons from the crew list anyway, so
+  a clock-in is never blocked. Red first in `tests/e2e-harden.js` (UX-R36, UX-R36b). That was also
+  the UX-4 flake's likely cause (rows redrawn while measured); UX-4 now waits for the real buttons,
+  assertions unchanged. The flake never reproduced here (55 runs, 30 of them 6 at a time), so the
+  fix is by reading. esbuild 0.24 to 0.28 in `messenger/` (Dependabot #17, CI red): 0.28 refuses to
+  lower ts-mls's default-value destructuring for Safari 14.0, so the chat bundle's target is now
+  `safari14.1` and `js/vendor/crew-mls.js` is rebuilt. Asked Dependabot to rebase #10 and #13 so the
+  fixed handoff check runs on them. Also found: `tests/e2e.js` failed whenever it ran before 9 AM
+  (the sample day becomes yesterday's and says "Not in", not "Not in yet"), so CI went red
+  overnight; it now runs on a 1:30 PM page clock like e2e-harden (red at 03:55Z before, green after).
 
 - `M1.14` Demo verify (2026-10-28, release plan phase 6). The README matches tonight's demo
   (positioning: a 6-step walkthrough, the tamper check, "No signal" and the week view). Its three
@@ -116,9 +129,8 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
   today" summary counts open shifts, UX-R22 placeholders, UX-R23 one word "Messages", UX-R24 hours
   under the status chip, UX-R25 contrast measured (ok). Flakes fixed: RST-1 (a demo request in
   flight after "Reset sample data" wrote the old visit back; `DemoBackend.reset()` now stops later
-  saves, RST-2 unit test) and the UX-R10 test's team-list race. Open flake: UX-4 in e2e-harden
-  (1 in ~12 runs, "button is 0x0", likely the same team-list race). Known gap for staff-pm: before
-  the team list loads, the pick-teammate screen offers "Clock in" for everyone.
+  saves, RST-2 unit test) and the UX-R10 test's team-list race. The UX-4 flake and the
+  pick-teammate "Clock in for everyone before the team list loads" gap: fixed 2026-10-29 (UX-R36).
   Portfolio / public presence: the demo's first screen and laptop layout changed.
 
 - `M1.10` works for real (release run 2026-10-28, Chase's 7-phase plan). Chase's 11:20 PM phone
@@ -329,6 +341,9 @@ sign-in and server hardening (F-03, F-06, F-12, F-13, F-15), failing tests first
 
 ## Decisions to review
 
+- **2026-10-29: chat bundle targets Safari 14.1, not 14.0** (esbuild 0.28 can't build for 14.0).
+  iPhones still on iOS 14.0 (2020, all can update to 14.1+) lose crew chat; clock-in is unaffected.
+- **2026-10-29: the teammate screen waits at most 4 s for the team list** before showing buttons.
 - **M1.13 round 2: "after their phone signed it"** (engineer), not "his" as the review wrote, so the
   line fits any worker.
 - **M1.13 round 2: Today avatars shrink (34px) under 420px and hide under 380px** (engineer), so

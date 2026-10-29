@@ -10,6 +10,10 @@ const { launch } = require('./browser.js');
   const shot = (n) => page.screenshot({ path: `tests/shots/${n}.png` });
   // The demo starts with "pretend I'm at the job" on (M1.6); this smoke test drives the real GPS path.
   await ctx.addInitScript(() => localStorage.setItem('cc.demoFake', 'false'));
+  // The sample day depends on the hour (before 9 AM it's yesterday's, "Not in" instead of "Not in yet"),
+  // so CI failed overnight. Like e2e-harden, the page's clock starts at 1:30 PM today and runs on.
+  const afternoon = new Date(); afternoon.setHours(13, 30, 0, 0);
+  await page.clock.install({ time: afternoon });
   await page.goto('http://localhost:8123/');
   // Demo default: no PIN, tapping a name signs in. Boss is labeled and isn't called "Dad".
   const bossLabel = await page.textContent('.name-btn:has-text("Sam W.") .name-role');

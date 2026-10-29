@@ -262,7 +262,18 @@
     if (['home', 'boss', 'pick-teammate'].includes(state.screen)) render();
   }
 
+  // Until the first team list arrives, pick-teammate can't tell who is on the clock (UX-R36). It waits
+  // at most TEAM_WAIT_MS, then offers buttons from the crew list anyway: never block a clock-in.
+  const TEAM_WAIT_MS = 4000;
+  function teamWaitStart() {
+    if (state.team || state.teamWaitUntil) return;
+    state.teamWaitUntil = Date.now() + TEAM_WAIT_MS;
+    setTimeout(() => { if (state.screen === 'pick-teammate') render(); }, TEAM_WAIT_MS + 50);
+  }
+  const teamWaiting = () => !state.team && Date.now() < (state.teamWaitUntil || 0);
+
   async function loadTeam() {
+    teamWaitStart();
     try {
       // From the Monday a week before this week's, so the week view can show last week too (ENH-3)
       const res = await Api.team(state.auth, Report.weekStart(Date.now() - 86400000) - 7 * 86400000);
@@ -272,6 +283,7 @@
         devices: Array.isArray(res.devices) ? res.devices : null, sampleDay: Api.isDemo && res.sampleDay != null ? res.sampleDay : null, at: Date.now() };
       Store.local.set('team', state.team);
     } catch (e) { /* keep the cached copy */ }
+    state.teamWaitUntil = 0;
   }
 
   function setLast(p) {
@@ -726,14 +738,14 @@
       <button class="back" data-action="go-home">${Icons.back} Back</button>
       <h1>Which teammate?</h1>
       <p class="muted">You'll need to take a picture of them at the job.</p>
-      <div class="list">${mates.map((c) => `
+      ${teamWaiting() ? '<p class="muted" role="status">Loading the crew…</p>' : `<div class="list">${mates.map((c) => `
         <div class="row-card">
           <span class="avatar">${esc(initials(c.name))}</span>
           <span class="grow"><span class="mate-name">${esc(c.name)}</span>${mateLine(c.id)}</span>
           ${mateOpen(c.id)
             ? `<button class="mate-btn out" data-action="mate-punch" data-id="${esc(c.id)}" data-type="out">Clock out</button>`
             : `<button class="mate-btn in" data-action="mate-punch" data-id="${esc(c.id)}" data-type="in">Clock in</button>`}
-        </div>`).join('') || '<p class="muted">No teammates yet.</p>'}</div>
+        </div>`).join('') || '<p class="muted">No teammates yet.</p>'}</div>`}
     </main>`;
   };
 
