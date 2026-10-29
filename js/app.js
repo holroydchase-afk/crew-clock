@@ -584,7 +584,7 @@
   function demoBanner() {
     return Api.isDemo ? `<div class="demo-banner" role="note"><span>Sample data, made-up crew, saved only in this browser</span>
       <span class="demo-actions">${demoControls() ? `<button type="button" class="demo-switch" role="switch" aria-checked="${DemoBackend.isOffline()}" data-action="demo-offline"><span class="knob" aria-hidden="true"></span>No signal</button>` : ''}<button type="button" data-action="demo-reset">Reset sample data</button>
-      <a href="https://chaseholroyd.com/">Back to chaseholroyd.com</a></span></div>` : '';
+      <a href="https://chaseholroyd.com/"><span class="wide-only">Back to </span>chaseholroyd.com</a></span></div>` : '';
   }
   // The demo's own controls ("No signal", "Try tampering"): the public demo build only, never the
   // crew app, nor a crew build that fell back to demo (same guard as fakeGps, M1.13).
@@ -1096,7 +1096,7 @@
     const names = weekNames();
     const ids = [...new Set(teamCrew().map((c) => c.id).concat(Object.keys(w.byCrew)))]
       .sort((a, b) => String(names[a] || '').localeCompare(String(names[b] || '')));
-    const hrs = (h, open) => (open ? `${(h || 0).toFixed(1)}+` : h ? h.toFixed(1) : '–');
+    const hrs = (h, open) => (open ? `${AI.tenths(h)}+` : h ? AI.tenths(h) : '–');
     const none = { days: [0, 0, 0, 0, 0, 0, 0], total: 0, open: [] };
     // Totals add up the tenths shown, so a row's days always sum to its total on screen (the CSV
     // keeps hundredths)
@@ -1170,7 +1170,7 @@
           <div class="muted small shift-times">${span}${dupes.length ? ' <span class="nw">· clocked out twice</span>' : ''}</div>
           ${late ? `<div class="muted small sent-late">${Icons.cloudOff}<span>${late}</span></div>` : ''}${riskHtml(flags)}</div>
         <div class="shift-right">${chip(s.status)}
-          ${s.hours != null ? `<span class="muted small shift-hours nw">${s.hours.toFixed(1)} h</span>` : ''}
+          ${s.hours != null ? `<span class="muted small shift-hours nw">${AI.tenths(s.hours)} h</span>` : ''}
           ${photoP ? `<button class="mini" data-action="show-photo" data-id="${esc(photoP.id)}">${Icons.camera}</button>` : ''}</div>
       </div>`;
     }).join('');
@@ -1179,7 +1179,7 @@
     if (self.AI) {
       const names = Object.fromEntries(teamCrew().map((c) => [c.id, c.name]));
       const jobNames = Object.fromEntries(((state.team && state.team.jobs) || state.jobs).map((j) => [j.id, j.name]));
-      const text = state.aiSummary || AI.plainSummary(shifts, names, jobNames, notIn.map((c) => c.name), Date.now());
+      const text = state.aiSummary || AI.plainSummary(shifts, names, jobNames, notIn.map((c) => c.name), Date.now(), { pastDay: sampleYesterday });
       state.summaryFacts = text;
       // The demo never loads a model: it would fetch a script from another site (SEP-2)
       const canWrite = !Api.isDemo && AI.tier() >= 2 && !state.aiSummary && shifts.length;

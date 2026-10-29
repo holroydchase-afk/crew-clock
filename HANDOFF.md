@@ -2,7 +2,7 @@
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-10-29 (known-bug fixes: UX-4 flake, esbuild bump)
+Updated: 2026-10-29 (live demo check and its four fixes; known-bug fixes)
 
 ## What it is
 
@@ -14,6 +14,19 @@ Plan and milestone IDs: [PLAN.md](PLAN.md). Hard rules: [CLAUDE.md](CLAUDE.md). 
 contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
+
+- Live demo check and fixes (2026-10-29, Chase: "fix it all"). The live demo at chaseholroyd.com
+  was loaded from the sandbox for the first time (github.io and the map tiles stay blocked): it
+  served main `bbbc883` (service worker `v3-e1ada9485d`, same files as a fresh `--demo` build) and
+  every core flow worked at 390x844 and 1280x800. Four bugs, each with a failing test first
+  (`tests/livecheck.test.js`, LIVE-1..4 in `tests/e2e-enhance.js`): LIVE-1 the phone's message box
+  sat below the screen under the demo banner (the chat now takes what is left of the screen);
+  LIVE-2 "so far today" under "Yesterday (sample day)" (now "so far"); LIVE-3 8.45 h showed 8.4 on
+  Today and 8.5 on Week (one rounding rule, `AI.tenths`, and the summary adds up the rows' tenths);
+  LIVE-4 the demo banner was 143 px tall on a phone (now about 72 px: 13px text, one row of
+  controls, the link reads "chaseholroyd.com" under 560px). Report:
+  project files `crew-clock/live-check-2026-10-29/report.md`.
+  Portfolio / public presence: the demo banner is shorter on phones; chat, Today and Week fixes.
 
 - Known-bug fixes (2026-10-29, Chase's "yes" after the bug list). UX-R36: before the first team list
   arrives, the foreman's "Which teammate?" screen shows "Loading the crew…" instead of a "Clock in"
@@ -350,8 +363,10 @@ sign-in and server hardening (F-03, F-06, F-12, F-13, F-15), failing tests first
   "6:54 AM – on the clock" fits on one line beside the status chip (UX-R27); the name is beside it.
 - **M1.13 round 2: GPS older than 8 days is dropped on the phone, not by the server query**
   (engineer), so the week view still gets times from one request; distance in feet goes too.
-- **M1.13 round 2: before 9 AM the demo's day summary still says "so far today"** when the
-  visitor is on the clock, under the "Yesterday (sample day)" heading; left as is.
+- **Live fixes: before 9 AM the demo's day summary says "so far"** (not "so far today") when the
+  visitor is on the clock under "Yesterday (sample day)" (LIVE-2; replaces M1.13's "left as is").
+- **Live fixes: the phone demo banner's link reads "chaseholroyd.com"**, dropping "Back to" under
+  560px so the three controls fit one row (LIVE-4).
 - **M1.13 CI fix: ENH-3a/3b wait for the team's punches before opening Week** (qa-tdd). CI clicked
   Week before the team list loaded and downloaded a CSV with no rows; the tests now wait for the
   verify line, as a person would see the day load first.
@@ -536,6 +551,9 @@ Waiting on Chase, in order (each unblocks an M2 task; nothing in M1 needs these)
 
 ## Portfolio / public presence
 
+- 2026-10-29: live demo loaded and walked end to end (chaseholroyd.com, latest main). Fixes: a
+  shorter demo banner on phones, the message box always on screen, matching hours, no "today"
+  under the yesterday sample day.
 - 2026-10-28 (M1.10 to M1.14 release run): README and its screenshots match the demo after
   M1.13 (tamper check, "No signal" switch, Week view). Live demo not loaded from the sandbox.
 - 2026-10-24 (M1.6, M1.7 night shift): the demo opens with what it is and a "Start here" name,

@@ -110,6 +110,15 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 .demo-actions { display: flex; flex-wrap: wrap; justify-content: center; column-gap: 12px; margin: 2px 0 -12px; }
 .demo-actions a, .demo-actions button { font: inherit; color: inherit; background: none; border: 0; text-decoration: underline;
   white-space: nowrap; cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; padding: 0 6px; }
+/* LIVE-4: on a phone the banner is one short line of text and one row of controls (about 76 px,
+   was 143), so the screen under it starts higher. Taps stay 44px tall. */
+@media (max-width: 560px) {
+  .demo-banner { font-size: 13px; padding: calc(env(safe-area-inset-top) + 8px) 8px 12px; }
+  .private-banner + .demo-banner { padding-top: 8px; }
+  .demo-actions { column-gap: 2px; }
+  .demo-actions a, .demo-actions button { padding: 0 5px; }
+  .demo-banner .wide-only { display: none; }
+}
 /* On the boss screen the banner sits inside .boss, so the tab bar still fits in 100dvh (UX-5). */
 .demo-banner + .screen, .boss > .demo-banner + .boss-head { padding-top: 16px; }
 
@@ -376,6 +385,10 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 .e2e.small { font-size: 13px; gap: 4px; }
 .e2e.small svg { width: 14px; height: 14px; }
 .screen.chat { gap: 0; padding-bottom: 0; height: 100vh; height: 100dvh; min-height: 0; }
+/* LIVE-1: with a banner above it, the chat takes what is left of the screen, so the message box
+   never drops below the bottom edge */
+#app:has(> .screen.chat) { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+#app > .screen.chat { flex: 1 1 auto; height: auto; width: 100%; box-sizing: border-box; }
 .chat-head { display: flex; align-items: center; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
 .bubbles { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 14px 0; }
 .bubble { max-width: 82%; align-self: flex-start; background: var(--card); box-shadow: var(--shadow); border-radius: 18px 18px 18px 6px; padding: 10px 14px; display: flex; flex-direction: column; gap: 2px; font-size: 18px; }

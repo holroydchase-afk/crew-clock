@@ -84,19 +84,25 @@
 
   // ---------- tier 0: day summary from facts, no model ----------
   // shifts: Report.pairShifts output; names: id -> name; jobs: id -> name; notIn: names; now: ms
-  // A shift still open counts up to now, and the sentence says "so far today" (UX-R21).
-  function plainSummary(shifts, names, jobs, notIn, now) {
+  // One rounding rule for every hours figure on screen: half a tenth rounds up (LIVE-3).
+  // toFixed alone shows 8.45 as "8.4" while the week grid shows "8.5".
+  function tenths(h) { return (Math.round((h || 0) * 10) / 10).toFixed(1); }
+
+  // A shift still open counts up to now, and the sentence says "so far today" (UX-R21), or just
+  // "so far" when the day shown is the demo's sample day from yesterday (opts.pastDay, LIVE-2).
+  // Finished shifts add up the tenths their rows show, so the total matches the list (LIVE-3).
+  function plainSummary(shifts, names, jobs, notIn, now, opts) {
     const at = now == null ? Date.now() : now;
     const people = new Set(shifts.map((s) => s.crewId));
     const onsite = shifts.filter((s) => s.status === 'onsite').length;
     const running = shifts.filter((s) => s.open && s.inAt != null && at > s.inAt);
-    const hours = shifts.reduce((a, s) => a + (s.hours || 0), 0) + running.reduce((a, s) => a + (at - s.inAt) / 3600000, 0);
+    const hours = shifts.reduce((a, s) => a + Number(tenths(s.hours)), 0) + running.reduce((a, s) => a + (at - s.inAt) / 3600000, 0);
     const flagged = shifts.filter((s) => s.status === 'offsite' || s.status === 'near' || s.status === 'nogps' || s.missingOut);
     const byJob = {};
     shifts.forEach((s) => { byJob[jobs[s.jobId] || 'a job'] = (byJob[jobs[s.jobId] || 'a job'] || 0) + 1; });
     const busiest = Object.entries(byJob).sort((a, b) => b[1] - a[1])[0];
     const parts = [];
-    const worked = running.length ? `${people.size === 1 ? 'has' : 'have'} worked ${hours.toFixed(1)} hours so far today` : `worked ${hours.toFixed(1)} hours`;
+    const worked = running.length ? `${people.size === 1 ? 'has' : 'have'} worked ${tenths(hours)} hours so far${opts && opts.pastDay ? '' : ' today'}` : `worked ${tenths(hours)} hours`;
     parts.push(`${people.size} ${people.size === 1 ? 'person' : 'people'} ${worked} across ${Object.keys(byJob).length} ${Object.keys(byJob).length === 1 ? 'job' : 'jobs'}.`);
     if (shifts.length) parts.push(`${onsite} of ${shifts.length} ${shifts.length === 1 ? 'shift was' : 'shifts were'} fully on site${busiest ? `; ${busiest[0]} had the most crew` : ''}.`);
     // Each person once, and no ".." when a name ends in a period ("Ray T.") (UX-8).
@@ -144,7 +150,7 @@
     return Array.isArray(last) ? last[last.length - 1].content : String(last);
   }
 
-  const api = { tier, onWifi, analyzePixels, photoQuality, PHOTO_WORDS, plainSummary, labelPhoto, writeSummary, SITE_WORDS };
+  const api = { tier, onWifi, analyzePixels, photoQuality, PHOTO_WORDS, plainSummary, tenths, labelPhoto, writeSummary, SITE_WORDS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AI = api;
 })(typeof self !== 'undefined' ? self : globalThis);
