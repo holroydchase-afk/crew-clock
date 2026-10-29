@@ -726,6 +726,55 @@ for (const [vp, rule] of [[PHONE, 'bottom'], [{ width: 360, height: 740 }, 'bott
   });
 }
 
+// ---------- UX-R54: turning the phone across 420px keeps the boss's place on Today ----------
+// The summary card moves to its spot for the new width (UX-R49) without redrawing the screen, so the
+// button the boss was on keeps focus and the list does not jump back to the top.
+t('UX-R54 390 -> 500 -> 390 fresh demo, 1:30 PM: crossing 420px keeps focus on "Send today\'s report now", one summary, 4 shifts, and the scroll spot', async (browser) => {
+  const page = await open(browser);
+  await boss(page, 'today');
+  await page.waitForSelector('.shift');
+  await page.waitForSelector('[data-action="send-report"]');
+  await page.focus('[data-action="send-report"]');
+  await page.waitForTimeout(200);
+  const look = () => page.evaluate(() => {
+    const a = document.activeElement;
+    const sums = document.querySelectorAll('.summary');
+    const s = sums[0];
+    const list = document.querySelector('.list');
+    const notIn = document.querySelector('.not-in');
+    const after = (x, y) => !!(x && y && (y.compareDocumentPosition(x) & Node.DOCUMENT_POSITION_FOLLOWING));
+    const body = document.querySelector('.boss-body');
+    const scroller = body && body.scrollHeight > body.clientHeight ? body : document.scrollingElement;
+    return {
+      active: a ? `${a.tagName}${a.dataset && a.dataset.action ? `[data-action="${a.dataset.action}"]` : ''}` : 'none',
+      onButton: !!(a && a.matches && a.matches('[data-action="send-report"]')),
+      summaries: sums.length, shifts: document.querySelectorAll('.shift').length,
+      afterList: after(s, list), beforeNotIn: notIn ? after(notIn, s) : null, beforeList: after(list, s),
+      hasNotIn: !!notIn, scroll: scroller ? scroller.scrollTop : 0,
+    };
+  });
+  const start = await look();
+  const errs = [];
+  const check = async (label, width) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.waitForTimeout(400);
+    const r = await look();
+    if (!r.onButton) errs.push(`${label}: focus moved to ${r.active}, not "Send today's report now"`);
+    if (r.summaries !== 1) errs.push(`${label}: ${r.summaries} summary cards (want 1)`);
+    if (r.shifts !== 4) errs.push(`${label}: ${r.shifts} shift rows (want 4)`);
+    if (width <= 420 && !r.afterList) errs.push(`${label}: the summary is not after the shift list`);
+    if (width > 420 && r.hasNotIn && !r.beforeNotIn) errs.push(`${label}: the summary is not before the "Not in" box`);
+    if (width > 420 && !r.hasNotIn && !r.beforeList) errs.push(`${label}: the summary is not before the shift list`);
+    if (Math.abs(r.scroll - start.scroll) > 50) errs.push(`${label}: scrolled to ${Math.round(r.scroll)}px, was ${Math.round(start.scroll)}px`);
+  };
+  if (!start.onButton) throw new Error(`setup: could not focus "Send today's report now" (focus on ${start.active})`);
+  if (start.shifts !== 4 || start.summaries !== 1) throw new Error(`setup: ${start.shifts} shifts and ${start.summaries} summaries at 390 (want 4 and 1)`);
+  await check('at 500px', 500);
+  await check('back at 390px', 390);
+  if (errs.length) throw new Error(errs.join('; '));
+  return page;
+});
+
 // ---------- UX-R45: boss header and Day/Week targets are 44px tall ----------
 t('UX-R45 390: every button in the boss header and the Day/Week toggle is at least 44px tall', async (browser) => {
   const page = await open(browser);

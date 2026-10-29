@@ -1398,7 +1398,18 @@
   // Turning a phone or resizing across 420px moves the Today summary to its place for that width (UX-R49)
   if (self.matchMedia) {
     const mq = matchMedia(SMALL_TODAY);
-    const onSmall = () => { if (state.screen === 'boss' && state.bossTab === 'today' && state.todayView !== 'week') render(); };
+    // The card itself moves (no redraw), so the boss keeps focus and scroll spot (UX-R54).
+    const onSmall = (e) => {
+      if (state.screen !== 'boss' || state.bossTab !== 'today' || state.todayView === 'week') return;
+      const card = $app.querySelector('.boss-body .summary');
+      const list = card && $app.querySelector('.boss-body .list');
+      if (!list) return;
+      const body = $app.querySelector('.boss-body');
+      const keep = body ? body.scrollTop : 0;
+      if (e.matches) list.after(card);
+      else { const notIn = list.parentNode.querySelector('.not-in'); (notIn || list).before(card); }
+      if (body) body.scrollTop = keep;
+    };
     if (mq.addEventListener) mq.addEventListener('change', onSmall); else if (mq.addListener) mq.addListener(onSmall);
   }
 
