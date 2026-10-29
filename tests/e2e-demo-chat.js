@@ -190,6 +190,26 @@ for (const vp of [{ width: 390, height: 844 }, { width: 360, height: 740 }, { wi
   });
 }
 
+// ---------- UX-R52: the thread's Back button is a full 48x48 touch target ----------
+for (const vp of [{ width: 360, height: 740 }, { width: 390, height: 844 }, { width: 1280, height: 800 }]) {
+  t(`UX-R52 ${vp.width}x${vp.height}: every Back button in the open thread's header is at least 48x48`, async (browser) => {
+    const { page } = await open(browser);
+    await page.setViewportSize(vp);
+    await signIn(page, 'Sam W.');
+    await chatList(page);
+    await groups(page, true);
+    await openGroup(page, 'Smith kitchen crew');
+    await page.waitForSelector('.chat-head .back');
+    const backs = await page.$$eval('.chat-head .back', (bs) => bs.map((b) => {
+      const r = b.getBoundingClientRect();
+      return { name: b.getAttribute('aria-label') || b.innerText.trim(), w: r.width, h: r.height };
+    }));
+    const small = backs.filter((b) => b.w < 48 || b.h < 48);
+    if (small.length) throw new Error(`under 48x48: ${small.map((b) => `"${b.name}" ${b.w.toFixed(1)}x${b.h.toFixed(1)}px`).join(', ')}`);
+    return page;
+  });
+}
+
 async function pageState(page) {
   return page.evaluate(() => {
     const h = document.querySelector('#app h1, #app h2, #app .job-name');

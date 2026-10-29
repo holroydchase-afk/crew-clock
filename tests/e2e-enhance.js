@@ -512,6 +512,40 @@ t('UX-R46b before 9 AM, with a visitor\'s clock-in on "Yesterday (sample day)", 
   return page;
 });
 
+// ---------- showcase review round 2: the day summary agrees with the screen ----------
+t('UX-R50 at 7 PM the summary\'s hours equal the Week "All" cell for today', async (browser) => {
+  const page = await open(browser, { hour: 19 });
+  await bossToday(page);
+  await verifiedCount(page);
+  const summary = await text(page.locator('#summary-text'));
+  const m = summary.match(/worked (\d+\.\d) hours/);
+  if (!m) throw new Error(`summary has no "worked N.N hours": "${summary}"`);
+  await page.getByRole('button', { name: 'Week', exact: true }).click();
+  await page.waitForSelector('table.week tfoot');
+  const all = await page.evaluate(() => {
+    const col = (new Date().getDay() + 6) % 7 + 1;
+    const tr = document.querySelector('table.week tfoot tr');
+    return tr && tr.children[col] ? tr.children[col].innerText.trim() : null;
+  });
+  if (all !== m[1]) throw new Error(`summary says ${m[1]} hours, the Week "All" cell for today says "${all}"`);
+  return page;
+});
+
+t('UX-R51 at 1:30 PM the summary says "Not in yet: Travis K.", not "Didn\'t clock in"; at 7 PM it says "Didn\'t clock in: Travis K."', async (browser) => {
+  const errs = [];
+  for (const [hour, want, never] of [[13.5, /Not in yet: Travis K\./, /Didn't clock in/], [19, /Didn't clock in: Travis K\./, /Not in yet/]]) {
+    const page = await open(browser, { hour });
+    await bossToday(page);
+    await verifiedCount(page);
+    const summary = await text(page.locator('#summary-text'));
+    if (!want.test(summary)) errs.push(`at ${hour === 19 ? '7 PM' : '1:30 PM'} the summary lacks ${want}: "${summary}"`);
+    if (never.test(summary)) errs.push(`at ${hour === 19 ? '7 PM' : '1:30 PM'} the summary says ${never}`);
+    if (page.errors.length) errs.push('page errors: ' + page.errors.join('; '));
+  }
+  if (errs.length) throw new Error(errs.join('; '));
+  return null;
+});
+
 // ---------- the crew app never gets the demo controls ----------
 const SB = 'https://fake.supabase.co';
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');

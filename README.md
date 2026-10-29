@@ -45,8 +45,8 @@ data.
    in, out and hours, no GPS).
 
 Before 9 AM your time the sample crew's day is yesterday's, labeled "Yesterday (sample day)".
-Every demo screen has a banner that says it's sample data, with **Reset sample data** and a link
-back to chaseholroyd.com.
+Every demo screen has a banner that says it's sample data, with **Reset** (start the sample data
+over) and a link back to chaseholroyd.com.
 
 ## Product decisions
 

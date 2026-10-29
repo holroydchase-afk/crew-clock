@@ -383,6 +383,7 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 .e2e.small svg { width: 14px; height: 14px; }
 .screen.chat { gap: 0; padding-bottom: 0; height: auto; min-height: 0; }
 .chat-head { display: flex; align-items: center; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.chat-head .back { min-width: 48px; justify-content: center; } /* a full 48x48 touch target (UX-R52) */
 .bubbles { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 14px 0; }
 .bubble { max-width: 82%; align-self: flex-start; background: var(--card); box-shadow: var(--shadow); border-radius: 18px 18px 18px 6px; padding: 10px 14px; display: flex; flex-direction: column; gap: 2px; font-size: 18px; }
 .bubble b { font-size: 14px; color: var(--blue); }

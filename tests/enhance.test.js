@@ -345,3 +345,26 @@ test('UX-R42 Report.fmtHours: one formatter for hours everywhere, rounding halve
   assert.strictEqual(Report.fmtHours(4), '4.0');
   assert.strictEqual(Report.fmtHours(8.44), '8.4');
 });
+
+// ---------- showcase review round 2 (UX-R50, UX-R51) ----------
+test('UX-R50 plainSummary totals the tenths shown per shift, like the Today rows and the Week cells (3.96 + 7.96 + 8.46 + 8.46 h says 29.0)', () => {
+  const AI = require('../js/ai.js');
+  const s = AI.plainSummary([
+    { crewId: 'a', jobId: 'j1', status: 'onsite', hours: 3.96 },
+    { crewId: 'b', jobId: 'j1', status: 'onsite', hours: 7.96 },
+    { crewId: 'c', jobId: 'j2', status: 'onsite', hours: 8.46 },
+    { crewId: 'd', jobId: 'j2', status: 'onsite', hours: 8.46 },
+  ], { a: 'A', b: 'B', c: 'C', d: 'D' }, { j1: 'Job one', j2: 'Job two' }, [], 0, { dayOver: true });
+  assert.match(s, /worked 29\.0 hours/, `summary: "${s}"`);
+});
+
+test('UX-R51 plainSummary says "Not in yet:" while the day is not over, and "Didn\'t clock in:" once it is', () => {
+  const AI = require('../js/ai.js');
+  const shifts = [{ crewId: 'a', jobId: 'j1', status: 'onsite', hours: 8 }];
+  const midDay = AI.plainSummary(shifts, { a: 'Jake R.' }, { j1: 'Job one' }, ['Travis K.'], 0, { dayOver: false });
+  assert.match(midDay, /Not in yet: Travis K\./, `mid-day summary: "${midDay}"`);
+  assert.doesNotMatch(midDay, /Didn't clock in/, `mid-day summary: "${midDay}"`);
+  const evening = AI.plainSummary(shifts, { a: 'Jake R.' }, { j1: 'Job one' }, ['Travis K.'], 0, { dayOver: true });
+  assert.match(evening, /Didn't clock in: Travis K\./, `evening summary: "${evening}"`);
+  assert.doesNotMatch(evening, /Not in yet/, `evening summary: "${evening}"`);
+});

@@ -702,9 +702,9 @@ for (const scheme of ['light', 'dark']) {
   });
 }
 
-// ---------- UX-R43: boss Today shows a shift above the tab bar on a phone ----------
-for (const [vp, rule] of [[PHONE, 'bottom'], [{ width: 360, height: 740 }, 'top']]) {
-  t(`UX-R43 ${vp.width}x${vp.height} fresh demo, 1:30 PM: the first Today shift ${rule === 'bottom' ? 'is fully' : 'starts'} above the tab bar, and the demo banner is <= 96px`, async (browser) => {
+// ---------- UX-R43 / UX-R49: boss Today shows the whole first shift above the tab bar on a phone (360 and 390) ----------
+for (const [vp, rule] of [[PHONE, 'bottom'], [{ width: 360, height: 740 }, 'bottom']]) {
+  t(`UX-R43/R49 ${vp.width}x${vp.height} fresh demo, 1:30 PM: the first Today shift ${rule === 'bottom' ? 'is fully' : 'starts'} above the tab bar, and the demo banner is <= 96px`, async (browser) => {
     const page = await open(browser, vp);
     await boss(page, 'today');
     await page.waitForSelector('.shift');
@@ -735,6 +735,70 @@ t('UX-R45 390: every button in the boss header and the Day/Week toggle is at lea
     .map((b) => ({ name: (b.getAttribute('aria-label') || b.innerText || '').trim(), h: b.getBoundingClientRect().height }))
     .filter((b) => b.h < 44));
   if (short.length) throw new Error(`under 44px: ${short.map((b) => `"${b.name}" ${b.h.toFixed(1)}px`).join(', ')}`);
+  return page;
+});
+
+// ---------- UX-R53: every control the README's walkthrough names in bold is on the 390px demo ----------
+// A browser case (not tests/readme.test.js, which is node-only): it walks the README's steps and
+// collects each screen's visible text, plus the aria-labels of icon-only controls. Matching ignores
+// case and runs of spaces.
+t('UX-R53 390: every bold name in the README\'s "What to try" (and its banner sentence) is visible text or an aria-label on the demo', async (browser) => {
+  const fs = require('fs');
+  const path = require('path');
+  const readme = fs.readFileSync(path.join(__dirname, '../README.md'), 'utf8');
+  const walk = readme.slice(readme.indexOf('## What to try'), readme.indexOf('## Product decisions'));
+  if (walk.length < 100) throw new Error('setup: no "What to try" section in README.md');
+  const bold = (x) => [...new Set([...x.matchAll(/\*\*([^*]+)\*\*/g)].map((m) => m[1].trim()))];
+  const all = bold(walk);
+  const bannerLine = walk.replace(/\s+/g, ' ').match(/Every demo screen has a banner[^.]*\./);
+  if (!bannerLine) throw new Error('setup: the README lost its banner sentence');
+  const bannerNames = bold(bannerLine[0]);
+  const norm = (x) => x.replace(/\s+/g, ' ').trim().toLowerCase();
+  const seen = [];
+  const banner = [];
+  const grab = async () => {
+    const r = await page.evaluate(() => {
+      const shown = (e) => { const b = e.getBoundingClientRect(); return b.width > 0 && b.height > 0; };
+      // An aria-label counts only for a control a visitor sees no words on (an icon button): a
+      // button showing "Reset" with the label "Reset sample data" shows a visitor "Reset".
+      const labels = (root) => [...root.querySelectorAll('[aria-label]')].filter((e) => shown(e) && !e.innerText.trim()).map((e) => e.getAttribute('aria-label'));
+      const b = document.querySelector('.demo-banner');
+      return { text: [document.body.innerText, ...labels(document)].join('\n'), banner: b ? [b.innerText, ...labels(b)].join('\n') : '' };
+    });
+    seen.push(norm(r.text));
+    banner.push(norm(r.banner));
+  };
+  const page = await open(browser);
+  await grab(); // first screen: Travis K., Start here, Billy S., Sam W.
+  await signIn(page, 'Travis K.');
+  await grab(); // worker Home: No signal, Clock In, Messages, Not you?
+  await page.click('[data-to="chat-list"]');
+  await page.waitForSelector('[data-action="chat-open"]', { timeout: 20000 }).catch(() => {});
+  await grab(); // chat list: Smith kitchen crew
+  await page.goto(BASE);
+  await page.waitForSelector('.punch, .name-btn');
+  if (await page.locator('[data-action="sign-out"]').count()) await page.click('[data-action="sign-out"]');
+  await page.waitForSelector('.name-btn');
+  await boss(page, 'map');
+  await grab(); // boss: Map, Today
+  await bossTab(page, 'today');
+  await page.waitForSelector('[data-action="demo-tamper"]', { timeout: 10000 }).catch(() => {});
+  await grab(); // Try tampering, Week
+  if (await page.locator('[data-action="demo-tamper"]').count()) {
+    await page.click('[data-action="demo-tamper"]');
+    await page.waitForSelector('[data-action="demo-untamper"]', { timeout: 10000 }).catch(() => {});
+    await grab(); // Undo the change
+    if (await page.locator('[data-action="demo-untamper"]').count()) await page.click('[data-action="demo-untamper"]');
+  }
+  await page.getByRole('button', { name: 'Week', exact: true }).click();
+  await page.waitForSelector('table.week');
+  await grab(); // Download CSV
+  const missing = all.filter((n) => !seen.some((t) => t.includes(norm(n))));
+  const notInBanner = bannerNames.filter((n) => !banner.some((t) => t.includes(norm(n))));
+  const errs = [];
+  if (missing.length) errs.push(`README bold names not on any 390px demo screen: ${missing.map((n) => `"${n}"`).join(', ')}`);
+  if (notInBanner.length) errs.push(`README's banner sentence names ${notInBanner.map((n) => `"${n}"`).join(', ')}, not in the 390px banner's text or labels`);
+  if (errs.length) throw new Error(errs.join('; '));
   return page;
 });
 

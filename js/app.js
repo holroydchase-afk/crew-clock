@@ -4,6 +4,7 @@
   const cfg = self.APP_CONFIG || {};
   const $app = document.getElementById('app');
   const FIX_WINDOW_MS = 2 * 60 * 1000;
+  const SMALL_TODAY = '(max-width: 420px)'; // boss Today puts the people above the summary (UX-R49)
 
   // iPhone/iPad Safari in the browser (not installed to the Home Screen): Safari 26's floating
   // toolbar sits over the bottom of the page, so the CSS lifts the boss tab bar clear of it.
@@ -1186,7 +1187,7 @@
     if (self.AI) {
       const names = Object.fromEntries(teamCrew().map((c) => [c.id, c.name]));
       const jobNames = Object.fromEntries(((state.team && state.team.jobs) || state.jobs).map((j) => [j.id, j.name]));
-      const text = state.aiSummary || AI.plainSummary(shifts, names, jobNames, notIn.map((c) => c.name), Date.now(), { pastDay: sampleYesterday });
+      const text = state.aiSummary || AI.plainSummary(shifts, names, jobNames, notIn.map((c) => c.name), Date.now(), { pastDay: sampleYesterday, dayOver: !!dayOver });
       state.summaryFacts = text;
       // The demo never loads a model: it would fetch a script from another site (SEP-2)
       const canWrite = !Api.isDemo && AI.tier() >= 2 && !state.aiSummary && shifts.length;
@@ -1194,14 +1195,18 @@
         ${canWrite ? `<button class="link" data-action="ai-summary">Write it up with AI on this phone</button>` : ''}
         ${state.aiSummary ? '<div class="muted small">Written by an AI model running on this phone.</div>' : ''}</div>`;
     }
+    // On a small phone the people come first and the summary follows them, so a whole shift row
+    // shows above the tab bar (UX-R49). DOM order matches what is seen, so reading and focus order do too.
+    const small = !!(self.matchMedia && matchMedia(SMALL_TODAY).matches);
     return `<div class="pad">
       <div class="today-head"><h2>${sampleYesterday ? 'Yesterday (sample day)' : 'Today'}</h2>${seg}</div>
       ${visitorToday ? '<p class="muted small">Your own punches from this morning are added to it.</p>' : ''}
       ${verifyHtml(dayPunches)}
-      ${summary}
+      ${small ? '' : summary}
       ${notIn.length ? `<div class="not-in"><div class="not-in-title">${Icons.alert} ${dayOver ? 'Not in' : 'Not in yet'} (${notIn.length})</div>
         <div>${notIn.map((c) => `<span class="pill">${esc(c.name)}</span>`).join('')}</div></div>` : ''}
       <div class="list">${rows || '<p class="muted">No one has clocked in today.</p>'}</div>
+      ${small ? summary : ''}
       ${verifyHintHtml(dayPunches)}
       <div id="push-slot"></div>
       <div class="actions">${isBoss() ? `<button class="btn secondary" data-action="send-report">${Icons.send} Send today's report now</button>` : ''}${sheet}</div>
@@ -1389,6 +1394,12 @@
     if (state.screen === 'job-form') mountJobMap();
     if (self.Messenger) Messenger.afterRender();
     mountPush();
+  }
+  // Turning a phone or resizing across 420px moves the Today summary to its place for that width (UX-R49)
+  if (self.matchMedia) {
+    const mq = matchMedia(SMALL_TODAY);
+    const onSmall = () => { if (state.screen === 'boss' && state.bossTab === 'today' && state.todayView !== 'week') render(); };
+    if (mq.addEventListener) mq.addEventListener('change', onSmall); else if (mq.addListener) mq.addListener(onSmall);
   }
 
   async function mountPush() {

@@ -92,7 +92,9 @@
     const people = new Set(shifts.map((s) => s.crewId));
     const onsite = shifts.filter((s) => s.status === 'onsite').length;
     const running = shifts.filter((s) => s.open && s.inAt != null && at > s.inAt);
-    const hours = shifts.reduce((a, s) => a + (s.hours || 0), 0) + running.reduce((a, s) => a + (at - s.inAt) / 3600000, 0);
+    // Each shift counts as the tenths shown on its row and in the Week cells, so the totals agree (UX-R50)
+    const tenths = (h) => Math.round((h || 0) * 10) / 10;
+    const hours = shifts.reduce((a, s) => a + tenths(s.hours), 0) + running.reduce((a, s) => a + tenths((at - s.inAt) / 3600000), 0);
     const flagged = shifts.filter((s) => s.status === 'offsite' || s.status === 'near' || s.status === 'nogps' || s.missingOut);
     const byJob = {};
     shifts.forEach((s) => { byJob[jobs[s.jobId] || 'a job'] = (byJob[jobs[s.jobId] || 'a job'] || 0) + 1; });
@@ -112,7 +114,8 @@
     const groups = REASONS.map(([, words], i) => [words, Object.keys(worst).filter((id) => worst[id] === i).map((id) => names[id] || 'someone')])
       .filter(([, who]) => who.length);
     if (groups.length) parts.push(end(`Check: ${groups.map(([words, who]) => `${words} for ${who.join(', ')}`).join('; ')}`));
-    if (notIn && notIn.length) parts.push(end(`Didn't clock in: ${notIn.join(', ')}`));
+    // Mid-day the missing are "not in yet"; once the day is over (or unknown) they "didn't clock in" (UX-R51)
+    if (notIn && notIn.length) parts.push(end(`${opts && opts.dayOver === false ? 'Not in yet' : "Didn't clock in"}: ${notIn.join(', ')}`));
     return parts.join(' ');
   }
 
