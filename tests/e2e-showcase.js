@@ -66,6 +66,21 @@ async function signOut(page) {
   await page.waitForSelector('.name-btn');
 }
 
+// Opens a chat thread from the boss's Chat tab and makes sure one of the boss's own bubbles shows.
+async function openThread(page, group) {
+  await page.click('[data-action="boss-tab"][data-tab="chat"]');
+  await page.waitForSelector('[data-action="chat-open"]', { timeout: 20000 });
+  await page.locator('[data-action="chat-open"]', { hasText: group }).first().click();
+  await page.waitForSelector('#chat-text', { timeout: 20000 });
+  await page.waitForFunction(() => document.querySelectorAll('.bubble').length >= 3, null, { timeout: 20000 }).catch(() => {});
+  if (!(await page.locator('.bubble.mine').count())) {
+    await page.fill('#chat-text', 'On my way with the trim');
+    await page.press('#chat-text', 'Enter');
+    await page.waitForSelector('.bubble.mine', { timeout: 20000 });
+  }
+  await page.waitForTimeout(200);
+}
+
 async function walk(browser, viewport, colorScheme) {
   const found = [];
   const page = await newPage(browser, viewport, colorScheme);
@@ -149,6 +164,11 @@ async function walk(browser, viewport, colorScheme) {
   await page.click('[data-action="demo-offline"]');
   await check(page, 'boss today (no signal on)', found);
   await page.click('[data-action="demo-offline"]');
+  // UX-R41: an open chat thread, with one of the boss's own bubbles in it
+  await openThread(page, 'Smith kitchen crew');
+  await check(page, 'boss chat thread', found);
+  await page.click('[data-action="chat-back"]');
+  await page.waitForSelector('.boss');
   await page.click('[data-action="boss-tab"][data-tab="jobs"]');
   await page.click('[data-action="job-new"]');
   await page.waitForSelector('[data-action="job-save"]');
@@ -253,6 +273,41 @@ fv('SHOW-4 the demo\'s first screen says what this is and what to try', async (b
   for (const want of [/construction crew/i, /no signal/i, /Start here/, /boss/i]) {
     if (!want.test(text)) throw new Error(`the sign-in screen does not mention ${want}: ${JSON.stringify(text.slice(0, 240))}`);
   }
+  return page;
+});
+
+// UX-R41: the boss's own bubble in dark mode, text and time, at 4.5:1 or better
+fv('UX-R41 dark 390: the boss\'s own chat bubble text and its time have at least 4.5:1 contrast on the bubble', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'dark', serviceWorkers: 'block' });
+  const page = await ctx.newPage();
+  page.problems = [];
+  page.on('pageerror', (e) => page.problems.push(e.message));
+  await ctx.route((u) => u.origin !== ORIGIN, (r) => r.fulfill({ status: 204, body: '' }));
+  await page.addInitScript(gpsAtJob);
+  await page.goto(BASE);
+  await page.waitForSelector('.name-btn');
+  await signIn(page, 'Sam W.');
+  await page.waitForSelector('.boss');
+  await openThread(page, 'Smith kitchen crew');
+  const r = await page.evaluate(() => {
+    const parse = (c) => { const m = c.match(/rgba?\(([^)]+)\)/); const p = m[1].split(/[ ,/]+/).filter(Boolean).map(Number); return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }; };
+    const over = (top, under) => ({ r: top.r * top.a + under.r * (1 - top.a), g: top.g * top.a + under.g * (1 - top.a), b: top.b * top.a + under.b * (1 - top.a), a: 1 });
+    const bgOf = (el) => { const stack = []; for (let e = el; e; e = e.parentElement) stack.push(parse(getComputedStyle(e).backgroundColor)); let c = { r: 0, g: 0, b: 0, a: 1 }; for (const x of stack.reverse()) c = over(x, c); return c; };
+    const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b); };
+    const ratio = (el) => { const bg = bgOf(el); const fg = over(parse(getComputedStyle(el).color), bg); const [hi, lo] = [lum(fg), lum(bg)].sort((a, b) => b - a);
+      return { ratio: (hi + 0.05) / (lo + 0.05), fg: getComputedStyle(el).color, bg: getComputedStyle(el.closest('.bubble')).backgroundColor }; };
+    const b = document.querySelector('.bubble.mine');
+    if (!b) return null;
+    const textEl = b.querySelector('span') || b;
+    const small = b.querySelector('small');
+    return { text: ratio(textEl), small: small ? ratio(small) : null };
+  });
+  if (!r) throw new Error('no .bubble.mine in the thread');
+  const errs = [];
+  if (r.text.ratio < 4.5) errs.push(`bubble text ${r.text.fg} on ${r.text.bg}: ${r.text.ratio.toFixed(2)}:1`);
+  if (!r.small) errs.push('the bubble has no time (small)');
+  else if (r.small.ratio < 4.5) errs.push(`bubble time ${r.small.fg} on ${r.small.bg}: ${r.small.ratio.toFixed(2)}:1`);
+  if (errs.length) throw new Error(errs.join('; '));
   return page;
 });
 

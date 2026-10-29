@@ -337,3 +337,11 @@ test('UX-R33 weekTotals with { now }: a shift still open counts its hours so far
   const plain = Report.weekTotals(punches, monday);
   assert.strictEqual((plain.byCrew.c2 || { total: 0 }).total, 0, 'without now, open shifts still add nothing (the CSV)');
 });
+
+test('UX-R42 Report.fmtHours: one formatter for hours everywhere, rounding halves up (8.45 -> "8.5", 7.05 -> "7.1")', () => {
+  assert.strictEqual(typeof Report.fmtHours, 'function', 'Report.fmtHours is missing');
+  assert.strictEqual(Report.fmtHours(8.45), '8.5');
+  assert.strictEqual(Report.fmtHours(7.05), '7.1');
+  assert.strictEqual(Report.fmtHours(4), '4.0');
+  assert.strictEqual(Report.fmtHours(8.44), '8.4');
+});

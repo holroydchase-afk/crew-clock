@@ -158,6 +158,12 @@
     return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   }
 
+  // Hours as the boss's screens show them: one decimal, halves rounded up, so the Today row, the
+  // week cell and the map agree (UX-R42; toFixed alone turns 8.45 into "8.4"). The CSV keeps hundredths.
+  function fmtHours(h) {
+    return (Math.round((h || 0) * 10) / 10).toFixed(1);
+  }
+
   const pad2 = (n) => String(n).padStart(2, '0');
   const ymd = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
   const clock = (ms) => {
@@ -177,7 +183,7 @@
     return lines.map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
   }
 
-  const api = { SEVERITY, worse, pairShifts, shiftsForDay, lastPunchByCrew, startOfDay, weekStart, weekDays, weekTotals, dropOldGps, csvCell, timesheetCsv };
+  const api = { SEVERITY, worse, pairShifts, shiftsForDay, lastPunchByCrew, startOfDay, weekStart, weekDays, weekTotals, dropOldGps, csvCell, timesheetCsv, fmtHours };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Report = api;
 })(typeof self !== 'undefined' ? self : this);

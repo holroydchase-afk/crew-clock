@@ -582,9 +582,9 @@
 
   // One line on every demo screen (SEP-3, SEP-4); the crew app never shows it (SEP-5).
   function demoBanner() {
-    return Api.isDemo ? `<div class="demo-banner" role="note"><span>Sample data, made-up crew, saved only in this browser</span>
-      <span class="demo-actions">${demoControls() ? `<button type="button" class="demo-switch" role="switch" aria-checked="${DemoBackend.isOffline()}" data-action="demo-offline"><span class="knob" aria-hidden="true"></span>No signal</button>` : ''}<button type="button" data-action="demo-reset">Reset sample data</button>
-      <a href="https://chaseholroyd.com/">Back to chaseholroyd.com</a></span></div>` : '';
+    return Api.isDemo ? `<div class="demo-banner" role="note"><span class="demo-label">Sample data, made-up crew, <span class="wide-only">saved </span>only in this browser</span>
+      <span class="demo-actions">${demoControls() ? `<button type="button" class="demo-switch" role="switch" aria-checked="${DemoBackend.isOffline()}" data-action="demo-offline"><span class="knob" aria-hidden="true"></span>No signal</button>` : ''}<button type="button" data-action="demo-reset" aria-label="Reset sample data">Reset<span class="wide-only">&nbsp;sample data</span></button>
+      <a href="https://chaseholroyd.com/" aria-label="Back to chaseholroyd.com"><span class="wide-only">Back to&nbsp;</span>chaseholroyd.com</a></span></div>` : '';
   }
   // The demo's own controls ("No signal", "Try tampering"): the public demo build only, never the
   // crew app, nor a crew build that fell back to demo (same guard as fakeGps, M1.13).
@@ -1064,19 +1064,25 @@
       line = `<div class="verify bad" data-verify-line role="alert">${Icons.alert}<span>${esc(c.name)}'s ${KIND[p.type] || 'punch'} was changed to ${time(p.at)} after their phone signed it.${bad.length > 1 ? ` ${bad.length - 1} more changed.` : ''}
         <button class="link verify-show" data-action="show-flagged" data-id="${esc(p.id)}">Show me</button></span></div>`;
     } else {
-      // Plain words (UX-R32); "signed and chained" is in the demo hint below
+      // Plain words (UX-R32); "signed and chained" is in the demo hint under the list
       const words = unchecked ? `${ok} of ${dayPunches.length} punches match what the phones sent. ${unchecked} not signed (older phone).`
         : ok === 1 ? '1 punch matches what the phone sent.' : `all ${ok} punches match what the phones sent.`;
-      line = `<div class="verify ok" data-verify-line>${Icons.lock}<span>Verified: ${words}</span></div>`;
+      // The demo's "Try tampering" is a text button in the same card, not a row of its own (UX-R43)
+      const tryIt = demoControls() && !DemoBackend.isTampered() && ok
+        ? '<button class="link verify-try" data-action="demo-tamper">Try tampering</button>' : '';
+      line = tryIt
+        ? `<div class="verify ok verify-row"><div class="verify-line" data-verify-line>${Icons.lock}<span>Verified: ${words}</span></div>${tryIt}</div>`
+        : `<div class="verify ok" data-verify-line>${Icons.lock}<span>Verified: ${words}</span></div>`;
     }
-    let demo = '';
-    if (demoControls()) {
-      demo = DemoBackend.isTampered()
-        ? `<div class="verify-demo"><button class="btn secondary sm" data-action="demo-untamper">Undo the change</button></div>`
-        : ok ? `<div class="verify-demo"><button class="btn secondary sm" data-action="demo-tamper">Try tampering</button>
-          <span class="muted small">Each punch is signed on the phone and chained to the one before. Demo: this changes one saved time, like someone editing the records.</span></div>` : '';
-    }
-    return line + demo;
+    const undo = demoControls() && DemoBackend.isTampered()
+      ? `<div class="verify-demo"><button class="btn secondary sm" data-action="demo-untamper">Undo the change</button></div>` : '';
+    return line + undo;
+  }
+  // How the check works, for the demo: under the people list, so the list comes first on a phone (UX-R43)
+  function verifyHintHtml(dayPunches) {
+    const res = teamKeys() && dayPunches.length && verifyResults();
+    if (!res || !demoControls() || DemoBackend.isTampered() || !dayPunches.some((p) => res[p.id] === 'ok')) return '';
+    return `<p class="muted small verify-demo verify-hint">Each punch is signed on the phone and chained to the one before. Demo: "Try tampering" changes one saved time, like someone editing the records.</p>`;
   }
 
   // ---------- ENH-3: the week view and its CSV ----------
@@ -1096,7 +1102,7 @@
     const names = weekNames();
     const ids = [...new Set(teamCrew().map((c) => c.id).concat(Object.keys(w.byCrew)))]
       .sort((a, b) => String(names[a] || '').localeCompare(String(names[b] || '')));
-    const hrs = (h, open) => (open ? `${(h || 0).toFixed(1)}+` : h ? h.toFixed(1) : '–');
+    const hrs = (h, open) => (open ? `${Report.fmtHours(h)}+` : h ? Report.fmtHours(h) : '–');
     const none = { days: [0, 0, 0, 0, 0, 0, 0], total: 0, open: [] };
     // Totals add up the tenths shown, so a row's days always sum to its total on screen (the CSV
     // keeps hundredths)
@@ -1140,8 +1146,7 @@
       `<button class="${view === k ? 'on' : ''}" data-action="today-view" data-view="${k}" aria-pressed="${view === k}">${l}</button>`).join('')}</div>`;
     if (view === 'week') {
       return `<div class="pad">
-        <h2>Timesheet</h2>
-        ${seg}
+        <div class="today-head"><h2>Timesheet</h2>${seg}</div>
         ${bossWeekHtml()}
       </div>`;
     }
@@ -1150,6 +1155,8 @@
     const inToday = new Set(shifts.map((s) => s.crewId));
     const notIn = crew.filter((c) => !inToday.has(c.id));
     const punchById = Object.fromEntries(teamPunches().map((p) => [p.id, p]));
+    // After the demo's day is over (6 PM, or the sample day is yesterday) no one is coming in "yet" (UX-R46a)
+    const dayOver = sampleYesterday || (Api.isDemo && self.DemoBackend && DemoBackend.sampleDay(Date.now()).done);
     shifts.sort((a, b) => (Report.SEVERITY[b.status] || 0) - (Report.SEVERITY[a.status] || 0) || (a.inAt || 0) - (b.inAt || 0));
     const rows = shifts.map((s) => {
       const c = crewById(s.crewId) || { name: '?' };
@@ -1170,7 +1177,7 @@
           <div class="muted small shift-times">${span}${dupes.length ? ' <span class="nw">· clocked out twice</span>' : ''}</div>
           ${late ? `<div class="muted small sent-late">${Icons.cloudOff}<span>${late}</span></div>` : ''}${riskHtml(flags)}</div>
         <div class="shift-right">${chip(s.status)}
-          ${s.hours != null ? `<span class="muted small shift-hours nw">${s.hours.toFixed(1)} h</span>` : ''}
+          ${s.hours != null ? `<span class="muted small shift-hours nw">${Report.fmtHours(s.hours)} h</span>` : ''}
           ${photoP ? `<button class="mini" data-action="show-photo" data-id="${esc(photoP.id)}">${Icons.camera}</button>` : ''}</div>
       </div>`;
     }).join('');
@@ -1179,7 +1186,7 @@
     if (self.AI) {
       const names = Object.fromEntries(teamCrew().map((c) => [c.id, c.name]));
       const jobNames = Object.fromEntries(((state.team && state.team.jobs) || state.jobs).map((j) => [j.id, j.name]));
-      const text = state.aiSummary || AI.plainSummary(shifts, names, jobNames, notIn.map((c) => c.name), Date.now());
+      const text = state.aiSummary || AI.plainSummary(shifts, names, jobNames, notIn.map((c) => c.name), Date.now(), { pastDay: sampleYesterday });
       state.summaryFacts = text;
       // The demo never loads a model: it would fetch a script from another site (SEP-2)
       const canWrite = !Api.isDemo && AI.tier() >= 2 && !state.aiSummary && shifts.length;
@@ -1188,14 +1195,14 @@
         ${state.aiSummary ? '<div class="muted small">Written by an AI model running on this phone.</div>' : ''}</div>`;
     }
     return `<div class="pad">
-      <h2>${sampleYesterday ? 'Yesterday (sample day)' : 'Today'}</h2>
-      ${seg}
+      <div class="today-head"><h2>${sampleYesterday ? 'Yesterday (sample day)' : 'Today'}</h2>${seg}</div>
       ${visitorToday ? '<p class="muted small">Your own punches from this morning are added to it.</p>' : ''}
       ${verifyHtml(dayPunches)}
       ${summary}
-      ${notIn.length ? `<div class="not-in"><div class="not-in-title">${Icons.alert} ${sampleYesterday ? 'Not in' : 'Not in yet'} (${notIn.length})</div>
+      ${notIn.length ? `<div class="not-in"><div class="not-in-title">${Icons.alert} ${dayOver ? 'Not in' : 'Not in yet'} (${notIn.length})</div>
         <div>${notIn.map((c) => `<span class="pill">${esc(c.name)}</span>`).join('')}</div></div>` : ''}
       <div class="list">${rows || '<p class="muted">No one has clocked in today.</p>'}</div>
+      ${verifyHintHtml(dayPunches)}
       <div id="push-slot"></div>
       <div class="actions">${isBoss() ? `<button class="btn secondary" data-action="send-report">${Icons.send} Send today's report now</button>` : ''}${sheet}</div>
     </div>`;
@@ -1367,6 +1374,8 @@
     if (old && keep === bossScroll.got && bossScroll.want > bossScroll.got) keep = bossScroll.want;
     // The boss screen puts the banner inside its own frame, so the tab bar still fits (UX-5).
     $app.innerHTML = (state.screen === 'boss' ? '' : banners()) + html;
+    // An open chat thread fills the screen under the banner, its message box on screen (UX-R40)
+    $app.classList.toggle('fit', state.screen === 'chat-thread');
     const body = keep && $app.querySelector('.boss-body');
     if (body) body.scrollTop = keep;
     bossScroll = { tab, want: keep, got: body ? body.scrollTop : 0 };

@@ -54,6 +54,12 @@
       );
     }
     punches.forEach((p) => { p.receivedAt = p.at + 30000; });
+    // UX-R44: Cody M.'s phone had no signal at the Miller roof, so his 7:12 AM clock-in reached the
+    // server at 7:58 AM and the boss's Today row says so. receivedAt is not part of the signed
+    // record (js/chain.js), so it still verifies.
+    const cody = punches.find((p) => p.id === 'p3');
+    const sent = base + 7 * H + 58 * 60000;
+    if (sent - cody.at > 5 * 60000 && sent < now) cody.receivedAt = sent;
     const earlier = earlierDays(base, jobs);
     // Everyone agreed to location on install day except Billy S., so a visitor sees the consent screen once.
     const installDay = day - 20 * 24 * H + 7 * H;

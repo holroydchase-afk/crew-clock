@@ -702,6 +702,42 @@ for (const scheme of ['light', 'dark']) {
   });
 }
 
+// ---------- UX-R43: boss Today shows a shift above the tab bar on a phone ----------
+for (const [vp, rule] of [[PHONE, 'bottom'], [{ width: 360, height: 740 }, 'top']]) {
+  t(`UX-R43 ${vp.width}x${vp.height} fresh demo, 1:30 PM: the first Today shift ${rule === 'bottom' ? 'is fully' : 'starts'} above the tab bar, and the demo banner is <= 96px`, async (browser) => {
+    const page = await open(browser, vp);
+    await boss(page, 'today');
+    await page.waitForSelector('.shift');
+    const r = await page.evaluate(() => {
+      const s = document.querySelector('.shift').getBoundingClientRect();
+      const b = document.querySelector('.demo-banner');
+      const bb = b.getBoundingClientRect();
+      return { top: s.top, bottom: s.bottom, tab: document.querySelector('.tabbar').getBoundingClientRect().top, banner: bb.height,
+        bannerText: b.innerText, link: !!b.querySelector('a[href*="chaseholroyd.com"]') };
+    });
+    const errs = [];
+    if (rule === 'bottom' && r.bottom > r.tab) errs.push(`first shift ends at ${Math.round(r.bottom)}px, under the tab bar at ${Math.round(r.tab)}px`);
+    if (rule === 'top' && r.top >= r.tab) errs.push(`first shift starts at ${Math.round(r.top)}px, under the tab bar at ${Math.round(r.tab)}px`);
+    if (r.banner > 96) errs.push(`demo banner is ${Math.round(r.banner)}px tall (want <= 96)`);
+    if (!/Sample data/.test(r.bannerText)) errs.push('the banner lost "Sample data"');
+    if (!r.link) errs.push('the banner lost its chaseholroyd.com link');
+    if (errs.length) throw new Error(errs.join('; '));
+    return page;
+  });
+}
+
+// ---------- UX-R45: boss header and Day/Week targets are 44px tall ----------
+t('UX-R45 390: every button in the boss header and the Day/Week toggle is at least 44px tall', async (browser) => {
+  const page = await open(browser);
+  await boss(page, 'today');
+  await page.waitForSelector('[data-action="today-view"]');
+  const short = await page.evaluate(() => [...document.querySelectorAll('.boss-head button, .boss-head [role="button"], .boss-head a, [data-action="today-view"]')]
+    .map((b) => ({ name: (b.getAttribute('aria-label') || b.innerText || '').trim(), h: b.getBoundingClientRect().height }))
+    .filter((b) => b.h < 44));
+  if (short.length) throw new Error(`under 44px: ${short.map((b) => `"${b.name}" ${b.h.toFixed(1)}px`).join(', ')}`);
+  return page;
+});
+
 (async () => {
   const only = process.argv[2];
   const browser = await launch();
