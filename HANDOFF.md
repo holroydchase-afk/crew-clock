@@ -2,7 +2,7 @@
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-10-29 (known-bug fixes: UX-4 flake, esbuild bump)
+Updated: 2026-10-29 (portfolio showcase review: UX-R40 to UX-R54)
 
 ## What it is
 
@@ -14,6 +14,29 @@ Plan and milestone IDs: [PLAN.md](PLAN.md). Hard rules: [CLAUDE.md](CLAUDE.md). 
 contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
+
+- Portfolio showcase review (2026-10-29, Product Studio INTAKE "get Crew Clock onto
+  chaseholroyd.com"). The demo already existed at chaseholroyd.com/crew-clock/ with the link back
+  to chaseholroyd.com on every screen (SEP-4), the sample-data label (SEP-3) and no backend calls
+  (SEP-2); privacy-security re-checked all three on the new build: no findings. ux-reviewer ran
+  showcase mode at 360, 390 and 1280 px, light and dark, for 4 rounds until nothing at P2 or above
+  was left; every fix had a red test first (qa-tdd) in `tests/e2e-demo-chat.js`, `e2e-showcase.js`,
+  `e2e-enhance.js`, `e2e-polish.js` and `enhance.test.js`. UX-R40 the chat message box fits on
+  screen under the banner; R41/R48 own-bubble contrast in dark and light; R47/R52 the chat Back
+  button has a name and is 48x48; R42 one hours format `Report.fmtHours` (shared, synced) so Today
+  and Week agree (8.5, not 8.4 vs 8.5); R43/R49 on phones the banner is one 69px row and the first
+  person row on boss Today is above the tab bar at 360x740 (Try tampering inside the verify card,
+  Day/Week on the title row, the summary and hint below the list under 420px); R44 one sample
+  punch (Cody M.) is seeded "Sent at 7:58 AM (no signal)" so the README's late-sync claim is
+  visible; R45 48px header and Day/Week buttons; R46/R50/R51 the summary says "Not in yet" during
+  the day and "Didn't clock in" after it, drops "so far today" on the sample yesterday, and totals
+  match the Week cell; R53 README says **Reset** as the phone does and its 3 screenshots are
+  retaken; R54 turning the phone keeps focus and scroll on boss Today.
+  UI score (ux-reviewer): 6/10 before round 1, 8.5/10 after round 4. Next gap below P2: a phone
+  held sideways (740x360) shows about one Today row under the banner and header.
+  Portfolio / public presence: the demo's phone banner, boss Today layout, chat screen and the
+  README screenshots changed. INTAKE sent to Product Studio with the demo URL, a 390px phone
+  screenshot and 3 lines of page copy.
 
 - Known-bug fixes (2026-10-29, Chase's "yes" after the bug list). UX-R36: before the first team list
   arrives, the foreman's "Which teammate?" screen shows "Loading the crew…" instead of a "Clock in"
@@ -350,8 +373,15 @@ sign-in and server hardening (F-03, F-06, F-12, F-13, F-15), failing tests first
   "6:54 AM – on the clock" fits on one line beside the status chip (UX-R27); the name is beside it.
 - **M1.13 round 2: GPS older than 8 days is dropped on the phone, not by the server query**
   (engineer), so the week view still gets times from one request; distance in feet goes too.
-- **M1.13 round 2: before 9 AM the demo's day summary still says "so far today"** when the
-  visitor is on the clock, under the "Yesterday (sample day)" heading; left as is.
+- **2026-10-29 showcase: the "so far today" decision above is reversed** (UX-R46b): under the
+  "Yesterday (sample day)" heading the summary no longer says "so far today". ux-reviewer's
+  recommendation; easy to put back.
+- **2026-10-29 showcase: on phones the demo banner says "Reset" and "chaseholroyd.com"** (full
+  words stay as their accessible names and on laptops), so the banner fits one row.
+- **2026-10-29 showcase: on phones the boss's day summary sits below the people list**, so "who's
+  here" is the first thing on Today; laptops keep it above.
+- **2026-10-29 showcase: the demo seed has one late-sent punch** (Cody M., sent 7:58 AM for a 7:12
+  clock-in). Returning visitors see it after Reset; the store key stays v7.
 - **M1.13 CI fix: ENH-3a/3b wait for the team's punches before opening Week** (qa-tdd). CI clicked
   Week before the team list loaded and downloaded a CSV with no rows; the tests now wait for the
   verify line, as a person would see the day load first.
