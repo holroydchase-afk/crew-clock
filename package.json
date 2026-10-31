@@ -4,11 +4,11 @@
   "version": "0.1.0",
   "description": "GPS clock-in app for construction crews",
   "scripts": {
-    "test": "node --test tests/*.test.js",
+    "test": "node --test tests/*.test.js && bash scripts/check-agents.sh && node scripts/check-logs.mjs",
     "test:sql": "sh tests/sql/run.sh",
     "test:edge": "deno test --config supabase/functions/deno.json --no-npm tests/edge/",
     "test:mls": "cd messenger && npm test",
-    "test:e2e": "node tests/e2e.js && node tests/e2e-chat.js && node tests/e2e-supabase.js && node tests/e2e-harden.js && node tests/e2e-demo.js && node tests/e2e-consent.js",
+    "test:e2e": "node tests/e2e.js && node tests/e2e-chat.js && node tests/e2e-supabase.js && node tests/e2e-harden.js && node tests/e2e-demo.js && node tests/e2e-consent.js && node tests/e2e-location.js && node tests/e2e-showcase.js && node tests/e2e-update.js && node tests/e2e-demo-chat.js && node tests/e2e-works.js && node tests/e2e-polish.js && node tests/e2e-harden2.js && node tests/e2e-enhance.js",
     "build:mls": "cd messenger && npm run build",
     "serve": "npx http-server -p 8123 -c-1 ."
   }

@@ -80,7 +80,7 @@ function build() {
   const files = shellFiles(sw).filter((f) => f !== './');
   const missing = files.filter((f) => !existsSync(join(out, f)));
   if (missing.length) throw new Error(`sw.js caches files the site doesn't have: ${missing.join(', ')}`);
-  const h = createHash('sha256');
+  const h = createHash('sha256').update(sw); // sw.js too, so a change to the worker itself gets a fresh cache
   for (const f of files) h.update(f).update(readFileSync(join(out, f)));
   const hash = h.digest('hex').slice(0, 10);
   writeFileSync(swPath, stampVersion(sw, hash));

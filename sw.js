@@ -15,8 +15,13 @@ const SHELL_FILES = [
   'icons/icon-192.png', 'icons/apple-touch-icon.png',
 ];
 
+// cache: 'reload' and 'no-cache' skip the browser's own HTTP cache (GitHub Pages lets it keep
+// files for 10 minutes), or a new version can be saved with the old files inside it and the
+// phone stays on the old build.
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(SHELL).then((c) => c.addAll(SHELL_FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(SHELL)
+    .then((c) => c.addAll(SHELL_FILES.map((f) => new Request(f, { cache: 'reload' }))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
@@ -57,7 +62,7 @@ self.addEventListener('fetch', (e) => {
     // App files: open instantly from the saved copy (one bar of signal can take
     // many seconds), fetch a fresh copy in the background for next time.
     e.respondWith(caches.match(req, { ignoreSearch: true }).then((hit) => {
-      const net = fetch(req).then((res) => {
+      const net = fetch(req, req.mode === 'navigate' ? undefined : { cache: 'no-cache' }).then((res) => {
         if (res.ok) caches.open(SHELL).then((c) => c.put(req, res.clone()));
         return res;
       });

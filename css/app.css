@@ -6,18 +6,24 @@
   --line: #e5e7eb;
   --blue: #2563eb;
   --blue-soft: #dbeafe;
+  --blue-ink: #1d4ed8; /* text on --blue-soft, 5.6:1 */
   --green: #15803d;
   --green-bg: #15803d;
   --green-soft: #dcfce7;
   --red: #b91c1c;
   --red-bg: #dc2626;
   --red-soft: #fee2e2;
-  --amber: #a16207;
+  --amber: #854d0e; /* 6:1 on --amber-soft, 7:1 on white */
   --amber-soft: #fef3c7;
   --gray: #4b5563;
   --gray-soft: #e5e7eb;
   --radius: 18px;
   --shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.06);
+  /* One layout system (UX-R7): every screen uses this side gutter and this content column */
+  --gutter: 20px;
+  --col: 560px;
+  --banner-bg: var(--amber-soft);
+  --banner-ink: var(--ink);
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -29,6 +35,7 @@
     --line: #273042;
     --blue: #60a5fa;
     --blue-soft: #1e3a8a;
+    --blue-ink: #bfdbfe;
     --green: #4ade80;
     --green-soft: #14532d;
     --red: #f87171;
@@ -38,6 +45,8 @@
     --gray: #d1d5db;
     --gray-soft: #374151;
     --shadow: 0 1px 2px rgba(0,0,0,.4);
+    --banner-bg: #2e2208; /* a quiet amber tint, not a heavy brown bar (UX-R14) */
+    --banner-ink: #fcd34d;
     color-scheme: dark;
   }
 }
@@ -63,28 +72,50 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 .warn { color: var(--red); }
 .on-clock { color: var(--green); }
 
+/* The banners and the screen stack in one column the height of the window, so a screen can fill
+   what's left under the banner (UX-R40) */
+#app { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
+#app > * { width: 100%; flex: none; }
+#app.fit { height: 100vh; height: 100dvh; }
+#app.fit > .screen.chat { flex: 1 1 auto; }
 .screen {
-  max-width: 520px;
+  max-width: calc(var(--col) + 2 * var(--gutter));
   margin: 0 auto;
   min-height: 100vh;
   min-height: 100dvh;
-  padding: calc(env(safe-area-inset-top) + 20px) 20px calc(env(safe-area-inset-bottom) + 24px);
+  padding: calc(env(safe-area-inset-top) + 20px) var(--gutter) calc(env(safe-area-inset-bottom) + 24px);
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 .center-col { align-items: center; justify-content: center; text-align: center; }
 .center-col { position: relative; }
-.center-col > .back:first-child { position: absolute; top: calc(env(safe-area-inset-top) + 12px); left: 20px; margin: 0; }
+.center-col > .back:first-child { position: absolute; top: calc(env(safe-area-inset-top) + 12px); left: calc(var(--gutter) - 6px); margin: 0; }
+.demo-banner + .center-col > .back:first-child { top: 8px; }
+/* A boss list shown inside a worker screen (Messages) keeps the screen's gutter, not two of them */
+.screen > .pad { padding: 0; width: 100%; }
 .lead { font-size: 21px; margin: 0; }
 
 /* Ink on amber-soft: 15.9:1 light, 7.9:1 dark. */
 .demo-banner {
-  background: var(--amber-soft); color: var(--ink); text-align: center;
-  font-size: 13px; font-weight: 600; line-height: 1.35; padding: calc(env(safe-area-inset-top) + 6px) 12px 6px;
+  background: var(--banner-bg); color: var(--banner-ink); text-align: center;
+  font-size: 15px; font-weight: 600; line-height: 1.35; padding: calc(env(safe-area-inset-top) + 12px) 12px 12px;
 }
-/* The link's hit area fills the banner's own padding, never past its edge, so it can't cover "Not you?" below */
-.demo-banner a { color: inherit; text-decoration: underline; white-space: nowrap; display: inline-block; padding: 6px; margin: -6px 0; }
+/* HRD-13: private mode. Same ink on amber as the demo banner; first on the page, so it takes the notch. */
+.private-banner {
+  background: var(--banner-bg); color: var(--banner-ink); text-align: center;
+  font-size: 15px; font-weight: 700; line-height: 1.35; padding: calc(env(safe-area-inset-top) + 12px) 12px 12px;
+  border-bottom: 1px solid var(--amber);
+}
+.private-banner + .demo-banner { padding-top: 12px; }
+.private-banner + .screen, .boss > .private-banner + .boss-head { padding-top: 16px; }
+.private-banner + .center-col > .back:first-child { top: 8px; }
+
+/* The two controls sit on their own row; each hit area is 44px tall and fills the banner's bottom
+   padding, never past its edge, so neither can cover "Not you?" below or the other control */
+.demo-actions { display: flex; flex-wrap: wrap; justify-content: center; column-gap: 12px; margin: 2px 0 -12px; }
+.demo-actions a, .demo-actions button { font: inherit; color: inherit; background: none; border: 0; text-decoration: underline;
+  white-space: nowrap; cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; padding: 0 6px; }
 /* On the boss screen the banner sits inside .boss, so the tab bar still fits in 100dvh (UX-5). */
 .demo-banner + .screen, .boss > .demo-banner + .boss-head { padding-top: 16px; }
 
@@ -101,7 +132,7 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 .avatar {
   width: 44px; height: 44px; border-radius: 50%; flex: none;
   display: inline-flex; align-items: center; justify-content: center;
-  background: var(--blue-soft); color: var(--blue); font-weight: 700; font-size: 16px;
+  background: var(--blue-soft); color: var(--blue-ink); font-weight: 700; font-size: 16px;
 }
 .avatar.big { width: 72px; height: 72px; font-size: 26px; }
 
@@ -111,7 +142,7 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
   padding: 18px 12px; display: flex; flex-direction: column; align-items: center; gap: 10px;
   font-size: 20px; font-weight: 600; min-height: 120px; justify-content: center;
 }
-.name-role { font-size: 14px; font-weight: 600; color: var(--blue); margin-top: -6px; }
+.name-role { font-size: 15px; font-weight: 600; color: var(--blue); margin-top: -6px; }
 .name-btn:active, .job-btn:active, .punch:active, .btn:active, .keypad button:active { transform: scale(0.97); }
 
 .back { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; color: var(--blue); font-size: 18px; padding: 8px 4px; min-height: 48px; margin-left: -6px; }
@@ -137,7 +168,7 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 /* Location primer */
 .big-icon { width: 96px; height: 96px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
 .big-icon svg { width: 52px; height: 52px; }
-.big-icon.blue { background: var(--blue-soft); color: var(--blue); }
+.big-icon.blue { background: var(--blue-soft); color: var(--blue-ink); }
 .big-icon.amber { background: var(--amber-soft); color: var(--amber); }
 .fake-prompt { background: var(--card); border-radius: 16px; box-shadow: var(--shadow); width: 100%; max-width: 320px; overflow: hidden; }
 .fake-prompt p { margin: 0; padding: 16px; font-weight: 600; font-size: 16px; }
@@ -169,8 +200,8 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 .sync.ok { color: var(--green); }
 .sync.wait { color: var(--amber); }
 .sync.busy { color: var(--muted); }
-.demo-toggle { font-size: 15px; color: var(--amber); display: flex; gap: 8px; align-items: center; justify-content: center; }
-.demo-toggle input { width: 22px; height: 22px; }
+.demo-toggle { font-size: 15px; color: var(--amber); display: flex; gap: 10px; align-items: center; justify-content: center; min-height: 48px; padding: 0 12px; align-self: center; cursor: pointer; }
+.demo-toggle input { width: 22px; height: 22px; margin: 0; }
 
 /* The hidden attribute always wins over a display rule like .btn's (HRD-3). */
 [hidden] { display: none !important; }
@@ -188,7 +219,7 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 @media (prefers-color-scheme: dark) { .btn.primary { color: #0b0f17; } }
 .file-btn { position: relative; overflow: hidden; }
 .file-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-.mini { background: var(--blue-soft); color: var(--blue); border-radius: 12px; padding: 8px 14px; font-weight: 700; font-size: 16px; display: inline-flex; align-items: center; gap: 6px; }
+.mini { background: var(--blue-soft); color: var(--blue-ink); border-radius: 12px; padding: 8px 14px; font-weight: 700; font-size: 16px; display: inline-flex; align-items: center; gap: 6px; }
 .mini.in { background: var(--green-soft); color: var(--green); }
 .mini.out { background: var(--red-soft); color: var(--red); }
 .mate-btn { min-width: 112px; min-height: 52px; border-radius: 14px; padding: 10px 16px; font-weight: 700; font-size: 17px; flex: none; }
@@ -205,13 +236,14 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
   background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; min-height: 76px;
 }
 .job-btn.nearest { outline: 3px solid var(--green-bg); }
-.job-ico { width: 44px; height: 44px; border-radius: 12px; background: var(--blue-soft); color: var(--blue); display: flex; align-items: center; justify-content: center; flex: none; }
+.job-ico { width: 44px; height: 44px; border-radius: 12px; background: var(--blue-soft); color: var(--blue-ink); display: flex; align-items: center; justify-content: center; flex: none; }
 .job-ico svg { width: 26px; height: 26px; }
 .job-name { display: block; font-size: 20px; font-weight: 700; }
-.job-addr { display: block; font-size: 15px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.job-addr { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 15px; color: var(--muted); overflow: hidden; }
 .job-dist { font-weight: 700; color: var(--muted); font-size: 16px; white-space: nowrap; }
 .for-mate { background: var(--amber-soft); color: var(--amber); border-radius: 12px; padding: 10px 14px; font-size: 17px; }
 .notice { background: var(--amber-soft); color: var(--amber); border-radius: 14px; padding: 14px 16px; display: flex; gap: 8px; align-items: center; margin: 0; font-weight: 500; text-align: left; }
+.empty { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
 
 /* Locating */
 .spinner { width: 72px; height: 72px; border-radius: 50%; border: 7px solid var(--blue-soft); border-top-color: var(--blue); animation: spin 0.9s linear infinite; }
@@ -220,7 +252,8 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 /* Done */
 .big-check { width: 132px; height: 132px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; animation: pop .35s ease-out; }
 .big-check.in { background: var(--green-bg); }
-.big-check.out { background: var(--red-bg); }
+.big-check.out { background: #2563eb; } /* clocking out is a success too: blue, never red (UX-R5) */
+.worked { margin: 0; font-size: 19px; }
 .big-check svg { width: 80px; height: 80px; stroke-width: 3; }
 @keyframes pop { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
@@ -235,32 +268,67 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 
 /* Boss */
 .boss { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
-.boss-head { display: flex; justify-content: space-between; align-items: center; padding: calc(env(safe-area-inset-top) + 8px) 16px 8px; background: var(--card); border-bottom: 1px solid var(--line); }
-.boss-head-right { display: flex; gap: 4px; align-items: center; }
-.boss-head-right .link { font-size: 15px; padding: 8px; }
+.boss-head {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px; background: var(--card); border-bottom: 1px solid var(--line);
+  /* lines up with the content column at any width (UX-R7) */
+  padding: calc(env(safe-area-inset-top) + 8px) max(var(--gutter), calc((100% - var(--col)) / 2)) 8px;
+}
+.boss-head-right { display: flex; gap: 8px; align-items: center; }
+.boss-head-right .link { font-size: 16px; padding: 8px 4px; min-height: 44px; display: inline-flex; align-items: center; }
+.boss-head-right .link:last-child { margin-right: -4px; }
+/* Refresh reads as a button (UX-R9): icon, outline, the time it last loaded */
+.head-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--bg); color: var(--ink); font-size: 15px; font-weight: 600; white-space: nowrap; }
+.head-btn svg { width: 18px; height: 18px; color: var(--blue); }
 .boss-body { flex: 1; overflow-y: auto; position: relative; }
+/* Wider than the column: keep it centred under the header whether or not a scrollbar shows */
+@media (min-width: 600px) { .boss-body:not(.tab-map) { scrollbar-gutter: stable both-edges; } }
 .boss-body.tab-map { overflow: hidden; }
-.pad { padding: 16px; max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+.pad { padding: 20px var(--gutter); max-width: calc(var(--col) + 2 * var(--gutter)); margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
 .row-between { display: flex; justify-content: space-between; align-items: center; }
 .tabbar { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--card); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
-.tabbar button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 0 8px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.tabbar button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 0 8px; font-size: 15px; font-weight: 600; color: var(--muted); }
 .tabbar button svg { width: 26px; height: 26px; }
 .tabbar button.on { color: var(--blue); }
+/* Laptop: the tabs move to the top, inside the content column, instead of a 1280px bottom bar (UX-R7) */
+@media (min-width: 960px) {
+  .boss-head { border-bottom: 0; padding-top: 14px; padding-bottom: 6px; }
+  .tabbar { order: -1; border-top: 0; border-bottom: 1px solid var(--line); grid-auto-columns: max-content; justify-content: start; gap: 4px;
+    padding: 0 max(var(--gutter), calc((100% - var(--col)) / 2)); }
+  .boss > .demo-banner { order: -3; }
+  .boss-head { order: -2; }
+  .tabbar button { flex-direction: row; gap: 8px; padding: 12px 14px 10px; border-bottom: 3px solid transparent; margin-bottom: -1px; }
+  .tabbar button:first-child { margin-left: -14px; }
+  .tabbar button svg { width: 20px; height: 20px; }
+  .tabbar button.on { border-bottom-color: var(--blue); }
+  .tabbar button:hover { color: var(--ink); }
+  .ios-safari-tab .tabbar { padding-bottom: 0; }
+}
+/* iPhone Safari in the browser: Safari 26's floating toolbar sits over the page bottom (class set in app.js) */
+.ios-safari-tab .tabbar { padding-bottom: calc(env(safe-area-inset-bottom) + 28px); }
 .team-map { position: absolute; inset: 0; }
 .map-legend { position: absolute; left: 10px; bottom: 34px; /* clear of the Leaflet attribution (UX-6) */ z-index: 500; display: flex; flex-wrap: wrap; gap: 6px; max-width: calc(100% - 20px); }
-.map-legend .chip { box-shadow: var(--shadow); font-size: 13px; }
+.map-legend .chip { box-shadow: var(--shadow); font-size: 15px; }
+/* Clocked out: a hollow dashed dot, the same look as the faded markers (UX-R2) */
+.s-out { background: var(--card); color: var(--gray); }
+.s-out i { background: transparent; border: 2px dashed currentColor; }
 .crew-dot {
   width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
   font-weight: 800; font-size: 14px; border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.35);
 }
-.crew-dot.s-onsite { background: #16a34a; color: #fff; }
+.crew-dot.s-onsite { background: #15803d; color: #fff; }
 .crew-dot.s-near { background: #eab308; color: #111; }
 .crew-dot.s-offsite { background: #dc2626; color: #fff; }
 .crew-dot.s-weak, .crew-dot.s-nogps { background: #6b7280; color: #fff; }
-.crew-dot.is-out { border-style: dashed; }
-.crew-dot.stale { opacity: 0.55; }
-.job-pin { width: 30px; height: 30px; border-radius: 9px; background: #2563eb; color: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,.3); }
-.job-pin svg { width: 18px; height: 18px; }
+.crew-dot.is-out { background: #f3f4f6; color: #374151; border-style: dashed; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+.crew-dot.is-out.s-onsite { border-color: #15803d; }
+.crew-dot.is-out.s-near { border-color: #ca8a04; }
+.crew-dot.is-out.s-offsite { border-color: #dc2626; }
+.crew-dot.is-out.s-weak, .crew-dot.is-out.s-nogps { border-color: #6b7280; }
+.crew-dot.stale { border-color: #9ca3af; box-shadow: none; } /* not today: grey ring, text keeps its contrast (no opacity) */
+.job-pin { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; }
+.job-pin span { width: 34px; height: 34px; border-radius: 10px; background: #2563eb; color: #fff; border: 2px solid #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,.3); }
+.job-pin svg { width: 20px; height: 20px; }
 .popup { font-size: 15px; line-height: 1.5; }
 .popup .chip { font-size: 13px; padding: 2px 8px; }
 .leaflet-container { font: inherit; }
@@ -268,6 +336,7 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 .not-in-title { display: flex; gap: 8px; align-items: center; color: var(--red); font-weight: 700; margin-bottom: 8px; }
 .pill { display: inline-block; background: var(--card); border-radius: 999px; padding: 6px 12px; margin: 0 6px 6px 0; font-weight: 600; font-size: 16px; }
 .shift-name { font-weight: 700; font-size: 18px; }
+.nw { white-space: nowrap; }
 .shift-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .actions { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
 
@@ -276,10 +345,16 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 .field { display: flex; flex-direction: column; gap: 8px; font-weight: 600; font-size: 17px; }
 .field input { border: 2px solid var(--line); background: var(--card); border-radius: 14px; padding: 14px 16px; font-size: 19px; font-weight: 400; width: 100%; }
 .field input:focus { outline: none; border-color: var(--blue); }
+.field input { scroll-margin-top: 96px; } /* an error's focus keeps the field's label in view */
+.field input:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+/* Errors sit under the field they are about (UX-R4) */
+.field input[aria-invalid="true"] { border-color: var(--red); }
+.field-error { display: flex; gap: 6px; align-items: flex-start; margin: -8px 0 0; color: var(--red); font-size: 16px; font-weight: 600; }
+.field-error svg { width: 18px; height: 18px; margin-top: 2px; }
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; background: var(--gray-soft); padding: 4px; border-radius: 14px; }
 .seg button { border-radius: 11px; padding: 12px 6px; font-weight: 600; font-size: 16px; display: flex; flex-direction: column; align-items: center; }
 .seg button.on { background: var(--card); box-shadow: var(--shadow); color: var(--blue); }
-.seg.fences small { font-weight: 400; font-size: 12px; color: var(--muted); }
+.seg.fences small { font-weight: 400; font-size: 14px; color: var(--gray); }
 .search-row { display: flex; gap: 8px; }
 .results { display: flex; flex-direction: column; background: var(--card); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; }
 .results button { display: flex; gap: 10px; align-items: flex-start; text-align: left; padding: 14px; border-bottom: 1px solid var(--line); font-weight: 400; font-size: 16px; }
@@ -295,6 +370,7 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
   opacity: 0; transition: all .25s; pointer-events: none; max-width: calc(100% - 32px); text-align: center;
 }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+#toast.gone { transition: none; }
 .risk { display: flex; gap: 6px; align-items: flex-start; color: var(--red); font-size: 14px; font-weight: 600; margin-top: 4px; }
 .risk svg { width: 16px; height: 16px; margin-top: 2px; }
 
@@ -305,14 +381,17 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 .e2e svg { width: 18px; height: 18px; }
 .e2e.small { font-size: 13px; gap: 4px; }
 .e2e.small svg { width: 14px; height: 14px; }
-.screen.chat { gap: 0; padding-bottom: 0; height: 100vh; height: 100dvh; min-height: 0; }
+.screen.chat { gap: 0; padding-bottom: 0; height: auto; min-height: 0; }
 .chat-head { display: flex; align-items: center; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.chat-head .back { min-width: 48px; justify-content: center; } /* a full 48x48 touch target (UX-R52) */
 .bubbles { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 14px 0; }
 .bubble { max-width: 82%; align-self: flex-start; background: var(--card); box-shadow: var(--shadow); border-radius: 18px 18px 18px 6px; padding: 10px 14px; display: flex; flex-direction: column; gap: 2px; font-size: 18px; }
 .bubble b { font-size: 14px; color: var(--blue); }
 .bubble small { font-size: 12px; color: var(--muted); align-self: flex-end; }
 .bubble.mine { align-self: flex-end; background: var(--blue); color: #fff; border-radius: 18px 18px 6px 18px; }
-.bubble.mine small { color: rgba(255,255,255,.75); }
+.bubble.mine small { color: #fff; } /* 5.2:1 on --blue; .75 white was 3.6:1 (UX-R48) */
+/* Dark: --blue is a light blue, so dark ink, like .btn.primary (UX-R41) */
+@media (prefers-color-scheme: dark) { .bubble.mine { color: #0b0f17; } .bubble.mine small { color: rgba(11,15,23,.75); } }
 .composer { display: flex; gap: 8px; padding: 10px 0 calc(env(safe-area-inset-bottom) + 12px); border-top: 1px solid var(--line); }
 .composer input { flex: 1; border: 2px solid var(--line); background: var(--card); border-radius: 22px; padding: 12px 16px; font-size: 18px; min-width: 0; }
 .row-card.pick input { width: 26px; height: 26px; }
@@ -325,7 +404,133 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 
 /* Location consent (M1.2): the sentence they agree to is the heading, big enough at arm's length */
 .consent h1 { font-size: 26px; line-height: 1.25; }
-.consent .btn.secondary { margin-top: 10px; }
+.consent .btn { width: 100%; } /* "Not now" is the standard full-width secondary (UX-R16) */
 .no-consent { color: var(--amber); font-weight: 600; display: flex; align-items: center; gap: 4px; }
 .no-consent svg { width: 14px; height: 14px; flex: none; }
 .location-off { font-size: 17px; }
+/* Leaflet's attribution link: underlined and dark enough to read next to its text (axe link-in-text-block) */
+.leaflet-control-attribution a { color: #1d4ed8; text-decoration: underline; }
+/* Map controls follow the theme in dark mode (UX-R14) */
+@media (prefers-color-scheme: dark) {
+  .leaflet-bar a, .leaflet-control-layers { background-color: var(--card); color: var(--ink); border-color: var(--line); }
+  .leaflet-bar a:hover { background-color: var(--gray-soft); }
+  .leaflet-container .leaflet-control-attribution { background: rgba(22,27,38,.85); color: var(--muted); }
+  .leaflet-control-attribution a { color: #93c5fd; }
+  /* Leaflet's layers icon is a dark picture: invert a light tile so it lands on the card colour */
+  .leaflet-control-layers-toggle { background-color: #e9e4d9; filter: invert(1) hue-rotate(180deg); }
+}
+/* Leaflet's zoom buttons at a 44px touch size (showcase SC-6) */
+.leaflet-touch .leaflet-bar a { width: 44px; height: 44px; line-height: 44px; font-size: 24px; }
+.name-role.start { background: var(--green-soft); color: var(--green); padding: 2px 8px; border-radius: 999px; margin-top: 0; }
+
+/* Demo sign-in (UX-R1, UX-R17): the pitch, then one obvious way in; side by side on a laptop */
+.signin { gap: 20px; }
+.pitch { display: flex; flex-direction: column; gap: 12px; }
+.pitch-title { font-size: 28px; line-height: 1.15; margin: 4px 0 0; letter-spacing: -0.02em; }
+.proof { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 17px; }
+.proof li { display: flex; gap: 10px; align-items: flex-start; }
+.proof svg { width: 20px; height: 20px; color: var(--green); margin-top: 2px; stroke-width: 3; }
+.signin-pick { display: flex; flex-direction: column; gap: 12px; }
+.signin-pick h2 { margin: 0; font-size: 20px; }
+.pick-note { margin: 4px 0 0; }
+.start-btn { flex-direction: row; min-height: 84px; padding: 14px 16px; gap: 14px; text-align: left; justify-content: flex-start;
+  background: var(--blue); color: #fff; box-shadow: 0 6px 20px rgba(37,99,235,.28); }
+.start-btn .avatar { background: #fff; color: #1d4ed8; }
+.start-name { display: block; font-size: 21px; font-weight: 700; }
+.start-sub { display: block; font-size: 16px; font-weight: 500; opacity: .92; }
+.start-btn .name-role.start { background: #fff; color: #166534; margin: 0; flex: none; }
+@media (prefers-color-scheme: dark) {
+  .start-btn { color: #0b0f17; box-shadow: none; }
+  .start-btn .avatar { background: rgba(11,15,23,.15); color: #0b0f17; }
+  .start-btn .name-role.start { background: #0b0f17; color: #86efac; }
+}
+@media (min-width: 960px) {
+  .signin { --col: 1000px; display: grid; grid-template-columns: 1fr 440px; gap: 64px; align-items: center; align-content: center; }
+  .pitch-title { font-size: 44px; }
+  .proof { font-size: 19px; gap: 12px; }
+  .signin-pick { background: var(--card); border: 1px solid var(--line); border-radius: 24px; padding: 24px; box-shadow: var(--shadow); }
+  .signin-pick .name-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .signin-pick .name-btn:not(.start-btn) { background: var(--bg); box-shadow: none; border: 1px solid var(--line); min-height: 104px; padding: 12px 6px; gap: 6px; font-size: 18px; }
+  .signin-pick .name-btn:not(.start-btn):hover { border-color: var(--blue); }
+  .signin-pick .name-btn .name-role { margin-top: -2px; }
+}
+
+/* ---------- M1.13 ---------- */
+/* ENH-1: the tamper check. Green ink on green-soft / red on red-soft, both AA in light and dark. */
+.verify { display: flex; gap: 10px; align-items: flex-start; border-radius: var(--radius); padding: 12px 16px; font-weight: 600; font-size: 16px;
+  background: var(--card); box-shadow: var(--shadow); color: var(--muted); }
+.verify svg { width: 20px; height: 20px; flex: none; margin-top: 1px; }
+.verify.ok { background: var(--green-soft); color: var(--ink); box-shadow: none; }
+.verify.ok svg { color: var(--green); }
+.verify.bad { background: var(--red-soft); color: var(--red); box-shadow: none; }
+.verify-demo { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin-top: -4px; }
+.verify-demo .btn.sm { min-height: 44px; padding: 8px 14px; font-size: 16px; }
+/* ENH-2: "No signal" in the demo banner, the same 44px row as Reset */
+.demo-actions .demo-switch { gap: 8px; text-decoration: none; }
+.demo-switch .knob { position: relative; width: 34px; height: 20px; border-radius: 10px; border: 2px solid currentColor; box-sizing: border-box; flex: none; }
+.demo-switch .knob::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: currentColor; transition: left .15s; }
+.demo-switch[aria-checked="true"] .knob { background: currentColor; }
+.demo-switch[aria-checked="true"] .knob::after { left: 16px; background: var(--banner-bg); }
+.demo-switch:focus-visible { outline: 3px solid var(--blue); outline-offset: -3px; border-radius: 8px; }
+/* ENH-3: Day | Week, and the week table (scrolls inside its box on a narrow phone, never the page) */
+.view-seg { max-width: 280px; }
+.view-seg button { padding: 10px 6px; }
+/* UX-R43/R45: the title and Day | Week share a row; each half is a 48px target */
+.today-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.today-head h2 { margin: 0; }
+.today-head .view-seg { flex: none; width: 168px; }
+.view-seg button { min-height: 48px; justify-content: center; }
+/* "Try tampering" sits in the green card, after the line, in the line's own ink */
+.verify-row { align-items: center; flex-wrap: wrap; gap: 0 12px; }
+.verify-line { display: flex; gap: 10px; align-items: flex-start; flex: 1 1 220px; min-width: 0; }
+.verify .verify-try { color: inherit; font-size: inherit; font-weight: 700; text-decoration: underline; padding: 0 4px; min-height: 44px; margin: -10px -4px -10px 26px; }
+.verify-hint { margin: 0; }
+.week-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; }
+.week-head h3 { margin: 0; font-size: 18px; }
+.week-nav { display: flex; gap: 8px; }
+.week-nav .btn.sm { min-height: 44px; padding: 8px 12px; font-size: 15px; }
+.week-nav .btn { gap: 4px; }
+.week-nav .flip svg { transform: scaleX(-1); }
+.week-wrap { overflow-x: auto; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); }
+.week-wrap:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+table.week { width: 100%; border-collapse: collapse; font-size: 15px; font-variant-numeric: tabular-nums; }
+table.week th, table.week td { padding: 10px 6px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.week th:first-child { text-align: left; padding-left: 14px; font-weight: 600; }
+table.week td:last-child, table.week th:last-child { padding-right: 14px; }
+table.week thead th { font-size: 13px; color: var(--muted); font-weight: 600; }
+table.week thead th span, table.week thead th small { display: block; }
+table.week thead th small { font-weight: 400; }
+table.week .tot, table.week tfoot { font-weight: 700; }
+table.week tfoot th, table.week tfoot td { border-bottom: 0; }
+table.week thead th .d-short { display: none; text-decoration: none; }
+/* UX-R29: on a phone the whole week fits its box: one-letter days, tight cells, 14px numbers, no "Name" word */
+@media (max-width: 420px) {
+  table.week { font-size: 14px; font-variant-numeric: normal; }
+  table.week th, table.week td { padding: 10px 2px; }
+  /* 6px edges, not 8: on a Saturday the week has six days and a "49.1+" total, 1px too wide at 360 */
+  table.week th:first-child { padding-left: 6px; white-space: normal; }
+  table.week td:last-child, table.week th:last-child { padding-right: 6px; }
+  table.week thead th .d-long { display: none; }
+  table.week thead th .d-short { display: block; }
+  table.week .name-head { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+/* UX-R30: "Sent at … (no signal)" on its own line, allowed to wrap */
+.sent-late { display: flex; gap: 6px; align-items: flex-start; margin-top: 2px; }
+.sent-late svg { width: 16px; height: 16px; flex: none; margin-top: 2px; }
+/* UX-R31: "Show me" on the red line, in the line's own colour */
+.verify .verify-show { color: inherit; font-size: inherit; font-weight: 600; text-decoration: underline; padding: 12px 4px; margin: -12px 0; min-height: 0; }
+.shift:focus { outline: none; }
+.shift:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+/* UX-R27: a Today time range ("6:54 AM – on the clock") stays on one line inside its column:
+   a smaller avatar on a phone, none on the narrowest (the name is right beside it) */
+@media (max-width: 420px) { .shift { gap: 10px; } .shift > .avatar { width: 34px; height: 34px; font-size: 14px; } }
+@media (max-width: 380px) { .shift > .avatar { display: none; } }
+/* UX-R43: on a phone the demo banner is two short lines: the label, then its three controls in one row */
+.demo-label { display: block; }
+@media (max-width: 420px) {
+  .demo-banner { font-size: 14px; padding: calc(env(safe-area-inset-top) + 6px) 8px 0; }
+  .private-banner + .demo-banner { padding-top: 6px; }
+  .demo-actions { flex-wrap: nowrap; column-gap: 4px; margin: 0; }
+  .demo-actions .demo-switch { gap: 6px; }
+  .wide-only { display: none; }
+}

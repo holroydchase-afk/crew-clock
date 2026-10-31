@@ -13,6 +13,8 @@ const t = (name, fn) => cases.push({ name, fn });
 
 // Counts every location read, so a test can prove none happened.
 function gpsCounter(pos) {
+  // The demo starts with "pretend I'm at the job" on (M1.6); these tests drive the real GPS path.
+  try { localStorage.setItem('cc.demoFake', 'false'); } catch (e) { /* ok */ }
   window.__gpsReads = 0;
   const at = () => ({ coords: { latitude: pos.lat, longitude: pos.lng, accuracy: pos.acc }, timestamp: Date.now() });
   navigator.geolocation.watchPosition = (ok) => { window.__gpsReads++; setTimeout(() => ok(at()), 0); return 1; };
@@ -279,9 +281,10 @@ t('CON-6 a worker who agreed to an older consent text is asked again at sign-in'
     if (sessionStorage.getItem('aged')) return;
     sessionStorage.setItem('aged', '1');
     // The demo store, made on first load, with Jake's agreement turned into an older text version
-    const k = 'cc.demo.db.v4';
+    // Looked up on every tick: the store is written once the sample is ready, under whatever version it has
     const tick = setInterval(() => {
-      const db = JSON.parse(localStorage.getItem(k) || 'null');
+      const k = Object.keys(localStorage).find((x) => x.startsWith('cc.demo.db'));
+      const db = k && JSON.parse(localStorage.getItem(k) || 'null');
       if (!db) return;
       clearInterval(tick);
       db.consents.filter((c) => c.crewId === 'c2').forEach((c) => { c.textVersion = 'loc-v0'; });

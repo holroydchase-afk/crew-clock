@@ -6,7 +6,9 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest became 26.04 on 2026-10-31 and Playwright 1.56.1 can't install
+    # Chromium's dependencies there. Move back to ubuntu-latest once Playwright supports it.
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16
@@ -16,8 +18,8 @@ jobs:
         options: >-
           --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - uses: denoland/setup-deno@v2
@@ -26,6 +28,8 @@ jobs:
 
       - name: Unit tests
         run: npm test
+      - name: Agent roster matches CLAUDE.md
+        run: bash scripts/check-agents.sh
       - name: Shared modules in sync
         run: ./scripts/sync-shared.sh && git diff --exit-code
 
@@ -35,7 +39,7 @@ jobs:
         run: |
           psql -h localhost -U postgres -c 'create database crewclock_test'
           psql -h localhost -U postgres -d crewclock_test -v ON_ERROR_STOP=1 -q \
-            -f tests/sql/supabase_stub.sql -f supabase/migrations/20261022000000_init.sql -f supabase/migrations/20261023000000_auth_hook.sql -f supabase/migrations/20261023100000_location_consents.sql -f tests/sql/rls_test.sql -f tests/sql/auth_test.sql -f tests/sql/consent_test.sql
+            -f tests/sql/supabase_stub.sql -f supabase/migrations/20261022000000_init.sql -f supabase/migrations/20261023000000_auth_hook.sql -f supabase/migrations/20261023100000_location_consents.sql -f supabase/migrations/20261024000000_retention.sql -f supabase/migrations/20261028000000_harden.sql -f tests/sql/rls_test.sql -f tests/sql/auth_test.sql -f tests/sql/consent_test.sql -f tests/sql/retention_test.sql -f tests/sql/harden_test.sql
 
       - name: Edge Functions (logic + type check)
         run: |
@@ -47,7 +51,7 @@ jobs:
 
       - name: Browser tests
         run: |
-          npm install --no-save playwright@1.56.1 http-server@14.1.1
+          npm install --no-save playwright@1.56.1 http-server@14.1.1 axe-core@4.11.3
           npx playwright install --with-deps chromium
           # Test the site exactly as Cloudflare Pages publishes it
           node scripts/build-site.mjs

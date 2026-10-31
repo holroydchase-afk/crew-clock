@@ -10,6 +10,8 @@
     frozen_gps: { level: 'high', words: 'Exact same GPS spot as an earlier day (possible fake location app)' },
     bad_signature: { level: 'high', words: 'Punch was changed after it left the phone' },
     future_time: { level: 'high', words: "Phone's clock is set ahead" },
+    crew_inactive: { level: 'high', words: 'Sent after the boss turned this person off' },
+    bad_location: { level: 'low', words: 'Phone sent an impossible GPS reading, so it was left off' },
     teammate_no_photo: { level: 'high', words: 'A foreman clocked this person in or out with no picture' },
     too_perfect: { level: 'low', words: 'GPS reported perfect accuracy, which real phones rarely do' },
     chain_gap: { level: 'low', words: 'A punch from this phone never arrived' },

@@ -1,6 +1,7 @@
 name: handoff-check
 # Studio session rule: any PR that changes files also updates HANDOFF.md.
 # Put [skip handoff] in the PR title for changes that don't move the work.
+# Dependabot PRs are skipped: a version bump doesn't move the work.
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
@@ -8,10 +9,10 @@ permissions:
   contents: read
 jobs:
   handoff:
-    if: ${{ !contains(github.event.pull_request.title, '[skip handoff]') }}
+    if: ${{ !contains(github.event.pull_request.title, '[skip handoff]') && github.event.pull_request.user.login != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: HANDOFF.md updated

@@ -39,6 +39,9 @@ export function repo(): Repo {
       const r = must(await db.from('crew').select('id').eq('id', crewId).eq('org_id', orgId).eq('active', true).maybeSingle());
       return !!r;
     },
+    async crewMember(orgId, crewId) {
+      return must(await db.from('crew').select('active, deactivated_at').eq('id', crewId).eq('org_id', orgId).maybeSingle());
+    },
     async punchExists(id) {
       return !!must(await db.from('punches').select('id').eq('id', id).maybeSingle());
     },

@@ -18,7 +18,7 @@ const { launch } = require('./browser.js');
   await login('Sam W.');
   await page.click('[data-tab="chat"]');
   await page.click('[data-action="chat-new"]');
-  await page.fill('#chat-name', 'Smith kitchen crew');
+  await page.fill('#chat-name', 'Miller roof crew'); // the demo seeds its own "Smith kitchen crew" (M1.10-a)
   await page.check('.pick input[value="c2"]');
   await page.click('[data-action="chat-create"]');
   await page.waitForSelector('#chat-text');
@@ -33,7 +33,7 @@ const { launch } = require('./browser.js');
   if (!(await page.locator('[data-to="chat-list"]').count())) console.log('SCREEN:', (await page.locator('#app').innerText()).slice(0, 400), errors);
   await page.click('[data-to="chat-list"]');
   await page.waitForSelector('[data-action="chat-open"]', { timeout: 15000 });
-  await page.click('[data-action="chat-open"]');
+  await page.locator('[data-action="chat-open"]', { hasText: 'Miller roof crew' }).click();
   await page.waitForSelector('.bubble:not(.mine)');
   const got = await page.textContent('.bubble:not(.mine) span');
   await page.fill('#chat-text', 'On my way');

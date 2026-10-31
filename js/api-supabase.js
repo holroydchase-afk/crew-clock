@@ -185,7 +185,8 @@
           // Latest action per worker only (PRIVACY L3); a foreman never reads the records themselves
           optional(request(`${cfg.supabaseUrl}/rest/v1/rpc/crew_consent_status`, { method: 'POST', headers: headers(t), body: '{}' })),
         ]);
-        return { punches: punches.map(punch), crew, jobs: jobs.map(job),
+        // GPS only for the last 8 days, though the week view reads up to 13 (PS-M113-1, PRIVACY)
+        return { punches: root.Report.dropOldGps(punches.map(punch), Date.now()), crew, jobs: jobs.map(job),
           consents: Array.isArray(consents) ? consents.map((c) => ({ crewId: c.crew_id, action: c.action, textVersion: c.text_version })) : undefined };
       });
     },
