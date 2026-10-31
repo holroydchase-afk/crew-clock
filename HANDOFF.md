@@ -2,7 +2,7 @@
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-10-31 (merged #34, #37 and #32 live demo fixes)
+Updated: 2026-10-31 (merged #34, #37, #33 and #32)
 
 ## What it is
 
@@ -31,6 +31,43 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
   (`tests/livecheck.test.js`, LIVE-1..4 in `tests/e2e-enhance.js`) all pass on it, with two small
   additions so they do: `AI.tenths` (same rule as `Report.fmtHours`) and the sample yesterday's
   summary says "so far" while a visitor is on the clock (still never "so far today").
+
+- `M1.9` crew sign-in and server hardening (2026-10-29, Chase's "go"). The five open findings from
+  `docs/reviews/2026-10-23-privacy-security.md`, each red first (`tests/edge/m19.test.ts` 21 cases,
+  `tests/sql/m19_test.sql` 9, `tests/m19.test.js` 9 wiring checks), now marked closed there. New
+  runtime-neutral `_shared/guard.ts`; migration `20261029000000_crew_auth.sql`.
+  F-03: `new-company.ts ... random ...` makes an 8-character code (no 0/O/1/I) and refuses one under
+  8; the old real code is gone from the whole repo, the review included (test matches it by hash).
+  pin-login counts every try before checking the PIN: 20 an hour per IP and 40 per company
+  (`public.rate_limit`, service role only, per-key advisory lock, keyed by an HMAC of the IP or company
+  made with the new `RATE_HMAC_KEY` secret, rows kept a day by `apply_retention`); then the lock; a
+  wrong PIN goes through `public.pin_fail` (one row-locked update): 5 lock 15 minutes, the third lock in
+  24 h sets `pin_blocked` until the boss sets a new PIN (`PIN_RESET`), and the boss gets a push on every
+  lockout (name only). crew-list allows 30 lists per IP per hour. The IP is `cf-connecting-ip`, else the
+  last `x-forwarded-for` hop (a client controls the first); no IP means no per-IP limit.
+  F-06: `corsFor` makes a function fail at start on a missing, `*` or http `APP_ORIGIN`. F-12:
+  photo-upload refuses another person's or company's punch and one that already has its picture, and
+  the key is now `org/day/uploader/punch.jpg`; sync keeps a punch's `photo_key` only when it is the
+  caller's own key for that punch, so a leaked id can't get someone else's picture onto it.
+  F-13: report token compared in constant time, under 32 characters counts as not set up, payload
+  whitelisted to shift and name fields. F-15: CI `secrets` job runs gitleaks v8.28.0 over the whole
+  history. Its first CI run found 5 hits, all made-up MLS key package labels in
+  `tests/sql/retention_test.sql` (`kp-test-...`), checked by hand and listed by exact fingerprint in
+  `.gitleaksignore` (a test fails if an entry points outside `tests/`). No real secret in the history.
+  Open flake seen on this PR's first CI run (not this change): `tests/e2e-update.js` "after a
+  redeploy, reopening the demo shows the new build" got 'old' once; it waits fixed 2 s / 1 s for the
+  new service worker, too short on a slow runner. Green on the next run and 3x locally. Fix: wait for
+  the new worker to activate instead of a fixed sleep (failing test first).
+  PRIVACY: two new retention rows (rate hits, lock fields), S2 and S3 updated.
+  privacy-security on the first build: 2 P1 (spoofable first `x-forwarded-for` entry; parallel
+  guesses sharing one strike) and 4 P2 (one shared bucket with no IP; photo key before sync; HMAC key
+  was the service-role key; the old code still in the review and a test); all fixed red first
+  (PS-M19-1..6). Concurrency is proved by the row and advisory locks in the SQL (tested), not by a
+  parallel load test. Check the real IP headers once at M2.1 (one request, read what arrives).
+  Round 2: all six closed, 3 new P2: PS-M19-7 a right guess in the same burst as a locking one now
+  signs in only through `public.pin_ok` (re-checks the lock); PS-M19-8 the boss gets one push an hour
+  when the company cap pauses sign-ins; PS-M19-9 the old code stays in public git history and its hash
+  in the test only detects it, so that code must never be used as a live one (S2).
 
 - Week table at 360px (2026-10-31, found while testing Chase's "test and merge all"). UX-R29 went
   red on main on a Saturday: the sample week then has six days and totals like "49.1+", and the
@@ -379,16 +416,9 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
 
 ## Exact next step
 
-M1.12: qa-tdd runs all suites 3x, then privacy-security and ux-reviewer on the branch
-`claude/project-thread-1jlll2-m1.12` (location drops, the private-mode banner, the duplicate note).
-Still open from CRW-R3: the bare `ex` error rule belongs upstream in studio-agents' check-logs.mjs
-(this repo's copy now has `bannedWords`; carry that upstream too).
-
-Chase: the three steps in `docs/reviews/2026-10-24-recruiter-ready.md` (confirm the demo pins and
-names are made up, merge #18 then #19 then #20, open the live demo on his phone), then review the
-M1.4 PR and decide on consent-record retention (Decisions to review). Next build task: `M1.9` crew
-sign-in and server hardening (F-03, F-06, F-12, F-13, F-15), failing tests first; or the boss's
-"Erase their data" button and the B2 purge function if Chase wants M1.4's leftovers first.
+M1.9 is done and waits on Chase's merge. Next build task: the boss's "Erase their data" button and the
+B2 purge function (M1.4 leftovers), or `M2.1` once Chase has the Supabase project (Blockers 1).
+Still open from CRW-R3: the bare `ex` error rule belongs upstream in studio-agents' check-logs.mjs.
 
 ## Decisions to review
 
@@ -396,6 +426,16 @@ sign-in and server hardening (F-03, F-06, F-12, F-13, F-15), failing tests first
   the clock ("5 people have worked 29.0 hours so far across 3 jobs"), never "so far today". #32's
   LIVE-2 asked for "so far", #34's UX-R46b for no "so far"; "so far" won because a shift is still
   running. UX-R46b's wording check now allows it.
+- **M1.9: the third PIN lockout in a day blocks the PIN until the boss sets a new one** (the review's
+  ask). Trade-off: someone guessing can block a worker's PIN on purpose; the per-IP limit (20 wrong
+  PINs an hour) slows that to about 4 people an hour per network, and the boss is alerted each time.
+- **M1.9: limits are 20 PIN tries and 30 name lists per IP per hour, 40 PIN tries per company.** A
+  whole crew on one job-site hotspot shares an IP; 30 lists covers 10 phones signing in three times
+  each. The company cap means a script can stop new sign-ins for an hour; phones already signed in
+  keep working and clock-ins are never blocked.
+- **M1.9: a picture link for a punch the server already has with a picture is refused (409).** If a
+  phone's picture went up but it couldn't save that fact (storage full or private mode), and the punch
+  also synced, its next retry is refused and it stays "waiting to send". Rare; logged, not fixed.
 - **2026-10-31: CI's test job runs on `ubuntu-24.04`, not ubuntu-latest**, until Playwright
   supports Ubuntu 26.04. Other jobs stay on ubuntu-latest (no browser).
 - **2026-10-29: chat bundle targets Safari 14.1, not 14.0** (esbuild 0.28 can't build for 14.0).

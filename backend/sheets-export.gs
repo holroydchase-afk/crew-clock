@@ -7,7 +7,7 @@
  * Script Properties (Project Settings > Script Properties):
  *   SUPABASE_URL   https://YOUR-PROJECT.supabase.co
  *   REPORT_TOKEN   same value as the REPORT_TOKEN Edge Function secret
- *   ORG_CODE       the company code, e.g. TEAYS
+ *   ORG_CODE       the company code, e.g. EXAMPLE1
  */
 
 const DAILY_HEAD = ['date', 'crew', 'job', 'clock_in', 'clock_out', 'hours', 'status', 'note'];

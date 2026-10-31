@@ -1,10 +1,8 @@
 import { HttpError } from './core.ts';
+import { corsFor } from './guard.ts';
 
-export const cors = {
-  'Access-Control-Allow-Origin': Deno.env.get('APP_ORIGIN') || '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-};
+// Only the crew app's address; a function with APP_ORIGIN missing or '*' fails at start (F-06).
+export const cors = corsFor(Deno.env.get('APP_ORIGIN'));
 
 export function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
