@@ -5,6 +5,7 @@
   const OUTBOX = 'outbox';
   let dbPromise = null;
   const memory = {}; // fallback when IndexedDB is unavailable (private mode)
+  let volatile = null; // true once a storage write has failed: nothing here outlives the tab
 
   function openDb() {
     if (dbPromise) return dbPromise;
@@ -14,9 +15,14 @@
         req.onupgradeneeded = () => {
           req.result.createObjectStore(OUTBOX, { keyPath: 'id' });
         };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => resolve(null);
+        req.onsuccess = () => {
+          // Let "Reset sample data" delete the database instead of waiting on this open connection
+          req.result.onversionchange = () => { req.result.close(); dbPromise = null; };
+          resolve(req.result);
+        };
+        req.onerror = () => { volatile = true; resolve(null); };
       } catch (e) {
+        volatile = true;
         resolve(null);
       }
     });
@@ -66,7 +72,7 @@
     },
     set(key, value) {
       try { localStorage.setItem('cc.' + key, JSON.stringify(value)); }
-      catch (e) { memory['ls.' + key] = value; }
+      catch (e) { memory['ls.' + key] = value; volatile = true; }
     },
     remove(key) {
       try { localStorage.removeItem('cc.' + key); } catch (e) { delete memory['ls.' + key]; }
@@ -85,5 +91,20 @@
     return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
   }
 
-  root.Store = { outbox, local, uid };
+  // Private mode on some phones: storage is there but every write throws (HRD-13). Checked once
+  // with a throwaway key, then kept true if any later write fails.
+  function isVolatile() {
+    if (volatile === null) {
+      try {
+        localStorage.setItem('cc.probe', '1');
+        localStorage.removeItem('cc.probe');
+        volatile = false;
+      } catch (e) {
+        volatile = true;
+      }
+    }
+    return volatile;
+  }
+
+  root.Store = { outbox, local, uid, isVolatile };
 })(self);

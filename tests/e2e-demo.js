@@ -22,6 +22,8 @@ const answer = (r) => (isTile(new URL(r.request().url())) ? r.fulfill({ status: 
 const CONTEXT = { viewport: { width: 390, height: 844 }, serviceWorkers: 'block' };
 
 function gpsAt(pos) {
+  // The demo starts with "pretend I'm at the job" on (M1.6); these tests drive the real GPS path.
+  try { localStorage.setItem('cc.demoFake', 'false'); } catch (e) { /* ok */ }
   const at = () => ({ coords: { latitude: pos.lat, longitude: pos.lng, accuracy: pos.acc }, timestamp: Date.now() });
   navigator.geolocation.watchPosition = (ok) => { setTimeout(() => ok(at()), 0); return 1; };
   navigator.geolocation.clearWatch = () => {};
@@ -254,12 +256,17 @@ t('SEP-4 every demo screen has a visible link to https://chaseholroyd.com', asyn
     if (!hrefs.some((h) => PORTFOLIO.test(h))) missing.push(where);
     // The link's tap area stays inside the banner, so it never covers a control under it
     const spill = await p.evaluate(() => {
-      const b = document.querySelector('.demo-banner'); const a = b && b.querySelector('a');
-      if (!a) return 0;
-      const br = b.getBoundingClientRect(); const ar = a.getBoundingClientRect();
-      return Math.max(0, ar.bottom - br.bottom, br.top - ar.top);
+      // ...and the banner's two controls ("Reset sample data", the link) never cover each other
+      const b = document.querySelector('.demo-banner');
+      if (!b) return 0;
+      const br = b.getBoundingClientRect();
+      return Math.max(0, ...[...b.querySelectorAll('a, button')].map((a) => {
+        const ar = a.getBoundingClientRect();
+        const hit = document.elementFromPoint(ar.left + ar.width / 2, ar.top + ar.height / 2);
+        return Math.max(ar.bottom - br.bottom, br.top - ar.top, hit && a.contains(hit) ? 0 : 99);
+      }));
     });
-    if (spill > 0.5) missing.push(`${where} (link tap area spills ${spill.toFixed(1)} px past the banner)`);
+    if (spill > 0.5) missing.push(`${where} (a banner control's tap area spills ${spill.toFixed(1)} px past the banner or is covered)`);
   });
   if (missing.length) throw new Error(`no visible chaseholroyd.com link on: ${missing.join(', ')}`);
   return page;
@@ -310,6 +317,7 @@ async function noDemoBits(page, where, found) {
     ['chaseholroyd.com link', page.locator('a[href*="chaseholroyd.com"]')],
     ['"pretend I\'m at the job" control', page.getByText(/pretend I'?m at the job/i)],
     ['demo PIN hint', page.getByText(/Demo: tap anyone|Demo mode/i)],
+    ['"Reset sample data" button', page.getByRole('button', { name: /Reset sample data/i })],
   ];
   for (const [what, loc] of checks) if (await loc.count()) found.push(`${where}: ${what}`);
 }
@@ -351,6 +359,31 @@ t('SEP-5 the crew app (backend: supabase) shows no demo banner, sample-data labe
   }
   if (found.length) throw new Error(found.join(' | '));
   page.errors.push(...boss.page.errors);
+  return page;
+});
+
+t('RST-1 "Reset sample data" on the demo puts the sample crew back and forgets what the visitor did', async (browser) => {
+  const { page } = await open(browser);
+  await page.waitForSelector('.name-btn');
+  await signIn(page, 'Travis K.'); // off the clock in the seed
+  await page.click('.punch.in');
+  await page.waitForSelector('.job-btn');
+  await page.click('.job-btn[data-id="j1"]');
+  await page.waitForSelector('.big-check');
+  await page.getByRole('button', { name: 'OK', exact: true }).click();
+  await page.waitForSelector('.punch.out');
+  await page.evaluate(() => localStorage.setItem('cc.bossTab', JSON.stringify('jobs')));
+  // Reachable from any screen: it sits in the demo banner
+  const reset = page.getByRole('button', { name: 'Reset sample data' });
+  if (await reset.count() !== 1) throw new Error('expected one "Reset sample data" button on the home screen');
+  await reset.click();
+  await page.waitForSelector('.name-btn');
+  const left = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('cc.') && !k.startsWith('cc.demo.db')));
+  // gpsAt() sets cc.demoFake again on every load; nothing else of the visit may survive
+  const extra = left.filter((k) => k !== 'cc.demoFake' && k !== 'cc.crewNames'); // crewNames: the sign-in screen refetches the sample crew
+  if (extra.length) throw new Error('reset left visit data behind: ' + extra.join(', '));
+  await signIn(page, 'Travis K.');
+  if (!(await page.locator('.punch.in').count())) throw new Error('after reset Travis should be off the clock again, as in the seed');
   return page;
 });
 

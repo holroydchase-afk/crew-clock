@@ -45,7 +45,13 @@
     login: (crewId, pin) => call('login', { auth: { crewId, pin } }),
     demoLogin: isDemo ? (crewId) => call('demoLogin', { crewId }) : undefined,
     refresh: (auth) => call('refresh', { auth }),
-    sync: (auth, items) => call('sync', { auth, items }),
+    // The demo learns this phone's public key with its first signed punch, so the boss's screen can
+    // check it (M1.13 ENH-1); the real server registers it at sign-in.
+    sync: isDemo ? async (auth, items) => {
+      let device = null;
+      try { if (root.Device && root.Device.supported()) device = await root.Device.publicInfo(); } catch (e) { /* unsigned */ }
+      return call('sync', { auth, items, device });
+    } : (auth, items) => call('sync', { auth, items }),
     team: (auth, since) => call('team', { auth, since }),
     geocode: (auth, address) => call('geocode', { auth, address }),
     photo: (auth, punchId) => call('photo', { auth, punchId }),

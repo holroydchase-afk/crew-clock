@@ -13,10 +13,19 @@ const cases = [];
 const t = (name, fn) => cases.push({ name, fn });
 
 // mode 'auto': every GPS request answers at pos; 'deny': permission denied; 'manual': the test fires each watch.
+// A rough reading (the job list's sort, the permission primer) isn't a punch watch: it answers on its
+// own as the old one-shot read did (M1.3 moved those reads to a watch so they can be stopped).
 function gpsStub(cfg) {
+  // The demo starts with "pretend I'm at the job" on (M1.6); these tests drive the real GPS path.
+  try { localStorage.setItem('cc.demoFake', 'false'); } catch (e) { /* ok */ }
   const g = window.__gps = { mode: cfg.mode, pos: cfg.pos, watches: [] };
   const at = (p) => ({ coords: { latitude: p.lat, longitude: p.lng, accuracy: p.acc }, timestamp: Date.now() });
-  navigator.geolocation.watchPosition = (ok, err) => {
+  let rough = 1000;
+  navigator.geolocation.watchPosition = (ok, err, opts) => {
+    if (opts && opts.enableHighAccuracy === false) {
+      setTimeout(() => (g.mode === 'auto' ? ok(at(g.pos)) : err && err({ code: 1 })), 0);
+      return ++rough;
+    }
     const w = { ok, err, cleared: false };
     g.watches.push(w);
     if (g.mode === 'auto') setTimeout(() => !w.cleared && ok(at(g.pos)), 0);
@@ -37,6 +46,10 @@ async function open(browser, mode, pos) {
   page.dialogs = [];
   page.on('dialog', (d) => { page.dialogs.push(d.message()); d.accept(); });
   await page.addInitScript(gpsStub, { mode, pos: Object.assign({ acc: 8 }, pos || JOBS.j1) });
+  // The sample crew's day depends on the hour (M1.6: before 9 AM it's yesterday, all clocked out).
+  // These cases need people on the clock, so the page's clock starts at 1:30 PM today and runs on.
+  const afternoon = new Date(); afternoon.setHours(13, 30, 0, 0);
+  await page.clock.install({ time: afternoon });
   await page.goto(BASE);
   return { ctx, page };
 }
@@ -132,7 +145,7 @@ t('HRD-1 Jake leaves 2 unsent punches, the boss signs in and syncs: they stay qu
   if (sentByBoss.length) {
     throw new Error(`boss's sync sent Jake's punches: ${sentByBoss.length} of 2 recorded with byCrewId=${sentByBoss.map((p) => p.byCrewId).join(',')}`);
   }
-  await page.getByRole('button', { name: 'Switch' }).click();
+  await page.getByRole('button', { name: 'Sign out' }).click();
   await page.waitForSelector('.name-btn');
   await signIn(page, 'Jake R.', '1111');
   await syncAndWait(page);
@@ -585,7 +598,7 @@ t('UX-4 pick-teammate: one button per row, at least 96x48, "Clock in" when off a
   await page.getByRole('button', { name: /teammate/ }).click();
   await page.waitForSelector('.row-card');
   await page.waitForFunction(() => self.CrewClock.state.team); // the team list arrives after sign-in; the rows redraw
-  await page.waitForTimeout(50);
+  await page.locator('.row-card .mate-btn').first().waitFor({ state: 'visible' }); // UX-R36: buttons only once it has
   const rows = await page.$$eval('.row-card', (els) => els.map((r) => ({
     text: r.innerText,
     buttons: [...r.querySelectorAll('button')].map((b) => { const x = b.getBoundingClientRect(); return { label: b.innerText.trim(), w: x.width, h: x.height }; }),
@@ -600,6 +613,45 @@ t('UX-4 pick-teammate: one button per row, at least 96x48, "Clock in" when off a
     if (b.w < 96 || b.h < 48) throw new Error(`${name}: button is ${b.w}x${b.h}, needs at least 96x48`);
     if (!line.test(r.text)) throw new Error(`${name}: status line missing; row says ${JSON.stringify(r.text)}`);
   }
+  return page;
+});
+
+// UX-R36: before the team list arrives the phone can't tell who is on the clock, so it shows a loading
+// line, not a "Clock in" for everyone (that was also the UX-4 flake: rows redrawn mid-measure).
+t('UX-R36 pick-teammate waits for the team list: a loading line, no punch buttons, then the right ones', async (browser) => {
+  const { page } = await open(browser, 'auto', JOBS.j1);
+  await page.evaluate(() => {
+    const team = self.Api.team;
+    window.__teamGate = new Promise((ok) => { window.__openTeam = ok; });
+    self.Api.team = async (...a) => { await window.__teamGate; return team.apply(self.Api, a); };
+  });
+  await signIn(page, 'Ray T.', '3333');
+  await page.getByRole('button', { name: /teammate/ }).click();
+  await page.waitForSelector('h1:has-text("Which teammate?")');
+  const before = await page.$$eval('.mate-btn', (els) => els.length);
+  if (before) throw new Error(`${before} punch buttons before the team list loaded`);
+  const status = page.getByRole('status').filter({ hasText: /Loading the crew/ });
+  if (!(await status.count())) throw new Error(`no loading line; screen says ${JSON.stringify(await page.locator('main').innerText())}`);
+  await page.evaluate(() => window.__openTeam());
+  const jake = page.locator('.row-card', { hasText: 'Jake R.' }).locator('.mate-btn');
+  await jake.waitFor({ state: 'visible' });
+  const label = (await jake.innerText()).trim();
+  if (label !== 'Clock out') throw new Error(`Jake R. (on the clock) offered ${JSON.stringify(label)}`);
+  if (await status.count()) throw new Error('loading line still showing after the team list loaded');
+  return page;
+});
+
+// UX-R36: with no signal the team list never comes; after a few seconds the buttons show anyway
+// (never block a clock-in), from the crew list this phone already has.
+t('UX-R36b pick-teammate never blocks: buttons show within 5 s when the team list does not arrive', async (browser) => {
+  const { page } = await open(browser, 'auto', JOBS.j1);
+  await page.evaluate(() => { self.Api.team = () => new Promise(() => {}); });
+  await signIn(page, 'Ray T.', '3333');
+  await page.getByRole('button', { name: /teammate/ }).click();
+  await page.waitForSelector('h1:has-text("Which teammate?")');
+  await page.clock.runFor(5000);
+  const n = await page.$$eval('.mate-btn', (els) => els.length);
+  if (n < 4) throw new Error(`${n} punch buttons 5 s after the team list stalled, expected one per teammate`);
   return page;
 });
 

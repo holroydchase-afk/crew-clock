@@ -87,6 +87,8 @@ export type Device = { id: string; crew_id: string; org_id: string; public_key: 
 // The storage the ingest needs. db.ts implements it with supabase-js.
 export interface Repo {
   crewInOrg(orgId: string, crewId: string): Promise<boolean>;
+  // Same company, active or turned off (PS-4): null when the person isn't in this company at all.
+  crewMember(orgId: string, crewId: string): Promise<{ active: boolean; deactivated_at: string | null } | null>;
   punchExists(id: string): Promise<boolean>;
   getDevice(id: string): Promise<Device | null>;
   setDeviceChain(id: string, seq: number, hash: string): Promise<void>;
@@ -105,12 +107,27 @@ export const CONSENT_VERSION = 'loc-v1';
 
 export type Alert = { punchId: string; crewId: string; status: string; risk: string[] };
 
+// PS-M112-1: a worker the boss turned off keeps only their own punches made up to this long after
+// (an offline clock-out syncing late). Everything else from or for them is refused "Turned off".
+export const TURNED_OFF_GRACE_MS = 15 * 60000;
+const turnedOff = () => new HttpError(403, 'Turned off'); // names no value; the phone drops it
+
+// The signed-in caller must still be on the crew. Used by every function but sync, which lets a
+// turned-off worker's own early punches through (ingest below).
+export async function requireActive(claims: Claims, repo: Pick<Repo, 'crewMember'>) {
+  const me = await repo.crewMember(claims.org_id, claims.crew_id);
+  if (!me || !me.active) throw turnedOff();
+}
+
 export async function ingest(claims: Claims, items: Item[], repo: Repo, now = Date.now()) {
   const accepted: string[] = [];
   const rejected: { id: string; reason: string }[] = [];
   const alerts: Alert[] = [];
+  const me = await repo.crewMember(claims.org_id, claims.crew_id);
+  const callerOff = !me || !me.active;
   for (const item of items.slice(0, 50)) {
     try {
+      if (callerOff && item.kind !== 'punch') throw turnedOff();
       if (item.kind === 'punch') {
         const r = await ingestPunch(claims, item, repo, now);
         if (r.alert) alerts.push(r.alert);
@@ -133,29 +150,72 @@ export async function ingest(claims: Claims, items: Item[], repo: Repo, now = Da
   return { accepted, rejected, alerts };
 }
 
+// A phone can only report lat -90..90, lng -180..180 and a non-negative accuracy, as numbers.
+function goodFix(p: PunchItem): boolean {
+  const n = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
+  return n(p.lat) && n(p.lng) && Math.abs(p.lat!) <= 90 && Math.abs(p.lng!) <= 180 &&
+    (p.accuracy == null || (n(p.accuracy) && p.accuracy! >= 0));
+}
+
+// A phone clock running fast is stored at most this far ahead (the database refuses past 2100).
+export const FUTURE_CAP_MS = 10 * 60000;
+
+// Stored as a device's last hash after a punch whose GPS (and so hash) was dropped (PS-M112-2).
+const DROPPED = 'dropped';
+
 async function ingestPunch(claims: Claims, p: PunchItem, repo: Repo, now: number) {
   if (await repo.punchExists(p.id)) return {}; // resend after a dropped reply
   const forOther = p.crewId !== claims.crew_id;
   if (forOther && claims.crew_role === 'crew') throw new HttpError(403, 'Only a foreman can clock in a teammate');
-  if (!(await repo.crewInOrg(claims.org_id, p.crewId))) throw new HttpError(403, 'Unknown crew member');
+  // PS-4: a worker turned off after a clock-out they made offline still has that punch kept (and
+  // flagged for the boss). Someone from another company is still refused.
+  const member = await repo.crewMember(claims.org_id, p.crewId);
+  if (!member) throw new HttpError(403, 'Unknown crew member');
   if (!['in', 'out', 'void'].includes(p.type)) throw new HttpError(400, 'Bad punch type');
-  if (typeof p.at !== 'number' || p.at < now - 30 * 86400000) throw new HttpError(400, 'Punch too old');
+  if (typeof p.at !== 'number' || !Number.isFinite(p.at) || p.at < now - 30 * 86400000) throw new HttpError(400, 'Punch too old');
+  // PS-M112-1: only the worker's own punches made before they were turned off (plus 15 min) are kept.
+  // A foreman's punch for a turned-off teammate, or one by a turned-off foreman, is refused.
+  if (!member.active) {
+    const offAt = member.deactivated_at ? Date.parse(member.deactivated_at) : NaN;
+    if (forOther || !(p.at <= offAt + TURNED_OFF_GRACE_MS)) throw turnedOff();
+  }
+  if (forOther) {
+    const me = await repo.crewMember(claims.org_id, claims.crew_id);
+    if (!me || !me.active) throw turnedOff();
+  }
 
-  // Signature and chain.
+  // HRD-14: an impossible GPS reading is dropped, never a refusal (CLAUDE.md: never block a clock-in).
+  // L3, checked here too: a phone with a stale copy (a foreman's old team list, a refused consent)
+  // must not store GPS for someone who hasn't agreed. The clock-in still counts, without location.
+  const hadFix = p.lat != null || p.lng != null || p.accuracy != null;
+  const badFix = hadFix && !goodFix(p);
+  const c = await repo.latestConsent(p.crewId, p.at);
+  const noConsent = !c || c.action !== 'agree' || c.text_version !== CONSENT_VERSION;
+  // PS-M112-2: the hash and signature cover the location, so when it is dropped they go too (or the
+  // GPS could be guessed back from them), like app.apply_retention's 90-day rule.
+  const dropGps = hadFix && (badFix || noConsent);
+
+  // Signature and chain, checked on what the phone sent, before anything is dropped.
   let chain = 'unsigned';
   let sigOk = false;
+  let linked = false; // prev_hash points at a punch this server kept with its hash
   const device = p.deviceId ? await repo.getDevice(p.deviceId) : null;
   if (p.signature && device && !device.revoked && device.org_id === claims.org_id) {
-    const v = await Chain.verifyPunch(p, device.public_key, { seq: device.last_seq, hash: device.last_hash });
+    // After a dropped punch the device row holds DROPPED, not its hash: the next punch's link is
+    // taken on trust (its own signature still checks) and stored without the pointer.
+    const prevDropped = device.last_hash === DROPPED;
+    const v = await Chain.verifyPunch(p, device.public_key, { seq: device.last_seq, hash: prevDropped ? p.prevHash : device.last_hash });
     if (!v.ok) chain = 'bad_signature';
     else {
       sigOk = true;
       chain = v.chain;
-      if (v.chain !== 'replay_or_old') await repo.setDeviceChain(device.id, p.seq!, p.hash!);
+      linked = v.chain === 'linked' && !prevDropped;
+      if (v.chain !== 'replay_or_old') await repo.setDeviceChain(device.id, p.seq!, dropGps ? DROPPED : p.hash!);
     }
   } else if (p.signature) {
     chain = 'bad_signature'; // signed by a device we don't know
   }
+  if (badFix || noConsent) p = { ...p, lat: null, lng: null, accuracy: null };
 
   const since = p.at - 7 * 86400000;
   const flags = Risk.assess(Object.assign({}, p, { byCrewId: claims.crew_id }), {
@@ -164,18 +224,19 @@ async function ingestPunch(claims: Claims, p: PunchItem, repo: Repo, now: number
     receivedAt: now,
     chain,
   });
-
-  // L3, checked here too: a phone with a stale copy (a foreman's old team list, a refused consent)
-  // must not store GPS for someone who hasn't agreed. The clock-in still counts, without location.
-  const c = await repo.latestConsent(p.crewId, p.at);
-  if (!c || c.action !== 'agree' || c.text_version !== CONSENT_VERSION) { p = { ...p, lat: null, lng: null, accuracy: null }; }
+  if (!member.active) flags.push({ code: 'crew_inactive', level: Risk.RULES.crew_inactive.level });
+  if (badFix) flags.push({ code: 'bad_location', level: Risk.RULES.bad_location.level });
 
   const row = {
     id: p.id, org_id: claims.org_id, crew_id: p.crewId, by_crew_id: claims.crew_id,
     device_id: device ? device.id : null, job_id: p.jobId || null, type: p.type, voids_id: p.voidsId || null,
-    phone_at: new Date(p.at).toISOString(), lat: p.lat ?? null, lng: p.lng ?? null, accuracy_m: p.accuracy ?? null,
+    // A fast phone clock is capped (risk future_time says so); the signed time stays in the hash.
+    phone_at: new Date(Math.min(p.at, now + FUTURE_CAP_MS)).toISOString(),
+    lat: p.lat ?? null, lng: p.lng ?? null, accuracy_m: p.accuracy ?? null,
     photo_key: p.photoKey || null, photo_sha256: p.photoSha256 || null,
-    seq: p.seq ?? null, prev_hash: p.prevHash ?? null, hash: p.hash ?? null, signature: p.signature ?? null,
+    // prev_hash only when it points at a punch kept with its hash (never at one whose GPS was dropped).
+    seq: p.seq ?? null, prev_hash: linked ? p.prevHash ?? null : null,
+    hash: dropGps ? null : p.hash ?? null, signature: dropGps ? null : p.signature ?? null,
     sig_ok: sigOk, risk: flags,
   };
   const saved = await repo.insertPunch(row);
@@ -200,20 +261,41 @@ async function ingestConsent(claims: Claims, c: ConsentItem, repo: Repo, now: nu
   });
 }
 
+// Control characters and text-direction overrides never belong in a name or address (HRD-14).
+// deno-lint-ignore no-control-regex
+const CONTROL = /[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g;
+export function cleanText(v: unknown): string {
+  return String(v ?? '').replace(CONTROL, '').trim();
+}
+export const LIMITS = { name: 60, address: 200 };
+
+// Refusal reasons name the field, never the value sent (they show on the phone and may be logged).
+function coord(v: unknown, max: number, what: string): number | null {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || Math.abs(n) > max) throw new HttpError(400, `Job pin ${what} is off the map`);
+  return n;
+}
+
 async function applyEdit(claims: Claims, item: EditItem, repo: Repo) {
   const d = item.data as Record<string, unknown>;
   const id = String(d.id || '');
   if (!/^[0-9a-f-]{36}$/i.test(id)) throw new HttpError(400, 'Bad id');
+  const name = cleanText(d.name);
+  if (name.length > LIMITS.name) throw new HttpError(400, `Name is too long (${LIMITS.name} letters at most)`);
   if (item.kind === 'job') {
-    const radius = Math.round(Number(d.radiusFt || 300));
+    const r = Math.round(Number(d.radiusFt || 300));
+    const radius = Number.isFinite(r) ? r : 300;
+    const address = cleanText(d.address);
+    if (address.length > LIMITS.address) throw new HttpError(400, `Address is too long (${LIMITS.address} letters at most)`);
     await repo.upsertJob({
-      id, org_id: claims.org_id, name: String(d.name || '').slice(0, 120), address: String(d.address || '').slice(0, 300),
-      lat: d.lat == null ? null : Number(d.lat), lng: d.lng == null ? null : Number(d.lng),
+      id, org_id: claims.org_id, name, address,
+      lat: coord(d.lat, 90, 'latitude'), lng: coord(d.lng, 180, 'longitude'),
       radius_ft: Math.min(5000, Math.max(50, radius)), active: d.active !== false, updated_at: new Date().toISOString(),
     });
   } else {
     const role = ['crew', 'foreman', 'boss'].includes(String(d.role)) ? String(d.role) : 'crew';
-    const row: Record<string, unknown> = { id, org_id: claims.org_id, name: String(d.name || '').slice(0, 60), role, active: d.active !== false };
+    const row: Record<string, unknown> = { id, org_id: claims.org_id, name, role, active: d.active !== false };
     if (d.pin) { row.pin_hash = await hashPin(String(d.pin)); row.failed_pins = 0; row.locked_until = null; }
     await repo.upsertCrew(row);
   }

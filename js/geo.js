@@ -21,8 +21,17 @@
 
   // onsite | near | offsite | weak | nogps
   // The worker gets the benefit of the phone's own stated error.
+  // A number the phone could have sent: finite and not negative. Anything else (null, NaN, text,
+  // a negative accuracy) counts as no reading, so the worker gets a photo, never "off site".
+  function num(v) {
+    if (typeof v === 'string' && v.trim() !== '') v = Number(v);
+    return typeof v === 'number' && isFinite(v) ? v : null;
+  }
+
   function fenceStatus(distM, accuracyM, radiusM) {
-    if (distM == null || accuracyM == null || isNaN(distM)) return 'nogps';
+    distM = num(distM);
+    accuracyM = num(accuracyM);
+    if (distM == null || accuracyM == null || accuracyM < 0) return 'nogps';
     if (accuracyM > WEAK_ACCURACY_M) return 'weak';
     const closest = distM - accuracyM;
     if (closest <= radiusM) return 'onsite';
@@ -32,10 +41,13 @@
 
   // Status for a fix against a job ({lat,lng,radiusFt}).
   function checkFix(fix, job) {
-    if (!fix || fix.lat == null || !job || job.lat == null) {
+    const lat = fix ? num(fix.lat) : null;
+    const lng = fix ? num(fix.lng) : null;
+    if (lat == null || lng == null || Math.abs(lat) > 90 || Math.abs(lng) > 180 ||
+        !job || num(job.lat) == null || num(job.lng) == null) {
       return { status: 'nogps', distanceFt: null };
     }
-    const d = distanceM(fix.lat, fix.lng, job.lat, job.lng);
+    const d = distanceM(lat, lng, Number(job.lat), Number(job.lng));
     return {
       status: fenceStatus(d, fix.accuracy, toMeters(job.radiusFt || 300)),
       distanceFt: Math.round(toFeet(d)),
@@ -54,10 +66,12 @@
 
   // Watch GPS for up to timeoutMs and resolve with the most accurate fix,
   // stopping early once it is good enough. Resolves null if nothing came back.
+  // opts.signal (an AbortSignal) stops the watch at once and resolves null: a stopped reading is
+  // never used. highAccuracy: false and maximumAgeMs are for a rough reading.
   function bestFix(geolocation, opts) {
-    const o = Object.assign({ timeoutMs: 20000, goodEnoughM: 20, onUpdate: null }, opts);
+    const o = Object.assign({ timeoutMs: 20000, goodEnoughM: 20, onUpdate: null, signal: null, highAccuracy: true, maximumAgeMs: 0 }, opts);
     return new Promise((resolve) => {
-      if (!geolocation) return resolve(null);
+      if (!geolocation || (o.signal && o.signal.aborted)) return resolve(null);
       let best = null;
       let watchId = null;
       let done = false;
@@ -83,10 +97,11 @@
         }, (err) => {
           // Permission denied ends it now; other errors keep trying until timeout.
           if (err && err.code === 1) finish();
-        }, { enableHighAccuracy: true, maximumAge: 0, timeout: o.timeoutMs });
+        }, { enableHighAccuracy: o.highAccuracy, maximumAge: o.maximumAgeMs, timeout: o.timeoutMs });
       } catch (e) {
         finish();
       }
+      if (o.signal) o.signal.addEventListener('abort', () => { best = null; finish(); }, { once: true });
     });
   }
 

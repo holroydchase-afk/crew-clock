@@ -135,17 +135,24 @@ async function seedAt(at) {
 }
 
 for (const [label, h, m] of [['6:30 AM', 6, 30], ['7:30 AM', 7, 30], ['9:15 AM', 9, 15], ['2:00 PM', 14, 0]]) {
-  test(`UX-7 demo seed at ${label}: every seeded shift lasts more than 1 h and shows on Today`, async () => {
+  // M1.6 (showcase SC-2): before 9 AM the sample day is yesterday, which the boss's day list shows
+  // as "Yesterday (sample day)", so every time on screen is a daytime time.
+  test(`UX-7 demo seed at ${label}: every seeded shift lasts more than 1 h, in daytime, on the day the boss's list shows`, async () => {
     const now = new Date(2026, 9, 23, h, m).getTime();
     const { punches, Report } = await seedAt(now);
     const shifts = Report.pairShifts(punches);
     assert.ok(shifts.length >= 4, `only ${shifts.length} shifts seeded`);
     const today0 = Report.startOfDay(now);
+    const shown0 = h < 9 ? Report.startOfDay(today0 - 1) : today0;
     for (const s of shifts) {
       const span = (s.outAt || now) - s.inAt;
       assert.ok(s.inAt && span > 3600000, `${s.crewId} shift is ${(span / 3600000).toFixed(2)} h (in ${new Date(s.inAt).toTimeString().slice(0, 5)})`);
-      assert.ok(s.inAt >= today0, `${s.crewId} shift starts before today, so Today hides it`);
+      assert.ok(s.inAt >= shown0 && s.inAt < shown0 + 86400000, `${s.crewId} shift is not on the day the boss's list shows`);
       assert.ok((s.outAt || s.inAt) < now, `${s.crewId} shift ends in the future`);
+      for (const at of [s.inAt, s.outAt].filter(Boolean)) {
+        const hr = new Date(at).getHours();
+        assert.ok(hr >= 6 && hr < 18, `${s.crewId} has a punch at ${new Date(at).toTimeString().slice(0, 5)}`);
+      }
     }
   });
 }
@@ -161,7 +168,7 @@ test('UX-8 Today summary lists a person with two flagged shifts once and never e
   ], { c1: 'Ray T.', c2: 'Jake R.' }, { j1: 'Smith kitchen', j2: 'Miller roof' }, ['Travis K.', 'Billy S.']);
   assert.strictEqual((s.match(/Ray T\./g) || []).length, 1, s);
   assert.ok(!/\.\./.test(s), s);
-  assert.match(s, /Check Ray T\. /, s);
+  assert.match(s, /Check: off site for Ray T\. /, s);
   assert.match(s, /Didn't clock in: Travis K\., Billy S\.$/, s);
 });
 
