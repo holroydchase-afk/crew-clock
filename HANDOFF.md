@@ -2,7 +2,7 @@
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-10-29 (portfolio showcase review: UX-R40 to UX-R54)
+Updated: 2026-10-31 (Week table fits at 360px on a Saturday)
 
 ## What it is
 
@@ -14,6 +14,15 @@ Plan and milestone IDs: [PLAN.md](PLAN.md). Hard rules: [CLAUDE.md](CLAUDE.md). 
 contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
+
+- Week table at 360px (2026-10-31, found while testing Chase's "test and merge all"). UX-R29 went
+  red on main on a Saturday: the sample week then has six days and totals like "49.1+", and the
+  table was 321px in a 320px box, so it scrolled. The phone table's outer cell padding is 6px
+  instead of 8 (now 317px). The existing UX-R29 test was the red test; it is green 3x at 360 and 390.
+  Portfolio / public presence: the demo's Week table is 4px narrower on phones.
+  CI's test job then failed before any test ran: GitHub's ubuntu-latest became Ubuntu 26.04 and
+  Playwright 1.56.1 refuses to install Chromium there ("does not support chromium on
+  ubuntu26.04-x64"). The test job is pinned to `ubuntu-24.04` (Decisions to review).
 
 - Portfolio showcase review (2026-10-29, Product Studio INTAKE "get Crew Clock onto
   chaseholroyd.com"). The demo already existed at chaseholroyd.com/crew-clock/ with the link back
@@ -366,6 +375,8 @@ sign-in and server hardening (F-03, F-06, F-12, F-13, F-15), failing tests first
 
 ## Decisions to review
 
+- **2026-10-31: CI's test job runs on `ubuntu-24.04`, not ubuntu-latest**, until Playwright
+  supports Ubuntu 26.04. Other jobs stay on ubuntu-latest (no browser).
 - **2026-10-29: chat bundle targets Safari 14.1, not 14.0** (esbuild 0.28 can't build for 14.0).
   iPhones still on iOS 14.0 (2020, all can update to 14.1+) lose crew chat; clock-in is unaffected.
 - **2026-10-29: the teammate screen waits at most 4 s for the team list** before showing buttons.
