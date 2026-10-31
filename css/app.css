@@ -72,6 +72,12 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 .warn { color: var(--red); }
 .on-clock { color: var(--green); }
 
+/* The banners and the screen stack in one column the height of the window, so a screen can fill
+   what's left under the banner (UX-R40) */
+#app { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
+#app > * { width: 100%; flex: none; }
+#app.fit { height: 100vh; height: 100dvh; }
+#app.fit > .screen.chat { flex: 1 1 auto; }
 .screen {
   max-width: calc(var(--col) + 2 * var(--gutter));
   margin: 0 auto;
@@ -271,7 +277,7 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 .boss-head-right .link { font-size: 16px; padding: 8px 4px; min-height: 44px; display: inline-flex; align-items: center; }
 .boss-head-right .link:last-child { margin-right: -4px; }
 /* Refresh reads as a button (UX-R9): icon, outline, the time it last loaded */
-.head-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px;
+.head-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px;
   background: var(--bg); color: var(--ink); font-size: 15px; font-weight: 600; white-space: nowrap; }
 .head-btn svg { width: 18px; height: 18px; color: var(--blue); }
 .boss-body { flex: 1; overflow-y: auto; position: relative; }
@@ -375,14 +381,17 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 .e2e svg { width: 18px; height: 18px; }
 .e2e.small { font-size: 13px; gap: 4px; }
 .e2e.small svg { width: 14px; height: 14px; }
-.screen.chat { gap: 0; padding-bottom: 0; height: 100vh; height: 100dvh; min-height: 0; }
+.screen.chat { gap: 0; padding-bottom: 0; height: auto; min-height: 0; }
 .chat-head { display: flex; align-items: center; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.chat-head .back { min-width: 48px; justify-content: center; } /* a full 48x48 touch target (UX-R52) */
 .bubbles { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 14px 0; }
 .bubble { max-width: 82%; align-self: flex-start; background: var(--card); box-shadow: var(--shadow); border-radius: 18px 18px 18px 6px; padding: 10px 14px; display: flex; flex-direction: column; gap: 2px; font-size: 18px; }
 .bubble b { font-size: 14px; color: var(--blue); }
 .bubble small { font-size: 12px; color: var(--muted); align-self: flex-end; }
 .bubble.mine { align-self: flex-end; background: var(--blue); color: #fff; border-radius: 18px 18px 6px 18px; }
-.bubble.mine small { color: rgba(255,255,255,.75); }
+.bubble.mine small { color: #fff; } /* 5.2:1 on --blue; .75 white was 3.6:1 (UX-R48) */
+/* Dark: --blue is a light blue, so dark ink, like .btn.primary (UX-R41) */
+@media (prefers-color-scheme: dark) { .bubble.mine { color: #0b0f17; } .bubble.mine small { color: rgba(11,15,23,.75); } }
 .composer { display: flex; gap: 8px; padding: 10px 0 calc(env(safe-area-inset-bottom) + 12px); border-top: 1px solid var(--line); }
 .composer input { flex: 1; border: 2px solid var(--line); background: var(--card); border-radius: 22px; padding: 12px 16px; font-size: 18px; min-width: 0; }
 .row-card.pick input { width: 26px; height: 26px; }
@@ -466,6 +475,16 @@ h2 { font-size: 24px; margin: 4px 0 12px; }
 /* ENH-3: Day | Week, and the week table (scrolls inside its box on a narrow phone, never the page) */
 .view-seg { max-width: 280px; }
 .view-seg button { padding: 10px 6px; }
+/* UX-R43/R45: the title and Day | Week share a row; each half is a 48px target */
+.today-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.today-head h2 { margin: 0; }
+.today-head .view-seg { flex: none; width: 168px; }
+.view-seg button { min-height: 48px; justify-content: center; }
+/* "Try tampering" sits in the green card, after the line, in the line's own ink */
+.verify-row { align-items: center; flex-wrap: wrap; gap: 0 12px; }
+.verify-line { display: flex; gap: 10px; align-items: flex-start; flex: 1 1 220px; min-width: 0; }
+.verify .verify-try { color: inherit; font-size: inherit; font-weight: 700; text-decoration: underline; padding: 0 4px; min-height: 44px; margin: -10px -4px -10px 26px; }
+.verify-hint { margin: 0; }
 .week-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; }
 .week-head h3 { margin: 0; font-size: 18px; }
 .week-nav { display: flex; gap: 8px; }
@@ -505,3 +524,12 @@ table.week thead th .d-short { display: none; text-decoration: none; }
    a smaller avatar on a phone, none on the narrowest (the name is right beside it) */
 @media (max-width: 420px) { .shift { gap: 10px; } .shift > .avatar { width: 34px; height: 34px; font-size: 14px; } }
 @media (max-width: 380px) { .shift > .avatar { display: none; } }
+/* UX-R43: on a phone the demo banner is two short lines: the label, then its three controls in one row */
+.demo-label { display: block; }
+@media (max-width: 420px) {
+  .demo-banner { font-size: 14px; padding: calc(env(safe-area-inset-top) + 6px) 8px 0; }
+  .private-banner + .demo-banner { padding-top: 6px; }
+  .demo-actions { flex-wrap: nowrap; column-gap: 4px; margin: 0; }
+  .demo-actions .demo-switch { gap: 6px; }
+  .wide-only { display: none; }
+}
