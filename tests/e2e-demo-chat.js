@@ -165,6 +165,51 @@ t('CHAT-SEED-5 after "Reset sample data" the sample group is back for the boss',
   return page;
 });
 
+// ---------- UX-R40: the open thread fits under the demo banner, message box on screen ----------
+for (const vp of [{ width: 390, height: 844 }, { width: 360, height: 740 }, { width: 1280, height: 800 }]) {
+  t(`UX-R40 ${vp.width}x${vp.height}: the "Smith kitchen crew" thread fits the screen under the demo banner; the message box is on screen, no page scroll`, async (browser) => {
+    const { page } = await open(browser);
+    await page.setViewportSize(vp);
+    await signIn(page, 'Sam W.');
+    await chatList(page);
+    await groups(page, true);
+    await openGroup(page, 'Smith kitchen crew');
+    await page.waitForSelector('#chat-text');
+    await page.waitForTimeout(200);
+    const r = await page.evaluate(() => ({
+      boxBottom: document.querySelector('#chat-text').getBoundingClientRect().bottom,
+      scrollH: document.documentElement.scrollHeight, inner: innerHeight,
+      banner: !!document.querySelector('.demo-banner'),
+    }));
+    const errs = [];
+    if (!r.banner) errs.push('setup: no demo banner on the thread');
+    if (r.boxBottom > r.inner) errs.push(`#chat-text bottom is at ${Math.round(r.boxBottom)}px, below the ${r.inner}px screen`);
+    if (r.scrollH > r.inner + 1) errs.push(`the page scrolls: scrollHeight ${r.scrollH} > ${r.inner}`);
+    if (errs.length) throw new Error(errs.join('; '));
+    return page;
+  });
+}
+
+// ---------- UX-R52: the thread's Back button is a full 48x48 touch target ----------
+for (const vp of [{ width: 360, height: 740 }, { width: 390, height: 844 }, { width: 1280, height: 800 }]) {
+  t(`UX-R52 ${vp.width}x${vp.height}: every Back button in the open thread's header is at least 48x48`, async (browser) => {
+    const { page } = await open(browser);
+    await page.setViewportSize(vp);
+    await signIn(page, 'Sam W.');
+    await chatList(page);
+    await groups(page, true);
+    await openGroup(page, 'Smith kitchen crew');
+    await page.waitForSelector('.chat-head .back');
+    const backs = await page.$$eval('.chat-head .back', (bs) => bs.map((b) => {
+      const r = b.getBoundingClientRect();
+      return { name: b.getAttribute('aria-label') || b.innerText.trim(), w: r.width, h: r.height };
+    }));
+    const small = backs.filter((b) => b.w < 48 || b.h < 48);
+    if (small.length) throw new Error(`under 48x48: ${small.map((b) => `"${b.name}" ${b.w.toFixed(1)}x${b.h.toFixed(1)}px`).join(', ')}`);
+    return page;
+  });
+}
+
 async function pageState(page) {
   return page.evaluate(() => {
     const h = document.querySelector('#app h1, #app h2, #app .job-name');

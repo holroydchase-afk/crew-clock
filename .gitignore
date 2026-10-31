@@ -4,3 +4,4 @@ tests/shots/
 .env
 supabase/.temp/
 dist/
+dist-review/

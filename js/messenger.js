@@ -326,9 +326,9 @@
     const g = view.groups.find((x) => x.id === view.open) || { name: 'Chat' };
     const msgs = (view.chat && view.chat.messages[view.open]) || [];
     return `<main class="screen chat">
-      <header class="chat-head"><button class="back" data-action="chat-back">${Icons.back}</button>
+      <header class="chat-head"><button class="back" data-action="chat-back" aria-label="Back to chats">${Icons.back}</button>
         <div class="grow"><div class="job-name">${esc(g.name)}</div><div class="e2e small">${Icons.lock} Locked end to end</div></div></header>
-      <div class="bubbles" id="bubbles">${msgs.map((m) => `<div class="bubble ${m.from === state.me.id ? 'mine' : ''}">
+      <div class="bubbles" id="bubbles" tabindex="0" role="log" aria-label="Messages">${msgs.map((m) => `<div class="bubble ${m.from === state.me.id ? 'mine' : ''}">
           ${m.from === state.me.id ? '' : `<b>${esc(nameOf(m.from))}</b>`}<span>${esc(m.text)}</span><small>${time(m.at)}</small></div>`).join('')
         || '<p class="muted center">Say something to the group.</p>'}</div>
       <form class="composer" data-chat-form><input id="chat-text" placeholder="Message" autocomplete="off" enterkeyhint="send">

@@ -702,6 +702,159 @@ for (const scheme of ['light', 'dark']) {
   });
 }
 
+// ---------- UX-R43 / UX-R49: boss Today shows the whole first shift above the tab bar on a phone (360 and 390) ----------
+for (const [vp, rule] of [[PHONE, 'bottom'], [{ width: 360, height: 740 }, 'bottom']]) {
+  t(`UX-R43/R49 ${vp.width}x${vp.height} fresh demo, 1:30 PM: the first Today shift ${rule === 'bottom' ? 'is fully' : 'starts'} above the tab bar, and the demo banner is <= 96px`, async (browser) => {
+    const page = await open(browser, vp);
+    await boss(page, 'today');
+    await page.waitForSelector('.shift');
+    const r = await page.evaluate(() => {
+      const s = document.querySelector('.shift').getBoundingClientRect();
+      const b = document.querySelector('.demo-banner');
+      const bb = b.getBoundingClientRect();
+      return { top: s.top, bottom: s.bottom, tab: document.querySelector('.tabbar').getBoundingClientRect().top, banner: bb.height,
+        bannerText: b.innerText, link: !!b.querySelector('a[href*="chaseholroyd.com"]') };
+    });
+    const errs = [];
+    if (rule === 'bottom' && r.bottom > r.tab) errs.push(`first shift ends at ${Math.round(r.bottom)}px, under the tab bar at ${Math.round(r.tab)}px`);
+    if (rule === 'top' && r.top >= r.tab) errs.push(`first shift starts at ${Math.round(r.top)}px, under the tab bar at ${Math.round(r.tab)}px`);
+    if (r.banner > 96) errs.push(`demo banner is ${Math.round(r.banner)}px tall (want <= 96)`);
+    if (!/Sample data/.test(r.bannerText)) errs.push('the banner lost "Sample data"');
+    if (!r.link) errs.push('the banner lost its chaseholroyd.com link');
+    if (errs.length) throw new Error(errs.join('; '));
+    return page;
+  });
+}
+
+// ---------- UX-R54: turning the phone across 420px keeps the boss's place on Today ----------
+// The summary card moves to its spot for the new width (UX-R49) without redrawing the screen, so the
+// button the boss was on keeps focus and the list does not jump back to the top.
+t('UX-R54 390 -> 500 -> 390 fresh demo, 1:30 PM: crossing 420px keeps focus on "Send today\'s report now", one summary, 4 shifts, and the scroll spot', async (browser) => {
+  const page = await open(browser);
+  await boss(page, 'today');
+  await page.waitForSelector('.shift');
+  await page.waitForSelector('[data-action="send-report"]');
+  // Wait for the day to finish loading (team list, then the check), as a person would see it
+  // settle; on a slow CI runner those redraws landed after the focus and moved it to BODY.
+  await page.waitForFunction(() => /^Verified/.test((document.querySelector('[data-verify-line]') || {}).textContent || ''));
+  await page.waitForTimeout(500);
+  await page.focus('[data-action="send-report"]');
+  await page.waitForTimeout(200);
+  const look = () => page.evaluate(() => {
+    const a = document.activeElement;
+    const sums = document.querySelectorAll('.summary');
+    const s = sums[0];
+    const list = document.querySelector('.list');
+    const notIn = document.querySelector('.not-in');
+    const after = (x, y) => !!(x && y && (y.compareDocumentPosition(x) & Node.DOCUMENT_POSITION_FOLLOWING));
+    const body = document.querySelector('.boss-body');
+    const scroller = body && body.scrollHeight > body.clientHeight ? body : document.scrollingElement;
+    return {
+      active: a ? `${a.tagName}${a.dataset && a.dataset.action ? `[data-action="${a.dataset.action}"]` : ''}` : 'none',
+      onButton: !!(a && a.matches && a.matches('[data-action="send-report"]')),
+      summaries: sums.length, shifts: document.querySelectorAll('.shift').length,
+      afterList: after(s, list), beforeNotIn: notIn ? after(notIn, s) : null, beforeList: after(list, s),
+      hasNotIn: !!notIn, scroll: scroller ? scroller.scrollTop : 0,
+    };
+  });
+  const start = await look();
+  const errs = [];
+  const check = async (label, width) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.waitForTimeout(400);
+    const r = await look();
+    if (!r.onButton) errs.push(`${label}: focus moved to ${r.active}, not "Send today's report now"`);
+    if (r.summaries !== 1) errs.push(`${label}: ${r.summaries} summary cards (want 1)`);
+    if (r.shifts !== 4) errs.push(`${label}: ${r.shifts} shift rows (want 4)`);
+    if (width <= 420 && !r.afterList) errs.push(`${label}: the summary is not after the shift list`);
+    if (width > 420 && r.hasNotIn && !r.beforeNotIn) errs.push(`${label}: the summary is not before the "Not in" box`);
+    if (width > 420 && !r.hasNotIn && !r.beforeList) errs.push(`${label}: the summary is not before the shift list`);
+    if (Math.abs(r.scroll - start.scroll) > 50) errs.push(`${label}: scrolled to ${Math.round(r.scroll)}px, was ${Math.round(start.scroll)}px`);
+  };
+  if (!start.onButton) throw new Error(`setup: could not focus "Send today's report now" (focus on ${start.active})`);
+  if (start.shifts !== 4 || start.summaries !== 1) throw new Error(`setup: ${start.shifts} shifts and ${start.summaries} summaries at 390 (want 4 and 1)`);
+  await check('at 500px', 500);
+  await check('back at 390px', 390);
+  if (errs.length) throw new Error(errs.join('; '));
+  return page;
+});
+
+// ---------- UX-R45: boss header and Day/Week targets are 44px tall ----------
+t('UX-R45 390: every button in the boss header and the Day/Week toggle is at least 44px tall', async (browser) => {
+  const page = await open(browser);
+  await boss(page, 'today');
+  await page.waitForSelector('[data-action="today-view"]');
+  const short = await page.evaluate(() => [...document.querySelectorAll('.boss-head button, .boss-head [role="button"], .boss-head a, [data-action="today-view"]')]
+    .map((b) => ({ name: (b.getAttribute('aria-label') || b.innerText || '').trim(), h: b.getBoundingClientRect().height }))
+    .filter((b) => b.h < 44));
+  if (short.length) throw new Error(`under 44px: ${short.map((b) => `"${b.name}" ${b.h.toFixed(1)}px`).join(', ')}`);
+  return page;
+});
+
+// ---------- UX-R53: every control the README's walkthrough names in bold is on the 390px demo ----------
+// A browser case (not tests/readme.test.js, which is node-only): it walks the README's steps and
+// collects each screen's visible text, plus the aria-labels of icon-only controls. Matching ignores
+// case and runs of spaces.
+t('UX-R53 390: every bold name in the README\'s "What to try" (and its banner sentence) is visible text or an aria-label on the demo', async (browser) => {
+  const fs = require('fs');
+  const path = require('path');
+  const readme = fs.readFileSync(path.join(__dirname, '../README.md'), 'utf8');
+  const walk = readme.slice(readme.indexOf('## What to try'), readme.indexOf('## Product decisions'));
+  if (walk.length < 100) throw new Error('setup: no "What to try" section in README.md');
+  const bold = (x) => [...new Set([...x.matchAll(/\*\*([^*]+)\*\*/g)].map((m) => m[1].trim()))];
+  const all = bold(walk);
+  const bannerLine = walk.replace(/\s+/g, ' ').match(/Every demo screen has a banner[^.]*\./);
+  if (!bannerLine) throw new Error('setup: the README lost its banner sentence');
+  const bannerNames = bold(bannerLine[0]);
+  const norm = (x) => x.replace(/\s+/g, ' ').trim().toLowerCase();
+  const seen = [];
+  const banner = [];
+  const grab = async () => {
+    const r = await page.evaluate(() => {
+      const shown = (e) => { const b = e.getBoundingClientRect(); return b.width > 0 && b.height > 0; };
+      // An aria-label counts only for a control a visitor sees no words on (an icon button): a
+      // button showing "Reset" with the label "Reset sample data" shows a visitor "Reset".
+      const labels = (root) => [...root.querySelectorAll('[aria-label]')].filter((e) => shown(e) && !e.innerText.trim()).map((e) => e.getAttribute('aria-label'));
+      const b = document.querySelector('.demo-banner');
+      return { text: [document.body.innerText, ...labels(document)].join('\n'), banner: b ? [b.innerText, ...labels(b)].join('\n') : '' };
+    });
+    seen.push(norm(r.text));
+    banner.push(norm(r.banner));
+  };
+  const page = await open(browser);
+  await grab(); // first screen: Travis K., Start here, Billy S., Sam W.
+  await signIn(page, 'Travis K.');
+  await grab(); // worker Home: No signal, Clock In, Messages, Not you?
+  await page.click('[data-to="chat-list"]');
+  await page.waitForSelector('[data-action="chat-open"]', { timeout: 20000 }).catch(() => {});
+  await grab(); // chat list: Smith kitchen crew
+  await page.goto(BASE);
+  await page.waitForSelector('.punch, .name-btn');
+  if (await page.locator('[data-action="sign-out"]').count()) await page.click('[data-action="sign-out"]');
+  await page.waitForSelector('.name-btn');
+  await boss(page, 'map');
+  await grab(); // boss: Map, Today
+  await bossTab(page, 'today');
+  await page.waitForSelector('[data-action="demo-tamper"]', { timeout: 10000 }).catch(() => {});
+  await grab(); // Try tampering, Week
+  if (await page.locator('[data-action="demo-tamper"]').count()) {
+    await page.click('[data-action="demo-tamper"]');
+    await page.waitForSelector('[data-action="demo-untamper"]', { timeout: 10000 }).catch(() => {});
+    await grab(); // Undo the change
+    if (await page.locator('[data-action="demo-untamper"]').count()) await page.click('[data-action="demo-untamper"]');
+  }
+  await page.getByRole('button', { name: 'Week', exact: true }).click();
+  await page.waitForSelector('table.week');
+  await grab(); // Download CSV
+  const missing = all.filter((n) => !seen.some((t) => t.includes(norm(n))));
+  const notInBanner = bannerNames.filter((n) => !banner.some((t) => t.includes(norm(n))));
+  const errs = [];
+  if (missing.length) errs.push(`README bold names not on any 390px demo screen: ${missing.map((n) => `"${n}"`).join(', ')}`);
+  if (notInBanner.length) errs.push(`README's banner sentence names ${notInBanner.map((n) => `"${n}"`).join(', ')}, not in the 390px banner's text or labels`);
+  if (errs.length) throw new Error(errs.join('; '));
+  return page;
+});
+
 (async () => {
   const only = process.argv[2];
   const browser = await launch();
