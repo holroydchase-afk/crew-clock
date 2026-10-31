@@ -16,7 +16,9 @@ jobs:
         run: docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" -w /repo ghcr.io/gitleaks/gitleaks:v8.28.0 git --redact -v --no-banner --exit-code 1 .
 
   test:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest became 26.04 on 2026-10-31 and Playwright 1.56.1 can't install
+    # Chromium's dependencies there. Move back to ubuntu-latest once Playwright supports it.
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16
