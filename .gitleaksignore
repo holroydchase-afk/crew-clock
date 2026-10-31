@@ -1,0 +1,8 @@
+# Checked by hand 2026-10-29 (M1.9 F-15): each is a made-up MLS key package label in a SQL test
+# ('kp-test-claimed-31', 'kp-test-b7-unclaimed', ...), not a secret. tests/m19.test.js fails if an
+# entry here points anywhere but tests/.
+45cc28dce5cfee77dda1c327d2346fd8d235dbf5:tests/sql/retention_test.sql:generic-api-key:172
+45cc28dce5cfee77dda1c327d2346fd8d235dbf5:tests/sql/retention_test.sql:generic-api-key:173
+45cc28dce5cfee77dda1c327d2346fd8d235dbf5:tests/sql/retention_test.sql:generic-api-key:281
+45cc28dce5cfee77dda1c327d2346fd8d235dbf5:tests/sql/retention_test.sql:generic-api-key:282
+45cc28dce5cfee77dda1c327d2346fd8d235dbf5:tests/sql/retention_test.sql:generic-api-key:289

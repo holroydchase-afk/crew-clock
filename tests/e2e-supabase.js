@@ -24,7 +24,7 @@ const JOB = { id: '00000000-0000-4000-8000-0000000000c1', name: 'Smith kitchen',
     navigator.geolocation.getCurrentPosition = (ok, err) => err && err({ code: 3 });
   });
   await page.route('**/config.js', (r) => r.fulfill({ contentType: 'application/javascript', body:
-    `window.APP_CONFIG = { backend: 'supabase', supabaseUrl: '${SB}', supabaseAnonKey: 'anon', orgCode: 'TEAYS', gpsTimeoutMs: 1500 };` }));
+    `window.APP_CONFIG = { backend: 'supabase', supabaseUrl: '${SB}', supabaseAnonKey: 'anon', orgCode: 'EXAMPLE1', gpsTimeoutMs: 1500 };` }));
   const json = (r, body, status = 200) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
   await page.route(`${SB}/functions/v1/crew-list`, (r) => json(r, { ok: true, crew: [JAKE] }));
   // The first access token is about to run out, so the app has to refresh before using it.

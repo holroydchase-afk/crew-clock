@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 -- Seed as superuser (stands in for the service role used by Edge Functions)
 insert into orgs (id, name, code) values
-  ('00000000-0000-0000-0000-0000000000a1', 'Example Construction', 'TEAYS'),
+  ('00000000-0000-0000-0000-0000000000a1', 'Example Construction', 'EXAMPLE1'),
   ('00000000-0000-0000-0000-0000000000a2', 'Other Co', 'OTHER');
 insert into crew (id, org_id, name, role) values
   ('00000000-0000-0000-0000-0000000000b0', '00000000-0000-0000-0000-0000000000a1', 'Dad', 'boss'),

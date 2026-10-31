@@ -38,7 +38,7 @@ test('build publishes only the app, with a stamped service worker', () => {
 test('--demo build ignores backend variables and stays in demo mode', () => {
   const out = fs.mkdtempSync(path.join(os.tmpdir(), 'crew-demo-'));
   execFileSync(process.execPath, [script, out, '--demo'], {
-    env: { ...process.env, CREW_BACKEND: 'supabase', SUPABASE_URL: 'https://x.supabase.co', ORG_CODE: 'TEAYS' },
+    env: { ...process.env, CREW_BACKEND: 'supabase', SUPABASE_URL: 'https://x.supabase.co', ORG_CODE: 'EXAMPLE1' },
   });
   const cfg = new Function('window', `${fs.readFileSync(path.join(out, 'config.js'), 'utf8')}; return window.APP_CONFIG;`)({});
   assert.equal(cfg.backend, 'demo');
