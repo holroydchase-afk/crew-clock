@@ -508,7 +508,8 @@ t('UX-R46b before 9 AM, with a visitor\'s clock-in on "Yesterday (sample day)", 
   if (h2 !== 'Yesterday (sample day)') throw new Error(`setup: heading "${h2}"`);
   const summary = await text(page.locator('#summary-text, .summary'));
   if (/so far today/.test(summary)) throw new Error(`the sample day's summary says "so far today": "${summary}"`);
-  if (!/^\d+ people (have )?worked \d+\.\d hours across \d+ jobs\./.test(summary)) throw new Error(`summary does not read like "5 people have worked 29.0 hours across 4 jobs": "${summary}"`);
+  // "so far" is allowed: a visitor is still on the clock (LIVE-2, merged with #32 on 2026-10-31)
+  if (!/^\d+ people (have )?worked \d+\.\d hours( so far)? across \d+ jobs\./.test(summary)) throw new Error(`summary does not read like "5 people have worked 29.0 hours across 4 jobs": "${summary}"`);
   return page;
 });
 
@@ -591,6 +592,86 @@ async function pinIn(page, name, pin) {
   await page.waitForSelector('.keypad');
   for (const k of pin) await page.click(`.keypad [data-k="${k}"]`);
 }
+
+// ---------- LIVE: bugs from the live demo check of 2026-10-29 ----------
+t('LIVE-1 a phone shows the message box without scrolling, under the demo banner, in a group full of messages', async (browser) => {
+  const page = await open(browser);
+  await signIn(page, 'Sam W.');
+  await page.click('[data-action="boss-tab"][data-tab="chat"]');
+  await page.locator('[data-action="chat-open"]').first().click();
+  await page.waitForSelector('#chat-text');
+  const r = await page.evaluate(() => {
+    const box = document.querySelector('#chat-text').getBoundingClientRect();
+    const last = [...document.querySelectorAll('.bubble')].pop().getBoundingClientRect();
+    return { bottom: box.bottom, vh: window.innerHeight, page: document.documentElement.scrollHeight, lastBottom: last.bottom, boxTop: box.top,
+      over: document.documentElement.scrollWidth - window.innerWidth };
+  });
+  if (r.over > 0) throw new Error(`the chat screen scrolls sideways ${r.over} px`);
+  if (r.bottom > r.vh) throw new Error(`the message box ends at ${Math.round(r.bottom)} px, below the ${r.vh} px screen`);
+  if (r.page > r.vh + 1) throw new Error(`the chat screen is ${r.page} px tall on a ${r.vh} px screen, so the page scrolls`);
+  return page;
+});
+
+t('LIVE-2 before 9 AM the sample day is yesterday: with the visitor clocked in, the summary never says "today"', async (browser) => {
+  const page = await open(browser, { hour: 8.3 });
+  await signIn(page, 'Travis K.');
+  await page.click('.punch.in');
+  await page.waitForSelector('.job-btn');
+  await page.click('.job-btn[data-id="j1"]');
+  await page.waitForSelector('.big-check');
+  await page.getByRole('button', { name: 'OK', exact: true }).click();
+  await page.waitForSelector('.punch.out');
+  await signOut(page);
+  await bossToday(page);
+  await verifiedCount(page); // the team's punches have loaded, so the sample day is known
+  const h = await text(page.locator('.boss-body h2'));
+  if (!/^Yesterday/.test(h)) throw new Error(`expected the sample day to be yesterday, heading says "${h}"`);
+  const summary = await text(page.locator('.summary-text'));
+  if (/today/i.test(summary)) throw new Error(`the summary says "today" under "${h}": ${summary}`);
+  if (!/so far/.test(summary)) throw new Error(`Travis is still on the clock but the summary does not say "so far": ${summary}`);
+  return page;
+});
+
+t('LIVE-3 Today, Week and the summary round hours the same way (Jake R.\'s 8.45 h is 8.5 everywhere)', async (browser) => {
+  const page = await open(browser, { hour: 18 });
+  await bossToday(page);
+  await verifiedCount(page);
+  const rows = await page.locator('.shift').evaluateAll((els) => els.map((e) => ({ t: e.innerText.replace(/\s+/g, ' '), h: (e.querySelector('.shift-hours') || {}).innerText })));
+  const jake = rows.find((r) => /Jake R\./.test(r.t));
+  if (!jake || jake.h !== '8.5 h') throw new Error(`Jake R.'s row says ${jake && jake.h}, want 8.5 h`);
+  const sum = rows.reduce((a, r) => a + (r.h ? parseFloat(r.h) : 0), 0);
+  const summary = await text(page.locator('.summary-text'));
+  const said = /worked ([\d.]+) hours/.exec(summary);
+  if (!said || said[1] !== sum.toFixed(1)) throw new Error(`the summary says ${said && said[1]} hours but the rows add up to ${sum.toFixed(1)}`);
+  await page.getByRole('button', { name: 'Week', exact: true }).click();
+  await page.waitForSelector('table.week');
+  const wk = await page.evaluate(() => {
+    const col = (new Date().getDay() + 6) % 7 + 1;
+    const tr = [...document.querySelectorAll('table.week tbody tr')].find((x) => x.children[0].innerText.trim() === 'Jake R.');
+    return tr.children[col].innerText.trim();
+  });
+  if (wk !== '8.5') throw new Error(`Week says ${wk} for Jake R. today, Today says ${jake.h}`);
+  return page;
+});
+
+t('LIVE-4 on a phone the demo banner is at most 90 px tall, on the name list, worker Home and the boss screen', async (browser) => {
+  const page = await open(browser);
+  const tall = [];
+  const check = async (where) => {
+    const h = await page.locator('.demo-banner').evaluate((b) => b.getBoundingClientRect().height);
+    if (h > 90) tall.push(`${where}: ${Math.round(h)} px`);
+    const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    if (over > 0) tall.push(`${where}: scrolls sideways ${over} px`);
+  };
+  await check('names');
+  await signIn(page, 'Travis K.');
+  await check('worker Home');
+  await signOut(page);
+  await bossToday(page);
+  await check('boss Today');
+  if (tall.length) throw new Error(tall.join('; '));
+  return page;
+});
 
 t('ENH-1d/ENH-2c the crew app (backend: supabase) never shows "Try tampering" or "No signal", and no verify line without the phones\' keys', async (browser) => {
   const page = await openCrewApp(browser);

@@ -2,7 +2,7 @@
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-10-31 (merged #34, #37 and #33 M1.9 hardening)
+Updated: 2026-10-31 (merged #34, #37, #33 and #32)
 
 ## What it is
 
@@ -14,6 +14,23 @@ Plan and milestone IDs: [PLAN.md](PLAN.md). Hard rules: [CLAUDE.md](CLAUDE.md). 
 contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
+
+- Live demo check and fixes (2026-10-29, Chase: "fix it all"). The live demo at chaseholroyd.com
+  was loaded from the sandbox for the first time (github.io and the map tiles stay blocked): it
+  served main `bbbc883` (service worker `v3-e1ada9485d`, same files as a fresh `--demo` build) and
+  every core flow worked at 390x844 and 1280x800. Four bugs, each with a failing test first
+  (`tests/livecheck.test.js`, LIVE-1..4 in `tests/e2e-enhance.js`): LIVE-1 the phone's message box
+  sat below the screen under the demo banner (the chat now takes what is left of the screen);
+  LIVE-2 "so far today" under "Yesterday (sample day)" (now "so far"); LIVE-3 8.45 h showed 8.4 on
+  Today and 8.5 on Week (one rounding rule, `AI.tenths`, and the summary adds up the rows' tenths);
+  LIVE-4 the demo banner was 143 px tall on a phone (now about 72 px: 13px text, one row of
+  controls, the link reads "chaseholroyd.com" under 560px). Report:
+  project files `crew-clock/live-check-2026-10-29/report.md`.
+  Portfolio / public presence: the demo banner is shorter on phones; chat, Today and Week fixes.
+  Merged 2026-10-31 after #34, which fixed the same four bugs: #34's code was kept; #32's tests
+  (`tests/livecheck.test.js`, LIVE-1..4 in `tests/e2e-enhance.js`) all pass on it, with two small
+  additions so they do: `AI.tenths` (same rule as `Report.fmtHours`) and the sample yesterday's
+  summary says "so far" while a visitor is on the clock (still never "so far today").
 
 - `M1.9` crew sign-in and server hardening (2026-10-29, Chase's "go"). The five open findings from
   `docs/reviews/2026-10-23-privacy-security.md`, each red first (`tests/edge/m19.test.ts` 21 cases,
@@ -405,6 +422,10 @@ Still open from CRW-R3: the bare `ex` error rule belongs upstream in studio-agen
 
 ## Decisions to review
 
+- **2026-10-31 merge of #32: the sample yesterday's summary says "so far"** while a visitor is on
+  the clock ("5 people have worked 29.0 hours so far across 3 jobs"), never "so far today". #32's
+  LIVE-2 asked for "so far", #34's UX-R46b for no "so far"; "so far" won because a shift is still
+  running. UX-R46b's wording check now allows it.
 - **M1.9: the third PIN lockout in a day blocks the PIN until the boss sets a new one** (the review's
   ask). Trade-off: someone guessing can block a worker's PIN on purpose; the per-IP limit (20 wrong
   PINs an hour) slows that to about 4 people an hour per network, and the boss is alerted each time.
@@ -426,6 +447,10 @@ Still open from CRW-R3: the bare `ex` error rule belongs upstream in studio-agen
   "6:54 AM – on the clock" fits on one line beside the status chip (UX-R27); the name is beside it.
 - **M1.13 round 2: GPS older than 8 days is dropped on the phone, not by the server query**
   (engineer), so the week view still gets times from one request; distance in feet goes too.
+- **Live fixes: before 9 AM the demo's day summary says "so far"** (not "so far today") when the
+  visitor is on the clock under "Yesterday (sample day)" (LIVE-2; replaces M1.13's "left as is").
+- **Live fixes: the phone demo banner's link reads "chaseholroyd.com"**, dropping "Back to" under
+  560px so the three controls fit one row (LIVE-4).
 - **2026-10-29 showcase: the "so far today" decision above is reversed** (UX-R46b): under the
   "Yesterday (sample day)" heading the summary no longer says "so far today". ux-reviewer's
   recommendation; easy to put back.
@@ -619,6 +644,9 @@ Waiting on Chase, in order (each unblocks an M2 task; nothing in M1 needs these)
 
 ## Portfolio / public presence
 
+- 2026-10-29: live demo loaded and walked end to end (chaseholroyd.com, latest main). Fixes: a
+  shorter demo banner on phones, the message box always on screen, matching hours, no "today"
+  under the yesterday sample day.
 - 2026-10-28 (M1.10 to M1.14 release run): README and its screenshots match the demo after
   M1.13 (tamper check, "No signal" switch, Week view). Live demo not loaded from the sandbox.
 - 2026-10-24 (M1.6, M1.7 night shift): the demo opens with what it is and a "Start here" name,
