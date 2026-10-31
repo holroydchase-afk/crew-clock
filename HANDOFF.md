@@ -2,7 +2,7 @@
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-10-29 (portfolio showcase review: UX-R40 to UX-R54)
+Updated: 2026-10-31 (Week table fits at 360px on a Saturday)
 
 ## What it is
 
@@ -14,6 +14,12 @@ Plan and milestone IDs: [PLAN.md](PLAN.md). Hard rules: [CLAUDE.md](CLAUDE.md). 
 contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
+
+- Week table at 360px (2026-10-31, found while testing Chase's "test and merge all"). UX-R29 went
+  red on main on a Saturday: the sample week then has six days and totals like "49.1+", and the
+  table was 321px in a 320px box, so it scrolled. The phone table's outer cell padding is 6px
+  instead of 8 (now 317px). The existing UX-R29 test was the red test; it is green 3x at 360 and 390.
+  Portfolio / public presence: the demo's Week table is 4px narrower on phones.
 
 - Portfolio showcase review (2026-10-29, Product Studio INTAKE "get Crew Clock onto
   chaseholroyd.com"). The demo already existed at chaseholroyd.com/crew-clock/ with the link back

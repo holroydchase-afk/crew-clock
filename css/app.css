@@ -507,8 +507,9 @@ table.week thead th .d-short { display: none; text-decoration: none; }
 @media (max-width: 420px) {
   table.week { font-size: 14px; font-variant-numeric: normal; }
   table.week th, table.week td { padding: 10px 2px; }
-  table.week th:first-child { padding-left: 8px; white-space: normal; }
-  table.week td:last-child, table.week th:last-child { padding-right: 8px; }
+  /* 6px edges, not 8: on a Saturday the week has six days and a "49.1+" total, 1px too wide at 360 */
+  table.week th:first-child { padding-left: 6px; white-space: normal; }
+  table.week td:last-child, table.week th:last-child { padding-right: 6px; }
   table.week thead th .d-long { display: none; }
   table.week thead th .d-short { display: block; }
   table.week .name-head { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
