@@ -26,7 +26,8 @@ function watchPage() {
 }
 
 let lastPage = null;
-// opts.viewport, and opts.hour to start the page clock at that hour today (8.3 = 8:18 AM)
+// opts.viewport, and opts.hour to start the page clock at that hour today (8.3 = 8:18 AM);
+// opts.weekday (0 = Sunday) moves that start to that day of this week
 async function open(browser, opts = {}) {
   const ctx = await browser.newContext(Object.assign({}, CONTEXT, opts.viewport ? { viewport: opts.viewport } : {}));
   const page = await ctx.newPage();
@@ -38,6 +39,7 @@ async function open(browser, opts = {}) {
   await page.addInitScript(watchPage);
   if (opts.hour != null) {
     const when = new Date(); when.setHours(Math.floor(opts.hour), Math.round((opts.hour % 1) * 60), 0, 0);
+    if (opts.weekday != null) when.setDate(when.getDate() + opts.weekday - when.getDay());
     await page.clock.install({ time: when });
   }
   await page.goto(BASE);
@@ -331,6 +333,25 @@ for (const vp of SMALL) {
     if (errs.length) throw new Error(errs.join('; '));
     return page;
   });
+
+  // UX-R29b: on a Saturday or Sunday the sample week has six or seven days filled, the widest it gets
+  // (the R29 case above only caught it when CI happened to run at the weekend)
+  for (const [weekday, day] of [[6, 'Saturday'], [0, 'Sunday']]) {
+    t(`UX-R29b ${vp.width}: on a ${day} the full sample week still fits its box`, async (browser) => {
+      const page = await open(browser, { viewport: vp, hour: 13.5, weekday });
+      await bossToday(page);
+      await verifiedCount(page);
+      await page.getByRole('button', { name: 'Week', exact: true }).click();
+      await page.waitForSelector('table.week');
+      const r = await until(() => page.evaluate(() => {
+        const cells = [...document.querySelectorAll('table.week tbody td')].filter((c) => /\d/.test(c.textContent)).length;
+        const w = document.querySelector('.week-wrap');
+        return cells >= 20 && { sw: w.scrollWidth, cw: w.clientWidth, cells };
+      }), 5000, 'the week to fill in');
+      if (r.sw > r.cw) throw new Error(`.week-wrap scrolls (${r.sw} > ${r.cw}) with ${r.cells} filled cells`);
+      return page;
+    });
+  }
 
   t(`UX-R30 ${vp.width}: "Sent at … (no signal)" is its own wrapping line with a cloud-off icon, inside the text column, clear of the chip`, async (browser) => {
     const page = await open(browser, { viewport: vp, hour: 13.5 });

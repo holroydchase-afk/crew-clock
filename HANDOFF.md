@@ -15,6 +15,12 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
 
+- UX-R29b week table on a Sunday (2026-10-31, found while merging main into M1.9). #37's 6px edges
+  fixed Saturday, but on a Sunday the sample week still scrolled by 4px at 360px, so UX-R29 would
+  fail on main again the next day. New red-first cases `UX-R29b` in `tests/e2e-enhance.js` pin the
+  page clock to this week's Saturday and Sunday (new `open(..., { weekday })`), so this no longer
+  depends on the day CI runs; the edges are now 4px.
+
 - `M1.9` crew sign-in and server hardening (2026-10-29, Chase's "go"). The five open findings from
   `docs/reviews/2026-10-23-privacy-security.md`, each red first (`tests/edge/m19.test.ts` 21 cases,
   `tests/sql/m19_test.sql` 9, `tests/m19.test.js` 9 wiring checks), now marked closed there. New
