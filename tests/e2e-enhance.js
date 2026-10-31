@@ -508,7 +508,8 @@ t('UX-R46b before 9 AM, with a visitor\'s clock-in on "Yesterday (sample day)", 
   if (h2 !== 'Yesterday (sample day)') throw new Error(`setup: heading "${h2}"`);
   const summary = await text(page.locator('#summary-text, .summary'));
   if (/so far today/.test(summary)) throw new Error(`the sample day's summary says "so far today": "${summary}"`);
-  if (!/^\d+ people (have )?worked \d+\.\d hours across \d+ jobs\./.test(summary)) throw new Error(`summary does not read like "5 people have worked 29.0 hours across 4 jobs": "${summary}"`);
+  // "so far" is allowed: a visitor is still on the clock (LIVE-2, merged with #32 on 2026-10-31)
+  if (!/^\d+ people (have )?worked \d+\.\d hours( so far)? across \d+ jobs\./.test(summary)) throw new Error(`summary does not read like "5 people have worked 29.0 hours across 4 jobs": "${summary}"`);
   return page;
 });
 

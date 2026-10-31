@@ -383,6 +383,10 @@ sign-in and server hardening (F-03, F-06, F-12, F-13, F-15), failing tests first
 
 ## Decisions to review
 
+- **2026-10-31 merge of #32: the sample yesterday's summary says "so far"** while a visitor is on
+  the clock ("5 people have worked 29.0 hours so far across 3 jobs"), never "so far today". #32's
+  LIVE-2 asked for "so far", #34's UX-R46b for no "so far"; "so far" won because a shift is still
+  running. UX-R46b's wording check now allows it.
 - **2026-10-29: chat bundle targets Safari 14.1, not 14.0** (esbuild 0.28 can't build for 14.0).
   iPhones still on iOS 14.0 (2020, all can update to 14.1+) lose crew chat; clock-in is unaffected.
 - **2026-10-29: the teammate screen waits at most 4 s for the team list** before showing buttons.
