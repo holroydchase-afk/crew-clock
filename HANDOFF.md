@@ -2,7 +2,7 @@
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-10-31 (merged #34, #37, #33 and #32)
+Updated: 2026-11-18 (portfolio review; M1.16 geofence fairness eval)
 
 ## What it is
 
@@ -14,6 +14,33 @@ Plan and milestone IDs: [PLAN.md](PLAN.md). Hard rules: [CLAUDE.md](CLAUDE.md). 
 contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
+
+- `M1.16` geofence fairness eval (2026-11-18, first item of the portfolio review below). The
+  product's headline claim, "a fair geofence", had unit tests but no measurement. `evals/geofence/`
+  is a seeded, offline simulation (no real location data): five GPS conditions (open sky, tree cover,
+  a hollow, an overconfident cheap phone, cell towers only), the app's three fence sizes, 20,000
+  trials per row, and three policies: `strict` (inside the circle or not), `fair` (the shipped
+  `Geo.fenceStatus`, imported, not copied) and `capped` (a candidate). `npm run eval:geofence`
+  writes `docs/evals/geofence.md` and `.json`; `node evals/geofence/run.mjs --check` fails if they
+  are stale. `tests/eval-geofence.test.js` (EVAL-1..7, qa-tdd red first) runs in `npm test` and
+  gates the shipped rule: at 300 ft it wrongly flags at most 1% of on-site workers in open sky,
+  tree cover and a hollow. Headline numbers at 300 ft: a strict fence wrongly flags 10.5% of on-site
+  workers under tree cover and 28.1% in a hollow; the shipped rule 0.1% and 0.2%. The price, now on
+  the record: in a hollow the shipped rule passes 77.0% of people standing 1.5 times the radius
+  away as on site (strict 5.8%), and 93.2% at the 150 ft fence. Nobody a mile away passes. The rule
+  itself is not changed (see Decisions to review). The error model is assumed, not field data; the
+  beta's real fixes replace it and never go in this repo.
+
+- Portfolio review (2026-11-18, Chase's ask): a three-seat review (recruiter, staff PM, engineering
+  manager) with one ranked backlog of 16 items is in the project's doc "Crew Clock portfolio
+  review". Top five: 1 the geofence eval (above), 2 a design doc and a post-mortem of the stale
+  service worker, 3 metrics and a beta scorecard written before the beta, 4 cut scope and clean
+  the public record (waits on Chase's shelve answer), 5 a reliability pass. Found while reviewing:
+  the boss's "Verified" check does not catch a deleted punch (`Chain.verifyAll` flags a repeated or
+  mislinked seq, not a missing one; the server's `gap` check does), no persistent-storage request
+  for the outbox and key, and no Content-Security-Policy. The live demo was loaded at 390x844,
+  844x390 and 1280x800 (service worker `v3-e03b581749`); the map tiles stay blocked in the sandbox.
+  PLAN.md statuses for M0.1, M1.1, M1.5, M1.8, M1.12 and M1.13 corrected to done.
 
 - Live demo check and fixes (2026-10-29, Chase: "fix it all"). The live demo at chaseholroyd.com
   was loaded from the sandbox for the first time (github.io and the map tiles stay blocked): it
@@ -416,11 +443,26 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
 
 ## Exact next step
 
-M1.9 is done and waits on Chase's merge. Next build task: the boss's "Erase their data" button and the
-B2 purge function (M1.4 leftovers), or `M2.1` once Chase has the Supabase project (Blockers 1).
-Still open from CRW-R3: the bare `ex` error rule belongs upstream in studio-agents' check-logs.mjs.
+From the 2026-11-18 portfolio review, in order: (2) `docs/DESIGN.md` and
+`docs/postmortems/2026-10-28-stale-service-worker.md` (architect, positioning); (3) `docs/METRICS.md`
+with targets and the M2.6 go/no-go bar, then issue #35; (5) the reliability pass, each with a failing
+test first: `Chain.verifyAll` flags a missing seq, retry backoff with jitter (PS-3),
+`navigator.storage.persist()`, the session-refresh race. Item 4 (shelve chat, on-phone AI, Sheets and
+push; delete `backend/Code.gs`; shrink this file) waits on Chase's answer to the shelve card. This
+file's "In progress" section above is stale (everything in it is merged) and goes in that cleanup.
+`M2.1` still waits on Chase's Supabase project (Blockers 1).
 
 ## Decisions to review
+
+- **2026-11-18, M1.16: keep the shipped geofence rule, or tighten it?** The eval
+  (`docs/evals/geofence.md`) shows the rule does what it promises for workers who are there, and is
+  loose for someone close by: with a weak fix on a small fence, most people standing 1.5 times the
+  radius away pass as on site. The simple fix tested, `capped`, barely helps at 300 ft (77.0% to
+  74.5%) and costs fairness at 150 ft (0.6% to 8.8% of on-site workers flagged). Left unchanged, the
+  simplest reversible option: nothing is ever blocked either way, a person a mile away never passes,
+  and the fairness promise is the product. Options if Chase wants it tighter: lower the 152 m "weak"
+  cut-off so a poor fix asks for a photo sooner, or show the boss "low-accuracy fix" on such punches.
+  Either changes what is flagged, so it is Chase's call and needs privacy-security.
 
 - **2026-10-31 merge of #32: the sample yesterday's summary says "so far"** while a visitor is on
   the clock ("5 people have worked 29.0 hours so far across 3 jobs"), never "so far today". #32's
@@ -644,6 +686,9 @@ Waiting on Chase, in order (each unblocks an M2 task; nothing in M1 needs these)
 
 ## Portfolio / public presence
 
+- 2026-11-18: README's "A fair geofence" decision links the new eval report
+  (`docs/evals/geofence.md`). An INTAKE block for the case study page is in the review doc; Chase
+  pastes it into Product Studio after this merges. No change to the demo itself.
 - 2026-10-29: live demo loaded and walked end to end (chaseholroyd.com, latest main). Fixes: a
   shorter demo banner on phones, the message box always on screen, matching hours, no "today"
   under the yesterday sample day.
@@ -676,8 +721,8 @@ Waiting on Chase, in order (each unblocks an M2 task; nothing in M1 needs these)
 - A GPS-spoofing app can still fake a location. Photos, addresses and spot checks cover it.
 - AI model downloads have never been tested from a real phone (the build sandbox blocks
   Hugging Face), so those tiers are tested with the model step stubbed.
-- The build sandbox can't reach chaseholroyd.com or github.io, so the live demo has not been
-  opened from a session; it's tested from a local `--demo` build.
+- The build sandbox reaches chaseholroyd.com (since 2026-10-29) but not the map tile hosts, so the
+  live Map's street tiles have never been seen from a session.
 
 ## Links
 
