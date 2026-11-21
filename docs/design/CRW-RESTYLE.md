@@ -43,7 +43,10 @@ section 2 principle needs Chase first.
 - **DS-10 One accent.** Tap things use `--accent`; nothing decorative is accent (brand mark, avatars, job icons
   use ink/fill). Green/red stay status only, except the punch buttons: Chase chose 2026-11-21 to keep
   CLOCK IN green and CLOCK OUT red (shared studio safe #1C6E31 / danger #B3261E fills, white words, both modes),
-  a Crew Clock exception to principle 6.
+  a Crew Clock exception to principle 6. A second exception (Chase, 2026-11-21, UX-R61): text links
+  ("Not you?", "Stop using my location", "Wrong job? Fix it", "Sign out", "Back") are `--ink` and
+  underlined, not accent, so rust/red only means Clock out; `.link.danger` stays `--danger-text`.
+  Buttons, the tab bar's picked state and focus rings stay `--accent`.
 - **DS-11 No grey boxes / no card in card.** Lists sit on the page; cards are `--surface` with a 1 px
   `--line` edge, tap rows get a `--tab-line` edge (3:1) so a target never relies on `--line` alone.
 - Existing suites stay green: axe (e2e-showcase) at 390/1280 light/dark, LIVE-4 banner ≤ 90 px, week table fits at 360.

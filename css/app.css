@@ -207,9 +207,9 @@ h3 { font-size: var(--type-base); font-weight: 600; }
 .name-role { font-size: var(--type-base); font-weight: 400; color: var(--muted); margin-top: -4px; }
 .name-btn:active, .job-btn:active, .punch:active, .btn:active, .keypad button:active { transform: scale(0.97); }
 
-/* Quiet buttons: accent words, 48px to tap */
-.back { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-size: var(--type-base); font-weight: 600; padding: 8px 4px; min-height: 48px; margin-left: -8px; }
-.link { color: var(--accent); font-size: var(--type-base); padding: 12px 8px; min-height: 48px; font-weight: 600; }
+/* Text links: ink and underlined, 48px to tap, so rust/red only means Clock out (DS-10, UX-R61) */
+.back { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; font-size: var(--type-base); font-weight: 600; padding: 8px 4px; min-height: 48px; margin-left: -8px; }
+.link { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; font-size: var(--type-base); padding: 12px 8px; min-height: 48px; font-weight: 600; }
 .link.danger { color: var(--danger-text); }
 
 /* PIN */

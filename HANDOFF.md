@@ -24,7 +24,8 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
   targets, UX-R60..R64), UX-16 renamed to the studio tokens. UX review fixes: done screen "Done" is a
   secondary button (R60), job pins in ink (R62), demo label in ink (R64). All suites 3x green at 97cc19e
   (Edge Functions run in CI only). Before/after: `docs/design/restyle-2026-11-21/`.
-  Waiting on Chase: R61, ink instead of rust for "Not you?", "Sign out", "Stop using my location".
+  R61 done, links are ink: text links ("Not you?", "Stop using my location", "Wrong job? Fix it",
+  "Sign out", "Back") are `--ink` and underlined, 48px tall (Chase 2026-11-21); AC-R61 green.
 
 ## Done
 
@@ -435,6 +436,10 @@ Still open from CRW-R3: the bare `ex` error rule belongs upstream in studio-agen
 
 ## Decisions to review
 
+- **DS-10 exception to principle 6 (Chase, 2026-11-21, UX-R61): text links are ink, not accent.**
+  "Not you?", "Stop using my location", "Wrong job? Fix it", "Sign out" and "Back" are `--ink`,
+  underlined (3px offset), 48px tall, so rust/red on a crew screen only means Clock out.
+  `.link.danger` stays `--danger-text`; buttons, the tab bar picked state and focus rings stay accent.
 - **DS-1 restyle, engineer's calls (2026-11-21), for ux-reviewer:** small primary buttons ("Add job",
   "Add person", "New group", "Find") are the tinted capsule (accent on accent-soft); the chat Send
   button stays filled. Your own chat bubbles are ink on accent-soft (accent is for tapping, not
