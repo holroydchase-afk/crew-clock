@@ -24,6 +24,9 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
   Paper page colour (light/dark); `js/app.js` says "Clock in"/"Clock out", "on/off the clock", job
   fences and map pins in the accent, crew dots and job pins 48px. `npm test` and every e2e file green.
   Next: qa-tdd 3x, then ux-reviewer (showcase mode) and privacy-security, then a PR.
+- UX-R60/R62/R64 fixes (uncommitted): done screen dismiss reads "Done" as a full-width secondary
+  button (e2e clicks renamed OK to Done), job pins are --ink on --bg, demo GPS label is --ink.
+  "Not you?"/"Sign out"/"Stop using my location" link colours wait on Chase.
 
 ## Done
 

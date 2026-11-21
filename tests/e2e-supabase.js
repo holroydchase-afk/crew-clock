@@ -61,7 +61,7 @@ const JOB = { id: '00000000-0000-4000-8000-0000000000c1', name: 'Smith kitchen',
   await page.setInputFiles('input[data-action="photo-file"]', path.join(__dirname, 'fixtures/site.jpg'));
   await page.waitForSelector('.big-check');
   const chip = await page.textContent('.chip');
-  await page.getByText('OK', { exact: true }).click();
+  await page.getByText('Done', { exact: true }).click();
   await page.waitForFunction(() => document.querySelector('.sync-line').textContent.includes('All sent'), null, { timeout: 10000 });
 
   const pinNotStored = !(await page.evaluate(() => JSON.stringify(Object.assign({}, localStorage)))).includes('1111');

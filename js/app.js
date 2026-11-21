@@ -836,7 +836,7 @@
       <p>${chip(f.check.status, !!f.photo)}${f.check.distanceFt != null && f.check.status !== 'onsite' ? ` <span class="muted">${Geo.formatDistance(f.check.distanceFt)} from the job</span>` : ''}</p>
       ${s && f.check.status === 'offsite' ? '<p class="muted">The boss will see where you were.</p>' : ''}
       <div class="done-sync" data-done-sync>${doneSyncHtml()}</div>
-      <button class="btn primary xl" data-action="go-home">OK</button>
+      <button class="btn secondary xl" data-action="go-home">Done</button>
       ${canFix ? `<button class="link" id="fix-btn" data-action="fix-job">Wrong job? Fix it</button>` : ''}
     </main>`;
   };

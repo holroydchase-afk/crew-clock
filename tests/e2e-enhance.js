@@ -148,7 +148,7 @@ t('ENH-1c a punch the visitor makes is signed on this phone and counted by the b
   await page.waitForSelector('.job-btn');
   await page.click('.job-btn[data-id="j1"]');
   await page.waitForSelector('.big-check');
-  await page.getByRole('button', { name: 'OK', exact: true }).click();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.waitForSelector('.punch.out');
   await until(async () => /All sent/.test(await text(page.locator('[data-sync-line]'))), 8000, 'the clock-in is sent');
   await signOut(page);
@@ -180,7 +180,7 @@ t('ENH-2a "No signal" holds a clock-in on the phone; turning it off sends it; th
   await page.click('.job-btn[data-id="j1"]');
   await page.waitForSelector('.big-check');
   await until(async () => /Saved on your phone/.test(await text(page.locator('[data-done-sync]'))), 5000, 'the done screen says it is saved on the phone');
-  await page.getByRole('button', { name: 'OK', exact: true }).click();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.waitForSelector('.punch.out');
   await until(async () => /1 waiting to send/.test(await text(page.locator('[data-sync-line]'))), 5000, 'Home says 1 waiting to send');
   if ((await demoDb(page)).punches.some((p) => p.crewId === 'c5')) throw new Error('the punch reached the demo server with "No signal" on');
@@ -275,7 +275,7 @@ async function travisClocksIn(page) {
   await page.waitForSelector('.job-btn');
   await page.click('.job-btn[data-id="j1"]');
   await page.waitForSelector('.big-check');
-  await page.getByRole('button', { name: 'OK', exact: true }).click();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.waitForSelector('.punch.out');
   await until(async () => /All sent/.test(await text(page.locator('[data-sync-line]'))), 8000, 'the clock-in is sent');
 }
@@ -619,7 +619,7 @@ t('LIVE-2 before 9 AM the sample day is yesterday: with the visitor clocked in, 
   await page.waitForSelector('.job-btn');
   await page.click('.job-btn[data-id="j1"]');
   await page.waitForSelector('.big-check');
-  await page.getByRole('button', { name: 'OK', exact: true }).click();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.waitForSelector('.punch.out');
   await signOut(page);
   await bossToday(page);

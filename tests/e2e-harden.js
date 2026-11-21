@@ -95,7 +95,7 @@ async function punches(page) {
   });
 }
 const now = (page) => page.evaluate(() => Date.now());
-const tapOk = (page) => page.getByRole('button', { name: 'OK', exact: true }).click();
+const tapOk = (page) => page.getByRole('button', { name: 'Done', exact: true }).click();
 async function syncAndWait(page) {
   await page.evaluate(() => self.CrewClock.syncNow());
   await page.waitForFunction(() => !self.CrewClock.state.syncing);
