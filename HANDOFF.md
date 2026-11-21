@@ -13,6 +13,12 @@ a portfolio piece: a public demo on sample data at chaseholroyd.com/crew-clock/.
 Plan and milestone IDs: [PLAN.md](PLAN.md). Hard rules: [CLAUDE.md](CLAUDE.md). Privacy
 contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
+## In progress
+
+- DS-1 studio design system restyle (2026-11-21, Chase): spec `docs/design/CRW-RESTYLE.md`, Paper theme,
+  Atkinson Hyperlegible Next bundled in `vendor/fonts/` (OFL). Chase kept the green/red punch buttons
+  (exception to principle 6). Failing tests next, then the build.
+
 ## Done
 
 - Live demo check and fixes (2026-10-29, Chase: "fix it all"). The live demo at chaseholroyd.com
