@@ -9,6 +9,11 @@
 // ux-reviewer findings on the restyle (each its own check, after the walk):
 //   AC-R60 the done screen's dismiss button reads "Done" in the secondary style (--ink on --fill),
 //          not --accent and not --danger/--punch-out, after clocking in and after clocking out
+//   AC-R61 (Chase's call on UX-R61) text links on crew screens are --ink, underlined and >=48px tall:
+//          "Not you?" and "Stop using my location" on worker Home, "Wrong job? Fix it" on the done
+//          screen, "Sign out" in the boss header, light and dark at 390x844; and on worker Home no
+//          visible text other than the punch button is red/rust (within 30 deg hue of --punch-out,
+//          saturation > 0.3), the demo banner and status chips exempt
 //   AC-R62 the map's job pin square is --ink, light and dark
 //   AC-R63 no boss tab label overflows its tab or the screen at 360x780 and 390x844
 //   AC-R64 the demo "pretend I'm at the job" label on worker Home is --ink Static CSS checks are in tests/theme.test.js. Against a demo build on :8123:
@@ -213,6 +218,89 @@ async function acR60(browser) {
   return [...errs, ...problems];
 }
 
+// AC-R61: text links are ink and underlined, and red/rust on worker Home means only Clock out.
+function linkProbe(names) {
+  const p = document.createElement('div'); document.body.appendChild(p);
+  const T = {};
+  for (const n of ['ink', 'accent', 'punch-out', 'danger-text']) { p.style.color = `var(--${n})`; T[n] = getComputedStyle(p).color; }
+  p.remove();
+  const named = (c) => Object.keys(T).filter((k) => T[k] === c).join('/');
+  const out = [];
+  const links = [...document.querySelectorAll('button.link')];
+  for (const name of names) {
+    const b = links.find((x) => x.textContent.replace(/\s+/g, ' ').trim() === name);
+    if (!b) { out.push(`no button.link "${name}"`); continue; }
+    const cs = getComputedStyle(b);
+    const h = b.getBoundingClientRect().height;
+    const bad = [];
+    if (cs.color !== T.ink) bad.push(`color ${cs.color}${named(cs.color) ? ` (--${named(cs.color)})` : ''}, want --ink ${T.ink}`);
+    if (!cs.textDecorationLine.split(' ').includes('underline')) bad.push(`text-decoration-line ${cs.textDecorationLine}, want underline`);
+    if (h < 47.5) bad.push(`height ${Math.round(h)}px, want >=48`);
+    if (bad.length) out.push(`"${name}" ${bad.join(', ')}`);
+  }
+  return out;
+}
+
+// Runs in the page: visible text on worker Home that reads as red/rust, other than the punch button.
+function redText() {
+  const p = document.createElement('div'); document.body.appendChild(p);
+  p.style.color = 'var(--punch-out)'; const ref = getComputedStyle(p).color; p.remove();
+  const hsl = (c) => {
+    const [r, g, b] = c.match(/[\d.]+/g).slice(0, 3).map((x) => Number(x) / 255);
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn, l = (mx + mn) / 2;
+    const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+    let h = 0;
+    if (d) h = mx === r ? 60 * (((g - b) / d) % 6) : mx === g ? 60 * ((b - r) / d + 2) : 60 * ((r - g) / d + 4);
+    return { h: (h + 360) % 360, s };
+  };
+  const R = hsl(ref);
+  const out = [];
+  const seen = new Set();
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const text = n.textContent.replace(/\s+/g, ' ').trim();
+    const el = n.parentElement;
+    if (!text || !el || seen.has(el) || el.closest('script, style, noscript, .punch, .demo-banner, .chip')) continue;
+    const range = document.createRange(); range.selectNodeContents(n);
+    const rr = range.getBoundingClientRect();
+    if (rr.width < 1 || rr.height < 1) continue;
+    const cs = getComputedStyle(el);
+    if (cs.visibility === 'hidden' || el.closest('[hidden]')) continue;
+    seen.add(el);
+    const c = hsl(cs.color);
+    const dh = Math.min(Math.abs(c.h - R.h), 360 - Math.abs(c.h - R.h));
+    if (c.s > 0.3 && dh <= 30) out.push(`${el.tagName.toLowerCase()}${el.className ? '.' + String(el.className).trim().split(/\s+/).join('.') : ''} "${text.slice(0, 28)}" ${cs.color} (hue ${Math.round(c.h)}, sat ${c.s.toFixed(2)}; --punch-out ${ref} hue ${Math.round(R.h)})`);
+  }
+  return out;
+}
+
+async function acR61(browser, scheme) {
+  const page = await newPage(browser, { width: 390, height: 844 }, scheme);
+  const errs = [];
+  await signIn(page, 'Travis K.');
+  if (await page.locator('.punch.out').count()) { await page.click('.punch.out'); await page.waitForSelector('.big-check'); await page.click('main [data-action="go-home"]'); }
+  await page.waitForSelector('.punch.in');
+  await page.waitForTimeout(200);
+  for (const x of await page.evaluate(linkProbe, ['Not you?', 'Stop using my location'])) errs.push(`[worker Home] ${x}`);
+  for (const x of await page.evaluate(redText)) errs.push(`[worker Home] red/rust text ${x}`);
+  await page.click('.punch.in');
+  await page.waitForSelector('.big-check, .job-btn', { timeout: 15000 });
+  if (!(await page.locator('.big-check').count())) await page.locator('.job-btn').first().click();
+  await page.waitForSelector('.big-check', { timeout: 15000 });
+  for (const x of await page.evaluate(linkProbe, ['Wrong job? Fix it'])) errs.push(`[done screen] ${x}`);
+  await page.click('main [data-action="go-home"]');
+  await page.waitForSelector('.punch.out');
+  await page.waitForTimeout(200);
+  for (const x of await page.evaluate(redText)) errs.push(`[worker Home, clocked in] red/rust text ${x}`);
+  await signOut(page);
+  await signIn(page, 'Sam W.');
+  await page.waitForSelector('.boss');
+  for (const x of await page.evaluate(linkProbe, ['Sign out'])) errs.push(`[boss header] ${x}`);
+  const problems = page.problems.slice();
+  await page.context().close();
+  return [...errs, ...problems];
+}
+
 // AC-R62: every job pin on the boss's map is --ink in this color scheme.
 async function acR62(browser, scheme) {
   const page = await newPage(browser, { width: 390, height: 844 }, scheme);
@@ -323,6 +411,7 @@ const show = (xs) => { const u = uniq(xs); return `${u.length} found:\n         
       report(name, errs);
     };
     await run('AC-R60 390x844: the done screen (after Clock in and after Clock out) is dismissed with a "Done" button in ink on fill, not accent or red', () => acR60(browser));
+    for (const scheme of ['light', 'dark']) await run(`AC-R61 ${scheme} 390x844: text links on crew screens are --ink, underlined, >=48px; no red/rust text on worker Home but Clock out`, () => acR61(browser, scheme));
     for (const scheme of ['light', 'dark']) await run(`AC-R62 ${scheme}: the map's job pins are --ink`, () => acR62(browser, scheme));
     for (const vp of [{ width: 360, height: 780 }, { width: 390, height: 844 }]) await run(`AC-R63 ${vp.width}x${vp.height}: every boss tab label fits inside its tab and the screen`, () => acR63(browser, vp));
     for (const scheme of ['light', 'dark']) await run(`AC-R64 ${scheme}: the demo "pretend I'm at the job" label on worker Home is --ink`, () => acR64(browser, scheme));
