@@ -2,7 +2,7 @@
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-10-31 (merged #34, #37, #33 and #32)
+Updated: 2026-11-21 (DS-1 restyle built, uncommitted)
 
 ## What it is
 
@@ -17,7 +17,13 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 - DS-1 studio design system restyle (2026-11-21, Chase): spec `docs/design/CRW-RESTYLE.md`, Paper theme,
   Atkinson Hyperlegible Next bundled in `vendor/fonts/` (OFL). Chase kept the green/red punch buttons
-  (exception to principle 6). Failing tests next, then the build.
+  (exception to principle 6). Red tests in 5a48f13 (`tests/theme.test.js`, `tests/e2e-design.js`, UX-16).
+  Build done, uncommitted on `claude/project-thread-wc5ywq`: `css/app.css` rewritten on the Paper tokens
+  (light, dark, high contrast light and dark), 17/22/28/34 type, 4-px grid, 4/12/pill corners, no shadows
+  but the map's, 2px accent focus rings; `sw.js` caches the three woff2; `index.html` theme-color is the
+  Paper page colour (light/dark); `js/app.js` says "Clock in"/"Clock out", "on/off the clock", job
+  fences and map pins in the accent, crew dots and job pins 48px. `npm test` and every e2e file green.
+  Next: qa-tdd 3x, then ux-reviewer (showcase mode) and privacy-security, then a PR.
 
 ## Done
 
@@ -428,6 +434,15 @@ Still open from CRW-R3: the bare `ex` error rule belongs upstream in studio-agen
 
 ## Decisions to review
 
+- **DS-1 restyle, engineer's calls (2026-11-21), for ux-reviewer:** small primary buttons ("Add job",
+  "Add person", "New group", "Find") are the tinted capsule (accent on accent-soft); the chat Send
+  button stays filled. Your own chat bubbles are ink on accent-soft (accent is for tapping, not
+  decoration). Clock-out's done check is the accent circle. Warn amber is `#8A5300` light /
+  `#F2B13C` dark (soft mixed 93%/82% into the page), so the demo banner is a near-page tint with a
+  warn edge. Week table runs edge to edge on a phone (no card) so 17px fits at 360 (about 2px spare).
+  At 360 only, the demo banner label wraps to two 20px lines (17px text) with a 4px top so it stays
+  93px (UX-R43 asks <= 96); at 390 it is one line, 79px. Today rows drop the avatar under 420px.
+  `manifest.webmanifest` theme_color is still the old `#0f172a` (outside this change's scope).
 - **2026-10-31 merge of #32: the sample yesterday's summary says "so far"** while a visitor is on
   the clock ("5 people have worked 29.0 hours so far across 3 jobs"), never "so far today". #32's
   LIVE-2 asked for "so far", #34's UX-R46b for no "so far"; "so far" won because a shift is still
