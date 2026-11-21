@@ -372,3 +372,19 @@ test('DS-9 every outline is 2px solid var(--accent) (or none); a :focus-visible 
   }
   assert.deepStrictEqual(bad, []);
 });
+
+// ================= ux-reviewer findings on the restyle =================
+
+test('AC-R62 the map job pin (.job-pin span) background is var(--ink), not a hardcoded hex', () => {
+  const bad = [];
+  const rules = RULES.filter((r) => r.selector.split(',').some((s) => /\.job-pin\s+span\b/.test(s.trim())));
+  if (!rules.length) bad.push('no .job-pin span rule');
+  for (const r of rules) {
+    for (const d of r.decls) {
+      if (/^background(-color)?$/.test(d.prop) && /#[0-9a-f]{3,8}\b/i.test(d.value)) bad.push(where(r, d));
+    }
+  }
+  const bg = rules.flatMap((r) => r.decls.filter((d) => /^background(-color)?$/.test(d.prop)).map((d) => d.value));
+  if (rules.length && !bg.includes('var(--ink)')) bad.push(`.job-pin span background is ${JSON.stringify(bg)}, want var(--ink)`);
+  assert.deepStrictEqual(bad, []);
+});

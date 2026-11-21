@@ -5,7 +5,13 @@
 //   DS-8 every button, link and input is at least 48x48 CSS px at 390 (inline links in a sentence
 //        and Leaflet's attribution are exempt, as the spec says)
 // Screens: sign-in, worker Home, boss Map / Today / Jobs / Crew / Messages, at 390x844 and
-// 1280x800, light. Static CSS checks are in tests/theme.test.js. Against a demo build on :8123:
+// 1280x800, light.
+// ux-reviewer findings on the restyle (each its own check, after the walk):
+//   AC-R60 the done screen's dismiss button reads "Done" in the secondary style (--ink on --fill),
+//          not --accent and not --danger/--punch-out, after clocking in and after clocking out
+//   AC-R62 the map's job pin square is --ink, light and dark
+//   AC-R63 no boss tab label overflows its tab or the screen at 360x780 and 390x844
+//   AC-R64 the demo "pretend I'm at the job" label on worker Home is --ink Static CSS checks are in tests/theme.test.js. Against a demo build on :8123:
 //   node scripts/build-site.mjs dist --demo && npx http-server dist -p 8123 -c-1 -s &
 //   node tests/e2e-design.js               (or one viewport: node tests/e2e-design.js 390)
 const { launch } = require('./browser.js');
@@ -24,8 +30,8 @@ function gpsAtJob() {
   navigator.geolocation.getCurrentPosition = (ok) => setTimeout(() => ok(at()), 0);
 }
 
-async function newPage(browser, viewport) {
-  const ctx = await browser.newContext({ viewport, colorScheme: 'light', serviceWorkers: 'block' });
+async function newPage(browser, viewport, colorScheme = 'light') {
+  const ctx = await browser.newContext({ viewport, colorScheme, serviceWorkers: 'block' });
   const page = await ctx.newPage();
   page.problems = [];
   page.fonts = { local: [], offsite: [] };
@@ -168,6 +174,102 @@ async function walk(browser, viewport) {
   return { found, fonts, net, problems };
 }
 
+// AC-R60: clock in, check the done screen's dismiss button; dismiss it, clock out, check again.
+async function acR60(browser) {
+  const page = await newPage(browser, { width: 390, height: 844 });
+  const errs = [];
+  const check = async (when) => {
+    await page.waitForSelector('.big-check', { timeout: 15000 });
+    const r = await page.evaluate(() => {
+      const probe = document.createElement('div'); document.body.appendChild(probe);
+      const T = {};
+      for (const n of ['ink', 'fill', 'accent', 'danger', 'punch-out']) { probe.style.color = `var(--${n})`; T[n] = getComputedStyle(probe).color; }
+      probe.remove();
+      const b = document.querySelector('main [data-action="go-home"]');
+      if (!b) return { missing: true };
+      const cs = getComputedStyle(b);
+      return { T, text: b.textContent.trim(), bg: cs.backgroundColor, color: cs.color };
+    });
+    if (r.missing) { errs.push(`[${when}] no dismiss button on the done screen`); return; }
+    const { T } = r;
+    const named = (c) => Object.keys(T).filter((k) => T[k] === c).join('/') || c;
+    if (r.text !== 'Done') errs.push(`[${when}] dismiss button reads ${JSON.stringify(r.text)}, want "Done"`);
+    if ([T.accent, T.danger, T['punch-out']].includes(r.bg)) errs.push(`[${when}] dismiss button background is ${named(r.bg)} (${r.bg})`);
+    if (r.bg !== T.fill || r.color !== T.ink) errs.push(`[${when}] dismiss button is ${named(r.color)} on ${named(r.bg)}, want ink on fill`);
+  };
+  await signIn(page, 'Travis K.');
+  if (await page.locator('.punch.out').count()) { await page.click('.punch.out'); await page.waitForSelector('.big-check'); await page.click('main [data-action="go-home"]'); }
+  await page.waitForSelector('.punch.in');
+  await page.click('.punch.in');
+  await page.waitForSelector('.big-check, .job-btn', { timeout: 15000 });
+  if (!(await page.locator('.big-check').count())) await page.locator('.job-btn').first().click();
+  await check('after clocking in');
+  await page.click('main [data-action="go-home"]');
+  await page.waitForSelector('.punch.out');
+  await page.click('.punch.out');
+  await check('after clocking out');
+  const problems = page.problems.slice();
+  await page.context().close();
+  return [...errs, ...problems];
+}
+
+// AC-R62: every job pin on the boss's map is --ink in this color scheme.
+async function acR62(browser, scheme) {
+  const page = await newPage(browser, { width: 390, height: 844 }, scheme);
+  await signIn(page, 'Sam W.');
+  await page.waitForSelector('.boss');
+  await page.click('[data-action="boss-tab"][data-tab="map"]');
+  await page.waitForSelector('.job-pin span', { timeout: 10000 });
+  const r = await page.evaluate(() => {
+    const p = document.createElement('div'); document.body.appendChild(p);
+    p.style.color = 'var(--ink)'; const ink = getComputedStyle(p).color;
+    p.style.color = 'var(--accent)'; const accent = getComputedStyle(p).color;
+    p.remove();
+    return { ink, accent, pins: [...document.querySelectorAll('.job-pin span')].map((s) => getComputedStyle(s).backgroundColor) };
+  });
+  await page.context().close();
+  const bad = [...new Set(r.pins.filter((c) => c !== r.ink))];
+  return bad.length ? `pin background ${bad.join(', ')} vs --ink ${r.ink} (--accent is ${r.accent}; ${r.pins.length} pins)` : null;
+}
+
+// AC-R63: every boss tab's label fits its tab and the screen.
+async function acR63(browser, viewport) {
+  const page = await newPage(browser, viewport);
+  await signIn(page, 'Sam W.');
+  await page.waitForSelector('.boss');
+  const r = await page.evaluate(() => [...document.querySelectorAll('.tabbar [data-action="boss-tab"]')].map((b) => {
+    const span = b.querySelector('span') || b;
+    const range = document.createRange(); range.selectNodeContents(span);
+    const t = range.getBoundingClientRect();
+    const br = b.getBoundingClientRect();
+    return { label: span.textContent.trim(), sw: b.scrollWidth, cw: b.clientWidth, lsw: span.scrollWidth, lcw: span.clientWidth,
+      left: Math.round(t.left), right: Math.round(t.right), tabL: Math.round(br.left), tabR: Math.round(br.right), vw: window.innerWidth };
+  }));
+  await page.context().close();
+  if (!r.length) return 'no boss tabs found';
+  const bad = r.filter((x) => x.sw > x.cw || x.lsw > x.lcw || x.right > x.vw || x.left < 0 || x.left < x.tabL - 0.5 || x.right > x.tabR + 0.5)
+    .map((x) => `"${x.label}" text ${x.left}-${x.right} in tab ${x.tabL}-${x.tabR} (scroll ${x.sw}/${x.cw}, label ${x.lsw}/${x.lcw}, viewport ${x.vw})`);
+  return bad.length ? bad.join('; ') : null;
+}
+
+// AC-R64: the demo GPS label on worker Home is --ink.
+async function acR64(browser, scheme) {
+  const page = await newPage(browser, { width: 390, height: 844 }, scheme);
+  await signIn(page, 'Travis K.');
+  await page.waitForSelector('.punch');
+  const r = await page.evaluate(() => {
+    const l = [...document.querySelectorAll('label')].find((x) => /pretend I.m at the job/i.test(x.textContent));
+    const p = document.createElement('div'); document.body.appendChild(p);
+    p.style.color = 'var(--ink)'; const ink = getComputedStyle(p).color;
+    p.style.color = 'var(--warn)'; const warn = getComputedStyle(p).color;
+    p.remove();
+    return l ? { ink, warn, color: getComputedStyle(l).color } : null;
+  });
+  await page.context().close();
+  if (!r) return 'no "pretend I\'m at the job" label on worker Home';
+  return r.color === r.ink ? null : `label color ${r.color}${r.color === r.warn ? ' (--warn)' : ''}, want --ink ${r.ink}`;
+}
+
 const uniq = (xs) => [...new Set(xs)];
 const show = (xs) => { const u = uniq(xs); return `${u.length} found:\n         ${u.slice(0, process.env.VERBOSE ? u.length : 15).join('\n         ')}${u.length > 15 && !process.env.VERBOSE ? `\n         ... and ${u.length - 15} more` : ''}`; };
 
@@ -211,6 +313,19 @@ const show = (xs) => { const u = uniq(xs); return `${u.length} found:\n         
       report(`DS-8 ${vp}: every button, link and input is at least 48x48 (inline links and Leaflet attribution exempt)`, found.targets.length ? show(found.targets) : null);
     }
     if (problems.length) report(`DS-* ${vp}: no page errors`, problems.join('; '));
+  }
+
+  if (!only) {
+    const run = async (name, fn) => {
+      let errs;
+      try { errs = await fn(); } catch (e) { errs = `did not finish: ${e.message.split('\n')[0]}`; }
+      if (Array.isArray(errs)) errs = errs.length ? errs.join('; ') : null;
+      report(name, errs);
+    };
+    await run('AC-R60 390x844: the done screen (after Clock in and after Clock out) is dismissed with a "Done" button in ink on fill, not accent or red', () => acR60(browser));
+    for (const scheme of ['light', 'dark']) await run(`AC-R62 ${scheme}: the map's job pins are --ink`, () => acR62(browser, scheme));
+    for (const vp of [{ width: 360, height: 780 }, { width: 390, height: 844 }]) await run(`AC-R63 ${vp.width}x${vp.height}: every boss tab label fits inside its tab and the screen`, () => acR63(browser, vp));
+    for (const scheme of ['light', 'dark']) await run(`AC-R64 ${scheme}: the demo "pretend I'm at the job" label on worker Home is --ink`, () => acR64(browser, scheme));
   }
   await browser.close();
   console.log(failed ? `${failed} failed` : 'all passed');
