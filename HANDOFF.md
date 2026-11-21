@@ -15,18 +15,16 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## In progress
 
-- DS-1 studio design system restyle (2026-11-21, Chase): spec `docs/design/CRW-RESTYLE.md`, Paper theme,
-  Atkinson Hyperlegible Next bundled in `vendor/fonts/` (OFL). Chase kept the green/red punch buttons
-  (exception to principle 6). Red tests in 5a48f13 (`tests/theme.test.js`, `tests/e2e-design.js`, UX-16).
-  Build done, uncommitted on `claude/project-thread-wc5ywq`: `css/app.css` rewritten on the Paper tokens
-  (light, dark, high contrast light and dark), 17/22/28/34 type, 4-px grid, 4/12/pill corners, no shadows
-  but the map's, 2px accent focus rings; `sw.js` caches the three woff2; `index.html` theme-color is the
-  Paper page colour (light/dark); `js/app.js` says "Clock in"/"Clock out", "on/off the clock", job
-  fences and map pins in the accent, crew dots and job pins 48px. `npm test` and every e2e file green.
-  Next: qa-tdd 3x, then ux-reviewer (showcase mode) and privacy-security, then a PR.
-- UX-R60/R62/R64 fixes (uncommitted): done screen dismiss reads "Done" as a full-width secondary
-  button (e2e clicks renamed OK to Done), job pins are --ink on --bg, demo GPS label is --ink.
-  "Not you?"/"Sign out"/"Stop using my location" link colours wait on Chase.
+- DS-1 studio design system restyle (2026-11-21, Chase), PR on `claude/project-thread-wc5ywq`. Spec
+  `docs/design/CRW-RESTYLE.md`; source `docs/design/STUDIO-CORE.md` + `tokens.json` (copied from hearth).
+  Paper theme (light, dark, high contrast light and dark), Atkinson Hyperlegible Next bundled in
+  `vendor/fonts/` (OFL, cached by `sw.js`), 17/22/28/34 type, 4-px grid, 4/12/pill corners, no shadows
+  but the map's, 2px accent focus rings, "Clock in"/"Clock out" in sentence case. Tests: `tests/theme.test.js`
+  (tokens, contrast in all four modes), `tests/e2e-design.js` (font loads, nothing under 17px, 48px
+  targets, UX-R60..R64), UX-16 renamed to the studio tokens. UX review fixes: done screen "Done" is a
+  secondary button (R60), job pins in ink (R62), demo label in ink (R64). All suites 3x green at 97cc19e
+  (Edge Functions run in CI only). Before/after: `docs/design/restyle-2026-11-21/`.
+  Waiting on Chase: R61, ink instead of rust for "Not you?", "Sign out", "Stop using my location".
 
 ## Done
 
@@ -668,6 +666,8 @@ Waiting on Chase, in order (each unblocks an M2 task; nothing in M1 needs these)
 
 ## Portfolio / public presence
 
+- 2026-11-21: the demo restyled to the studio design system (Paper theme, Atkinson Hyperlegible
+  Next, bigger text, sentence-case "Clock in"). Live demo not loaded from the sandbox.
 - 2026-10-29: live demo loaded and walked end to end (chaseholroyd.com, latest main). Fixes: a
   shorter demo banner on phones, the message box always on screen, matching hours, no "today"
   under the yesterday sample day.
