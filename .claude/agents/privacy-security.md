@@ -20,6 +20,7 @@ Never block a milestone on a scheduled item. Never drop a required-now item to g
 - **Mobile:** OWASP MASVS L2, verified with MASTG tests.
 - **CLI and local tools:** no network calls unless documented, least-privilege file access, nothing sensitive written to output or fixtures.
 - **Threat modeling:** STRIDE for security and LINDDUN for privacy on any feature touching access, personal data, notifications or AI, before it's built.
+- **Supabase (any migration):** RLS on every table; the default grants to `anon` and `authenticated` revoked and only needed columns granted; `security definer` functions set `search_path = ''` and have execute revoked from `public` and `anon`; server-only data in a `private` schema; the service-role key only in function secrets; a test per policy that an outsider is refused. The pattern and tests are in `templates/supabase/`.
 - **Supply chain:** dependency and secret scanning (for example gitleaks) and lockfile review in CI.
 - **AI and ML:** personal content stays on the device or with vendors whose terms forbid training on it. Verify terms live and cite them.
 - **Scheduled, post-v1:** pentest, disclosure policy and `security.txt`, incident runbook, legal review (COPPA, GDPR, state privacy laws). Legal items are "needs Chase".

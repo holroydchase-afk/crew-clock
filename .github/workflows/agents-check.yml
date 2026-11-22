@@ -1,6 +1,7 @@
 name: agents-check
 # Studio rule (templates/CLAUDE-agents.md): the agent table matches .claude/agents/, every PR body has
 # an "Agents:" line, and a PR that changes more than docs names qa-tdd on it (or "qa-tdd skipped: why").
+# Each agent the line names must be in .claude/agent-runs/<branch>.log (written by the Agent-tool hook).
 # Bot PRs (Dependabot) and titles with [skip agents] are exempt.
 on:
   pull_request:
@@ -33,4 +34,22 @@ jobs:
             echo "::error::This PR changes code or config, so the Agents: line must name qa-tdd (failing test first, all suites 3x) or say 'qa-tdd skipped: <reason>'. Changed: $(echo $code | head -c 300)"
             exit 1
           fi
+          # qa-tdd runs as the failing-tests step on every code PR; "skipped" is only for docs-only or config-only changes.
+          # Every "qa-tdd skipped" clause must be exactly "qa-tdd skipped: docs only" or "config only" (nothing around it).
+          bad=$(printf '%s' "$line" | grep -oiE 'qa-tdd skipped[^;.]*' | grep -viE '^qa-tdd skipped: *(docs|config) only *$' || true)
+          if [ -n "$code" ] && [ -n "$bad" ]; then
+            echo "::error::qa-tdd cannot be skipped on a code PR. Run it (in a cloud thread: bash scripts/agent-prompt.sh qa-tdd \"<task>\" as general-purpose, which logs itself), or write 'qa-tdd skipped: docs only' / 'config only' if that is true."
+            exit 1
+          fi
           echo "ok: $line"
+      # Python is on the runner; Node is set up for repos whose verify command is npm-based.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Agents line matches the run log (and qa-tdd's suites rerun on CI)
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          f=scripts/check-agent-runs.sh; [ -f "$f" ] || f=templates/scripts/check-agent-runs.sh
+          if [ -f "$f" ]; then bash "$f"; else echo "no scripts/check-agent-runs.sh (install it with studio-agents scripts/install-rules.sh)"; fi
