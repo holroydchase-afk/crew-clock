@@ -2,7 +2,7 @@
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-11-18 (portfolio review; M1.16 geofence fairness eval)
+Updated: 2026-11-22 (M1.16 merged as #41; M1.17 design doc and post-mortem)
 
 ## What it is
 
@@ -14,6 +14,17 @@ Plan and milestone IDs: [PLAN.md](PLAN.md). Hard rules: [CLAUDE.md](CLAUDE.md). 
 contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
+
+- `M1.17` design doc and post-mortem (2026-11-22, second item of the portfolio review; M1.16
+  merged as #41 on Chase's "merge"). `docs/DESIGN.md`: constraints, goals and non-goals, a component
+  diagram, the life of one punch step by step, eight decisions with the option rejected and the cost
+  accepted, a threat model with a "what does not stop it" column, failure handling, and what has not
+  been proven. `docs/postmortems/2026-10-28-stale-service-worker.md`: a blameless write-up of the
+  stale demo incident (root cause, why tests missed it, the fix in `1122130`, the guard in
+  `tests/e2e-update.js`, follow-ups). Every claim cites a file; what the record doesn't say is marked
+  "not recorded" (how many phones, when it was noticed, when the fix went live). Docs only, no code
+  changed. Writing it turned up two things, both in Exact next step: the crew build can still be
+  pointed at the Sheets backend, and `tests/e2e-update.js` still waits fixed times.
 
 - `M1.16` geofence fairness eval (2026-11-18, first item of the portfolio review below). The
   product's headline claim, "a fair geofence", had unit tests but no measurement. `evals/geofence/`
@@ -443,14 +454,19 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
 
 ## Exact next step
 
-From the 2026-11-18 portfolio review, in order: (2) `docs/DESIGN.md` and
-`docs/postmortems/2026-10-28-stale-service-worker.md` (architect, positioning); (3) `docs/METRICS.md`
+From the 2026-11-18 portfolio review, in order: (3) `docs/METRICS.md`
 with targets and the M2.6 go/no-go bar, then issue #35; (5) the reliability pass, each with a failing
 test first: `Chain.verifyAll` flags a missing seq, retry backoff with jitter (PS-3),
 `navigator.storage.persist()`, the session-refresh race. Item 4 (shelve chat, on-phone AI, Sheets and
 push; delete `backend/Code.gs`; shrink this file) waits on Chase's answer to the shelve card. This
 file's "In progress" section above is stale (everything in it is merged) and goes in that cleanup.
 `M2.1` still waits on Chase's Supabase project (Blockers 1).
+Found while writing `docs/DESIGN.md` (2026-11-22), each needs a failing test first: the hard rule
+"the crew app runs only the Supabase backend" is not enforced in code (`js/api.js:31-37` still
+routes to Sheets when `backendUrl` is set and `scripts/build-site.mjs:30` maps `SHEETS_BACKEND_URL`
+into a non-demo build; `docs/PRIVACY.md` S5 marks the refusal "to build"); and
+`tests/e2e-update.js:70-73` waits fixed times for the new service worker and should wait for it to
+activate (it failed once in CI on timing).
 
 ## Decisions to review
 
@@ -686,6 +702,7 @@ Waiting on Chase, in order (each unblocks an M2 task; nothing in M1 needs these)
 
 ## Portfolio / public presence
 
+- 2026-11-22: README links the new design doc and post-mortem. No change to the demo.
 - 2026-11-18: README's "A fair geofence" decision links the new eval report
   (`docs/evals/geofence.md`). An INTAKE block for the case study page is in the review doc; Chase
   pastes it into Product Studio after this merges. No change to the demo itself.
