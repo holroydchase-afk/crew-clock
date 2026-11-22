@@ -24,20 +24,6 @@ a portfolio piece: a public demo on sample data at chaseholroyd.com/crew-clock/.
 Plan and milestone IDs: [PLAN.md](PLAN.md). Hard rules: [CLAUDE.md](CLAUDE.md). Privacy
 contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
-## In progress
-
-- DS-1 studio design system restyle (2026-11-21, Chase), PR on `claude/project-thread-wc5ywq`. Spec
-  `docs/design/CRW-RESTYLE.md`; source `docs/design/STUDIO-CORE.md` + `tokens.json` (copied from hearth).
-  Paper theme (light, dark, high contrast light and dark), Atkinson Hyperlegible Next bundled in
-  `vendor/fonts/` (OFL, cached by `sw.js`), 17/22/28/34 type, 4-px grid, 4/12/pill corners, no shadows
-  but the map's, 2px accent focus rings, "Clock in"/"Clock out" in sentence case. Tests: `tests/theme.test.js`
-  (tokens, contrast in all four modes), `tests/e2e-design.js` (font loads, nothing under 17px, 48px
-  targets, UX-R60..R64), UX-16 renamed to the studio tokens. UX review fixes: done screen "Done" is a
-  secondary button (R60), job pins in ink (R62), demo label in ink (R64). All suites 3x green at 97cc19e
-  (Edge Functions run in CI only). Before/after: `docs/design/restyle-2026-11-21/`.
-  R61 done, links are ink: text links ("Not you?", "Stop using my location", "Wrong job? Fix it",
-  "Sign out", "Back") are `--ink` and underlined, 48px tall (Chase 2026-11-21); AC-R61 green.
-
 ## Done
 
 - Wired to studio-agents (2026-11-22, issue #43). Re-synced `.claude/agents/` (adds
@@ -407,6 +393,18 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
   HRD-9's browser case now clocks in Travis (Cody is on the clock in the seed, so his row only
   offers "Clock out"); its assertions are unchanged.
 ## In progress
+
+- DS-1 studio design system restyle (2026-11-21, Chase), PR on `claude/project-thread-wc5ywq`. Spec
+  `docs/design/CRW-RESTYLE.md`; source `docs/design/STUDIO-CORE.md` + `tokens.json` (copied from hearth).
+  Paper theme (light, dark, high contrast light and dark), Atkinson Hyperlegible Next bundled in
+  `vendor/fonts/` (OFL, cached by `sw.js`), 17/22/28/34 type, 4-px grid, 4/12/pill corners, no shadows
+  but the map's, 2px accent focus rings, "Clock in"/"Clock out" in sentence case. Tests: `tests/theme.test.js`
+  (tokens, contrast in all four modes), `tests/e2e-design.js` (font loads, nothing under 17px, 48px
+  targets, UX-R60..R64), UX-16 renamed to the studio tokens. UX review fixes: done screen "Done" is a
+  secondary button (R60), job pins in ink (R62), demo label in ink (R64). All suites 3x green at 97cc19e
+  (Edge Functions run in CI only). Before/after: `docs/design/restyle-2026-11-21/`.
+  R61 done, links are ink: text links ("Not you?", "Stop using my location", "Wrong job? Fix it",
+  "Sign out", "Back") are `--ink` and underlined, 48px tall (Chase 2026-11-21); AC-R61 green.
 
 - `M1.4` retention and delete rules, done when tests pass (branch `m1.4-retention`, stacked on M1.8;
   morning shift 2026-10-24). Migration `20261024000000_retention.sql`: `app.apply_retention(p_now)`
