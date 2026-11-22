@@ -54,6 +54,8 @@ over) and a link back to chaseholroyd.com.
   takes a picture instead, or the punch is flagged for the boss to look at.
 - **A fair geofence.** Phone GPS can be off by a lot in the hills. The app counts that error in the
   worker's favor, so a worker standing on the site isn't turned away because the phone was unsure.
+  A [simulated eval](docs/evals/geofence.md) measures that rule against a strict fence, and says
+  where it is loose.
 - **Works with no signal.** The phone saves the time and location at the tap and sends them when
   signal comes back. The boss sees which punches were sent late because of no signal. In the demo,
   the No signal switch lets you try it.
