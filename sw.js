@@ -13,6 +13,9 @@ const SHELL_FILES = [
   'vendor/leaflet/images/marker-icon.png', 'vendor/leaflet/images/marker-icon-2x.png',
   'vendor/leaflet/images/marker-shadow.png', 'vendor/leaflet/images/layers.png', 'vendor/leaflet/images/layers-2x.png',
   'icons/icon-192.png', 'icons/apple-touch-icon.png',
+  'vendor/fonts/atkinson-hyperlegible-next/atkinson-hyperlegible-next-latin-400-normal.woff2',
+  'vendor/fonts/atkinson-hyperlegible-next/atkinson-hyperlegible-next-latin-500-normal.woff2',
+  'vendor/fonts/atkinson-hyperlegible-next/atkinson-hyperlegible-next-latin-600-normal.woff2',
 ];
 
 // cache: 'reload' and 'no-cache' skip the browser's own HTTP cache (GitHub Pages lets it keep

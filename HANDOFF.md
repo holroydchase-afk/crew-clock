@@ -13,7 +13,7 @@ blockers: []
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-11-22 (wired to studio-agents, issue #43)
+Updated: 2026-11-22 (DS-1 restyle, PR #42, merged with main; wired to studio-agents, issue #43)
 
 ## What it is
 
@@ -394,6 +394,18 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
   offers "Clock out"); its assertions are unchanged.
 ## In progress
 
+- DS-1 studio design system restyle (2026-11-21, Chase), PR on `claude/project-thread-wc5ywq`. Spec
+  `docs/design/CRW-RESTYLE.md`; source `docs/design/STUDIO-CORE.md` + `tokens.json` (copied from hearth).
+  Paper theme (light, dark, high contrast light and dark), Atkinson Hyperlegible Next bundled in
+  `vendor/fonts/` (OFL, cached by `sw.js`), 17/22/28/34 type, 4-px grid, 4/12/pill corners, no shadows
+  but the map's, 2px accent focus rings, "Clock in"/"Clock out" in sentence case. Tests: `tests/theme.test.js`
+  (tokens, contrast in all four modes), `tests/e2e-design.js` (font loads, nothing under 17px, 48px
+  targets, UX-R60..R64), UX-16 renamed to the studio tokens. UX review fixes: done screen "Done" is a
+  secondary button (R60), job pins in ink (R62), demo label in ink (R64). All suites 3x green at 97cc19e
+  (Edge Functions run in CI only). Before/after: `docs/design/restyle-2026-11-21/`.
+  R61 done, links are ink: text links ("Not you?", "Stop using my location", "Wrong job? Fix it",
+  "Sign out", "Back") are `--ink` and underlined, 48px tall (Chase 2026-11-21); AC-R61 green.
+
 - `M1.4` retention and delete rules, done when tests pass (branch `m1.4-retention`, stacked on M1.8;
   morning shift 2026-10-24). Migration `20261024000000_retention.sql`: `app.apply_retention(p_now)`
   does every server-side row of PRIVACY's retention table (hours deleted at 3 years, GPS nulled at
@@ -477,6 +489,19 @@ file's "In progress" section above is stale (everything in it is merged) and goe
 
 ## Decisions to review
 
+- **DS-10 exception to principle 6 (Chase, 2026-11-21, UX-R61): text links are ink, not accent.**
+  "Not you?", "Stop using my location", "Wrong job? Fix it", "Sign out" and "Back" are `--ink`,
+  underlined (3px offset), 48px tall, so rust/red on a crew screen only means Clock out.
+  `.link.danger` stays `--danger-text`; buttons, the tab bar picked state and focus rings stay accent.
+- **DS-1 restyle, engineer's calls (2026-11-21), for ux-reviewer:** small primary buttons ("Add job",
+  "Add person", "New group", "Find") are the tinted capsule (accent on accent-soft); the chat Send
+  button stays filled. Your own chat bubbles are ink on accent-soft (accent is for tapping, not
+  decoration). Clock-out's done check is the accent circle. Warn amber is `#8A5300` light /
+  `#F2B13C` dark (soft mixed 93%/82% into the page), so the demo banner is a near-page tint with a
+  warn edge. Week table runs edge to edge on a phone (no card) so 17px fits at 360 (about 2px spare).
+  At 360 only, the demo banner label wraps to two 20px lines (17px text) with a 4px top so it stays
+  93px (UX-R43 asks <= 96); at 390 it is one line, 79px. Today rows drop the avatar under 420px.
+  `manifest.webmanifest` theme_color is still the old `#0f172a` (outside this change's scope).
 - **2026-11-18, M1.16: keep the shipped geofence rule, or tighten it?** The eval
   (`docs/evals/geofence.md`) shows the rule does what it promises for workers who are there, and is
   loose for someone close by: with a weak fix on a small fence, most people standing 1.5 times the
@@ -709,6 +734,8 @@ Waiting on Chase, in order (each unblocks an M2 task; nothing in M1 needs these)
 
 ## Portfolio / public presence
 
+- 2026-11-21: the demo restyled to the studio design system (Paper theme, Atkinson Hyperlegible
+  Next, bigger text, sentence-case "Clock in"). Live demo not loaded from the sandbox.
 - 2026-11-18: README's "A fair geofence" decision links the new eval report
   (`docs/evals/geofence.md`). An INTAKE block for the case study page is in the review doc; Chase
   pastes it into Product Studio after this merges. No change to the demo itself.

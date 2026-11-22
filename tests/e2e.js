@@ -22,7 +22,7 @@ const { launch } = require('./browser.js');
   await page.getByText('OK, ask me').click();
   await page.waitForSelector('.punch');
   if (await page.locator('.punch.out').count()) { // seeded demo data has Jake on the clock
-    await page.click('.punch.out'); await page.waitForSelector('.big-check'); await page.getByText('OK', { exact: true }).click();
+    await page.click('.punch.out'); await page.waitForSelector('.big-check'); await page.getByText('Done', { exact: true }).click();
   }
   await page.waitForSelector('.punch.in'); await shot('1-home');
   await page.click('.punch.in');
@@ -31,13 +31,13 @@ const { launch } = require('./browser.js');
   await page.click('.job-btn.nearest');
   await page.waitForSelector('.big-check'); await shot('3-done');
   const chipIn = await page.textContent('.chip');
-  await page.getByText('OK', { exact: true }).click();
+  await page.getByText('Done', { exact: true }).click();
   // offline clock-out queues
   await ctx.setOffline(true);
   await page.click('.punch.out');
   await page.waitForSelector('.big-check');
   const offlineNote = await page.locator('.notice').count(); await shot('4-done-offline');
-  await page.getByText('OK', { exact: true }).click();
+  await page.getByText('Done', { exact: true }).click();
   // A sync started while online may still be finishing ("Sending…"); the line must settle on "waiting"
   await page.waitForFunction(() => document.querySelector('.sync-line').textContent.includes('waiting'), null, { timeout: 5000 }).catch(() => {});
   const waiting = await page.textContent('.sync-line');

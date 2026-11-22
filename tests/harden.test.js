@@ -172,7 +172,10 @@ test('UX-8 Today summary lists a person with two flagged shifts once and never e
   assert.match(s, /Didn't clock in: Travis K\., Billy S\.$/, s);
 });
 
-// ---------- UX-16: text on the muted, green and red-soft tokens meets 4.5:1 in light and dark ----------
+// ---------- UX-16: text on the muted, punch-in and danger-soft tokens meets 4.5:1 in light and dark ----------
+// Token names follow the studio restyle (docs/design/CRW-RESTYLE.md DS-6): --card is --surface,
+// --green-bg (the Clock in fill) is --punch-in, --red is --danger-text, --red-soft is --danger-soft.
+// Same pairs, same 4.5:1 threshold.
 
 function cssTokens() {
   const css = fs.readFileSync(path.join(__dirname, '../css/app.css'), 'utf8');
@@ -190,15 +193,16 @@ function contrast(a, b) {
   return (x + 0.05) / (y + 0.05);
 }
 
-test('UX-16 muted, white-on-green and red-on-red-soft text meet 4.5:1 in light and dark', () => {
+test('UX-16 muted, white-on-punch-in and danger-text-on-danger-soft text meet 4.5:1 in light and dark', () => {
   const { light, dark } = cssTokens();
   const pairs = [
-    ['light muted on bg', light.muted, light.bg], ['light muted on card', light.muted, light.card],
-    ['light white on green-bg (CLOCK IN)', '#ffffff', light['green-bg']], ['dark white on green-bg (CLOCK IN)', '#ffffff', dark['green-bg']],
-    ['light red on red-soft', light.red, light['red-soft']], ['dark red on red-soft', dark.red, dark['red-soft']],
-    ['dark ink on red-soft (Not in yet names)', dark.ink, dark['red-soft']],
-    ['dark muted on bg', dark.muted, dark.bg], ['dark muted on card', dark.muted, dark.card],
+    ['light muted on bg', light.muted, light.bg], ['light muted on surface', light.muted, light.surface],
+    ['light white on punch-in (Clock in)', '#ffffff', light['punch-in']], ['dark white on punch-in (Clock in)', '#ffffff', dark['punch-in']],
+    ['light danger-text on danger-soft', light['danger-text'], light['danger-soft']], ['dark danger-text on danger-soft', dark['danger-text'], dark['danger-soft']],
+    ['dark ink on danger-soft (Not in yet names)', dark.ink, dark['danger-soft']],
+    ['dark muted on bg', dark.muted, dark.bg], ['dark muted on surface', dark.muted, dark.surface],
   ];
-  const low = pairs.map(([n, fg, bg]) => [n, contrast(fg, bg)]).filter(([, r]) => r < 4.5);
-  assert.deepStrictEqual(low.map(([n, r]) => `${n} ${r.toFixed(2)}:1`), []);
+  const missing = pairs.filter(([, fg, bg]) => !fg || !bg).map(([n]) => `${n}: token missing`);
+  const low = pairs.filter(([, fg, bg]) => fg && bg).map(([n, fg, bg]) => [n, contrast(fg, bg)]).filter(([, r]) => r < 4.5);
+  assert.deepStrictEqual([...missing, ...low.map(([n, r]) => `${n} ${r.toFixed(2)}:1`)], []);
 });

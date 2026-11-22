@@ -95,7 +95,7 @@ async function punches(page) {
   });
 }
 const now = (page) => page.evaluate(() => Date.now());
-const tapOk = (page) => page.getByRole('button', { name: 'OK', exact: true }).click();
+const tapOk = (page) => page.getByRole('button', { name: 'Done', exact: true }).click();
 async function syncAndWait(page) {
   await page.evaluate(() => self.CrewClock.syncNow());
   await page.waitForFunction(() => !self.CrewClock.state.syncing);
@@ -181,7 +181,7 @@ t('HRD-2 a punch the server rejects as "Punch too old" stays on the phone and th
   await syncAndWait(page);
   const still = (await punches(page)).some((p) => p.id === id && p.where === 'outbox');
   const text = await page.evaluate(() => document.body.innerText);
-  const shown = /too old|phone'?s (clock|date)|clock .*(wrong|behind)|date .*wrong/i.test(text.replace(/CLOCK (IN|OUT)/g, ''));
+  const shown = /too old|phone'?s (clock|date)|clock .*(wrong|behind)|date .*wrong/i.test(text.replace(/CLOCK (IN|OUT)/gi, ''));
   if (!still) throw new Error('the rejected punch was deleted from the outbox');
   if (!shown) throw new Error(`no reason on screen; page says: ${JSON.stringify(text.slice(0, 200))}`);
   return page;
