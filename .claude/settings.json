@@ -9,6 +9,17 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/scripts/log-agent-run.sh\"; [ -f \"$f\" ] || f=\"$CLAUDE_PROJECT_DIR/templates/scripts/log-agent-run.sh\"; [ -f \"$f\" ] && bash \"$f\"; exit 0"
+          }
+        ]
+      }
     ]
   }
 }

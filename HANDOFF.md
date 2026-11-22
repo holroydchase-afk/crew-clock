@@ -1,8 +1,19 @@
 # Handoff: Crew Clock (CRW)
+<!-- status
+stage: building
+goal: portfolio
+milestone: CRW-M2
+now: studio-agents wiring (issue #43) in review
+next: design doc and stale service worker post-mortem (portfolio review item 2)
+waiting_on_chase:
+  - Supabase project, SETUP steps 1.1 to 1.4 (unblocks M2.1)
+  - Shelve card answer (portfolio review item 4)
+blockers: []
+-->
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-11-18 (portfolio review; M1.16 geofence fairness eval)
+Updated: 2026-11-22 (wired to studio-agents, issue #43)
 
 ## What it is
 
@@ -14,6 +25,18 @@ Plan and milestone IDs: [PLAN.md](PLAN.md). Hard rules: [CLAUDE.md](CLAUDE.md). 
 contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
+
+- Wired to studio-agents (2026-11-22, issue #43). Re-synced `.claude/agents/` (adds
+  `release-captain` and `story-keeper`, refreshes `qa-tdd`, `ux-reviewer`, `privacy-security`) and
+  the `review-rounds` skill and design rules. New `scripts/agent-prompt.sh` (runs a studio agent as
+  general-purpose in cloud threads), `log-agent-run.sh` (with `--as`), `check-agent-runs.sh` and
+  `check-handoff-status.sh`. `.claude/settings.json` logs every Agent call to
+  `.claude/agent-runs/<branch>.log`; `agents-check` now fails a code PR that skips qa-tdd and checks
+  the Agents: line against that log, rerunning `npm test` 3x (`studio-checks.json` `agents.verify`).
+  `handoff-check` warns if the status header above is missing. CLAUDE.md's Studio agents section is
+  the studio template (opening line, agents from studio-agents, Studio standard), keeping the crew
+  privacy-security rule. Crew facts for agents: `docs/eng/AGENT-NOTES.md`. Tests:
+  `tests/studio-wiring.test.js` (AC1..AC8, qa-tdd red first). Docs and CI only; no demo change.
 
 - `M1.16` geofence fairness eval (2026-11-18, first item of the portfolio review below). The
   product's headline claim, "a fair geofence", had unit tests but no measurement. `evals/geofence/`
