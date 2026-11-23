@@ -3,7 +3,7 @@
 stage: building
 goal: portfolio
 milestone: CRW-M2
-now: AI-SHELF (on-phone AI models off) and TS-1 (tsc type-check, issue #36 PR 1) on claude/project-thread-9sslyq
+now: AI-SHELF, SHEETS-SHELF and TS-1 merged in #47 (Chase's go 2026-11-23); TS-2 (.ts rename + esbuild, issue #36 PR 2) next
 next: design doc and stale service worker post-mortem (portfolio review item 2)
 waiting_on_chase:
   - Supabase project, SETUP steps 1.1 to 1.4 (unblocks M2.1)
@@ -12,7 +12,7 @@ blockers: []
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-11-23 (AI-SHELF and TS-1 on claude/project-thread-9sslyq)
+Updated: 2026-11-23 (#47 merged on Chase's go: AI and Sheets shelved, TS-1 type-check)
 
 ## What it is
 
