@@ -111,6 +111,8 @@ and run it in the SQL editor. Times are UTC; the file explains the Eastern time 
 
 ## 7. Google Sheets reports
 
+_Shelved by Chase 2026-11-23: skip this step. The Week view CSV covers it._
+
 1. Make an empty Google Sheet. **Extensions > Apps Script**, paste `backend/sheets-export.gs`.
 2. **Project Settings > Script Properties**: `SUPABASE_URL`, `REPORT_TOKEN`, `ORG_CODE`.
 3. Run `setupReports` once and approve. The Daily tab fills at 7:15 PM, Weekly on Sunday night,

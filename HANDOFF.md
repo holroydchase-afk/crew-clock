@@ -7,7 +7,6 @@ now: AI-SHELF (on-phone AI models off) and TS-1 (tsc type-check, issue #36 PR 1)
 next: design doc and stale service worker post-mortem (portfolio review item 2)
 waiting_on_chase:
   - Supabase project, SETUP steps 1.1 to 1.4 (unblocks M2.1)
-  - "Sheets export: shelve or keep (recommended shelve)"
 blockers: []
 -->
 
@@ -33,6 +32,10 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
   `AI.modelTier(cfg)`. Tier 0 (dark/blurry photo check, plain summary) unchanged. README, PRIVACY
   (Hugging Face: none) and PLAN "Not now" updated. Tests: `tests/aishelf.test.js` (qa-tdd red first).
   No demo change (the demo never offered AI).
+- SHEETS-SHELF (2026-11-23, Chase, docs only): the Google Sheets nightly export is shelved; the
+  Week view CSV covers it. PLAN M2.3 is photos and alerts only, "Not now" lists it, SETUP step 7
+  says skip, Blockers 3 no longer asks for a Sheet, README marks it shelved. No code removed;
+  push text and Sheets never carried coordinates, so no privacy change.
 
 - Wired to studio-agents (2026-11-22, issue #43). Re-synced `.claude/agents/` (adds
   `release-captain` and `story-keeper`, refreshes `qa-tdd`, `ux-reviewer`, `privacy-security`) and
@@ -490,8 +493,9 @@ From the 2026-11-18 portfolio review, in order: (2) `docs/DESIGN.md` and
 `docs/postmortems/2026-10-28-stale-service-worker.md` (architect, positioning); (3) `docs/METRICS.md`
 with targets and the M2.6 go/no-go bar, then issue #35; (5) the reliability pass, each with a failing
 test first: `Chain.verifyAll` flags a missing seq, retry backoff with jitter (PS-3),
-`navigator.storage.persist()`, the session-refresh race. Item 4 (shelve chat, on-phone AI, Sheets and
-push; delete `backend/Code.gs`; shrink this file) waits on Chase's answer to the shelve card. This
+`navigator.storage.persist()`, the session-refresh race. Item 4: Chase answered 2026-11-23: keep chat and push, shelve on-phone AI
+(AI-SHELF) and the Sheets export (docs only), continue TypeScript (TS-1). Deleting `backend/Code.gs`
+and shrinking this file are still open. This
 file's "In progress" section above is stale (everything in it is merged) and goes in that cleanup.
 `M2.1` still waits on Chase's Supabase project (Blockers 1).
 
@@ -733,7 +737,8 @@ Waiting on Chase, in order (each unblocks an M2 task; nothing in M1 needs these)
 
 1. Supabase project and SETUP steps 1.1 to 1.4 (about 25 minutes). Unblocks `M2.1`.
 2. Cloudflare Pages for the crew app, SETUP step 5 "Crew app" (about 10 minutes). Unblocks `M2.2`.
-3. Backblaze, secrets, alerts and Sheets, SETUP steps 2, 3, 4, 6 and 7 (about 40 minutes).
+3. Backblaze, secrets and alerts, SETUP steps 2, 3, 4 and 6 (about 30 minutes). Step 7 (Sheets) is
+   shelved; skip it.
 4. Install day on the crew's phones, SETUP step 8, after `M1.2` consent ships.
 5. Check West Virginia's record-keeping and employee-monitoring rules (docs/PRIVACY.md "Needs
    Chase") with whoever does the company's payroll. Only the hours row could change.
