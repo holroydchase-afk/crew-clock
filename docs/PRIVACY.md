@@ -135,7 +135,7 @@ federal; West Virginia's own rules are a "needs Chase" check (see the end).
 | Weekly CSV (timesheet) | Made on the boss's phone, saved to their Downloads | Until the boss deletes it | The boss owns the file; the app keeps no copy and sends it nowhere. Name, Date, In, Out, Hours only: no GPS, ids, photos or risk flags; cells a spreadsheet would run as a formula are escaped | [true, M1.13] `Report.timesheetCsv`; `tests/enhance.test.js` ENH-3, PS-M113-3 |
 | Each worker's newest consent record, as this phone knows it | The phone, localStorage `cc.consents` | Until replaced by a newer record | Kept on sign-out so an offline re-sign-in isn't asked again; holds action, text version and time only | [true] `js/app.js` `rememberConsent` |
 | Unsent punches and pictures | Phone IndexedDB outbox | Until sent | Removed when the server accepts them or refuses them for permission. Any other refusal (for example "Punch too old") is final: the phone deletes its GPS, picture, signature and edit data at once and keeps only a stub (who, job, in/out, time, reason) so the sync line can explain it; the stub is never resent. Network, server or picture-upload failures keep the whole punch and retry. | [true] `js/app.js:85-90,112-125`; [stub kept until cleared, no trim yet] |
-| Daily and weekly reports | The boss's Google Sheet | 3 years (hours only, no GPS) | The boss deletes old rows | [manual; no GPS goes to the Sheet today, `report-export` sends shifts only] |
+| Daily and weekly reports | The boss's Google Sheet (shelved, Chase, 2026-11-23) | 3 years (hours only, no GPS) | The boss deletes old rows | [shelved (Chase, 2026-11-23): no export runs; when it did, no GPS went to the Sheet, `report-export` sent shifts only. Do not set `REPORT_TOKEN` while the export is shelved, so `report-export` refuses every request] |
 | Sign-in sessions | Supabase Auth | 1 hour token, refresh until sign-out | Ended on new PIN or deactivation | [true] `20261023000000_auth_hook.sql:32-41` |
 
 Rules:
@@ -171,7 +171,7 @@ Rules:
   export button is scheduled after the beta.
 
 **The boss deletes the company:**
-- The boss exports the Sheet first (it is theirs; the app does not touch it).
+- The boss exports the Sheet first, if one exists (the Sheet export is shelved, Chase, 2026-11-23; it is theirs; the app does not touch it).
 - One owner-run script deletes the org (every table cascades on `org_id`), every B2 object under
   the `<org_id>/` prefix, and every Auth user for that crew. [to build, M2. Today
   `punches.crew_id`, `punches.by_crew_id`, `mls_messages.sender_crew_id` and

@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   # F-15: fail on any key, token or password anywhere in the history, not just this change.
   secrets:
@@ -38,8 +41,8 @@ jobs:
 
       - name: Unit tests
         run: npm test
-      - name: Install dev tools (TypeScript, no lockfile at the root)
-        run: npm install --no-package-lock
+      - name: Install dev tools (TypeScript, from the root lockfile)
+        run: npm ci
       - name: Type check (tsc over the plain JS, no build step)
         run: npm run typecheck
       - name: Agent roster matches CLAUDE.md

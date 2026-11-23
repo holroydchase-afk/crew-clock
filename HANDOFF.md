@@ -43,8 +43,12 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
   `tests/e2e.d.ts`. Errors 2690 before (js about 1150, tests about 1540), 0 after; no `@ts-nocheck`,
   no `@ts-expect-error`. `any` only at boundaries (API result rows, Supabase REST, IndexedDB
   promises, Leaflet `on`, the model pipeline output). Fixes are JSDoc and casts only, no runtime change; shared files
-  re-synced. CI installs dev tools (`npm install --no-package-lock`) and runs the type check.
+  re-synced. CI installs dev tools (`npm ci`) and runs the type check.
   `.gitattributes` marks `vendor/` and `js/vendor/` vendored. Tests: `tests/typecheck.test.js` (qa-tdd red first).
+  Review fixes: ARCH-1 root `package-lock.json`, CI `npm ci`, dependabot covers root npm; PS-SHELF-3
+  ci.yml top-level `permissions: contents: read`; PS-SHELF-1/2 PRIVACY marks the Sheet export shelved
+  and says leave `REPORT_TOKEN` unset. Reviewed by architect (ARCH-1..3) and privacy-security
+  (PS-SHELF-1..3). Tests: `tests/typecheck.test.js`, `tests/shelf-docs.test.js` (qa-tdd red first).
 
 - Wired to studio-agents (2026-11-22, issue #43). Re-synced `.claude/agents/` (adds
   `release-captain` and `story-keeper`, refreshes `qa-tdd`, `ux-reviewer`, `privacy-security`) and
