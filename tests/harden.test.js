@@ -10,17 +10,21 @@ const Risk = require('../js/risk.js');
 // ---------- HRD-6: one bad photo must not block the rest of the outbox ----------
 
 // Loads js/api-supabase.js in a sandbox with a fake Supabase, a fake Backblaze and a fake outbox.
+/** @param {{ b2Status: number }} opts */
 function loadSupabaseApi({ b2Status }) {
   const SB = 'https://fake.supabase.test';
+  /** @type {{ sync: OutboxItem[][], uploads: number, puts: number }} */
   const calls = { sync: [], uploads: 0, puts: 0 };
   const ls = new Map([['cc.sbSession', JSON.stringify({
     accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600000, crewId: 'jake', me: { id: 'jake', role: 'crew' },
   })]]);
+  /** @param {unknown} body @param {number} [status] */
   const json = (body, status = 200) => ({ ok: status < 400, status, json: async () => body });
+  /** @param {string} url @param {RequestInit} opts */
   const fetch = async (url, opts) => {
     if (url === `${SB}/functions/v1/photo-upload`) {
       calls.uploads++;
-      const { punchId } = JSON.parse(opts.body);
+      const { punchId } = JSON.parse(String(opts.body));
       return json({ ok: true, key: `org/day/${punchId}.jpg`, url: `https://b2.test/${punchId}` });
     }
     if (url.startsWith('https://b2.test/')) {
@@ -28,18 +32,19 @@ function loadSupabaseApi({ b2Status }) {
       return { ok: b2Status < 400, status: b2Status };
     }
     if (url === `${SB}/functions/v1/sync`) {
-      const items = JSON.parse(opts.body).items;
+      /** @type {OutboxItem[]} */
+      const items = JSON.parse(String(opts.body)).items;
       calls.sync.push(items);
       return json({ ok: true, accepted: items.map((i) => i.id), rejected: [], reasons: [] });
     }
     throw new Error('unexpected fetch ' + url);
   };
-  const sandbox = {
+  const sandbox = /** @type {TestSandbox} */ (/** @type {unknown} */ ({
     APP_CONFIG: { backend: 'supabase', supabaseUrl: SB, supabaseAnonKey: 'anon' },
-    Store: { outbox: { add: async (it) => it }, local: { get: (k, d) => d, set() {} } },
-    localStorage: { getItem: (k) => (ls.has(k) ? ls.get(k) : null), setItem: (k, v) => ls.set(k, v), removeItem: (k) => ls.delete(k) },
+    Store: { outbox: { add: async (/** @type {unknown} */ it) => it }, local: { get: (/** @type {string} */ k, /** @type {unknown} */ d) => d, set() {} } },
+    localStorage: { getItem: (/** @type {string} */ k) => (ls.has(k) ? ls.get(k) : null), setItem: (/** @type {string} */ k, /** @type {string} */ v) => ls.set(k, v), removeItem: (/** @type {string} */ k) => ls.delete(k) },
     fetch, Blob, atob, URLSearchParams, AbortController, setTimeout, clearTimeout, console,
-  };
+  }));
   sandbox.self = sandbox;
   vm.createContext(sandbox);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/api-supabase.js'), 'utf8'), sandbox);
@@ -47,18 +52,20 @@ function loadSupabaseApi({ b2Status }) {
 }
 
 const PHOTO = 'data:image/jpeg;base64,' + Buffer.from('not really a jpeg').toString('base64');
+/** @param {string} id @param {Record<string, unknown>} [extra] @returns {OutboxItem} */
 const punch = (id, extra) => Object.assign({ kind: 'punch', id, crewId: 'jake', jobId: 'j1', type: 'in', at: Date.now() }, extra);
 
 test('HRD-6 a punch whose photo upload keeps failing does not stop the other punches in the batch', async () => {
   const { api, calls } = loadSupabaseApi({ b2Status: 503 });
   const stuck = punch('p-photo', { photo: PHOTO });
   const fine = punch('p-plain');
+  /** @type {ApiResult | undefined} */
   let res;
   await assert.doesNotReject(async () => { res = await api.sync({ crewId: 'jake' }, [stuck, fine]); },
     'sync threw for the whole batch because one photo upload failed');
   const sent = calls.sync.flat().map((i) => i.id);
   assert.ok(sent.includes('p-plain'), `the photo-less punch never reached the server (sent: ${JSON.stringify(sent)})`);
-  assert.ok(!(res.accepted || []).includes('p-photo'), 'the punch with the failed photo must stay queued for a retry');
+  assert.ok(!(/** @type {ApiResult} */ (res).accepted || []).includes('p-photo'), 'the punch with the failed photo must stay queued for a retry');
 });
 
 test('HRD-6 (guard) when every photo uploads, the batch still sends with photo keys and no photo data', async () => {
@@ -75,6 +82,7 @@ test('HRD-6 (guard) when every photo uploads, the batch still sends with photo k
 const NOON = Date.parse('2026-10-21T12:00:00-04:00');
 const noPhoto = { photo: null, photoKey: null, hasPhoto: false };
 const withPhoto = { photo: PHOTO, photoKey: 'org/day/x.jpg', hasPhoto: true };
+/** @param {Partial<Punch>} [extra] @returns {Punch} */
 const mate = (extra) => Object.assign({ id: 'm1', crewId: 'cody', byCrewId: 'ray', jobId: 'j1', type: 'in', at: NOON, lat: null, lng: null, accuracy: null }, extra);
 
 test('HRD-9 foreman clocks in a teammate without a photo: the punch is flagged high risk', () => {
@@ -112,17 +120,19 @@ test('PS-6 (guard) a worker clocking themselves in with every photo field omitte
 // ---------- UX-7: the demo seed must read as real shifts at any hour ----------
 
 // Loads the demo backend with the clock stopped at `at` (local time) and returns the seeded punches.
+/** @param {number} at @returns {Promise<{ punches: Punch[], Report: TestSandbox['Report'] }>} */
 async function seedAt(at) {
   const RealDate = Date;
   class FixedDate extends RealDate {
-    constructor(...a) { super(...(a.length ? a : [at])); }
+    /** @param {number[]} a  any Date arguments; none means the fixed time */
+    constructor(...a) { super(.../** @type {[number]} */ (a.length ? a : [at])); }
     static now() { return at; }
   }
   const ls = new Map();
-  const ctx = {
+  const ctx = /** @type {TestSandbox} */ (/** @type {unknown} */ ({
     Date: FixedDate, Math, JSON, Promise, setTimeout, console, navigator: { onLine: true },
-    localStorage: { getItem: (k) => (ls.has(k) ? ls.get(k) : null), setItem: (k, v) => ls.set(k, String(v)), removeItem: (k) => ls.delete(k) },
-  };
+    localStorage: { getItem: (/** @type {string} */ k) => (ls.has(k) ? ls.get(k) : null), setItem: (/** @type {string} */ k, /** @type {string} */ v) => ls.set(k, String(v)), removeItem: (/** @type {string} */ k) => ls.delete(k) },
+  }));
   ctx.self = ctx;
   vm.createContext(ctx);
   for (const f of ['js/report.js', 'js/geo.js', 'js/demo-backend.js']) {
@@ -134,7 +144,7 @@ async function seedAt(at) {
   return { punches: JSON.parse(ls.get(key)).punches, Report: ctx.Report };
 }
 
-for (const [label, h, m] of [['6:30 AM', 6, 30], ['7:30 AM', 7, 30], ['9:15 AM', 9, 15], ['2:00 PM', 14, 0]]) {
+for (const [label, h, m] of /** @type {[string, number, number][]} */ ([['6:30 AM', 6, 30], ['7:30 AM', 7, 30], ['9:15 AM', 9, 15], ['2:00 PM', 14, 0]])) {
   // M1.6 (showcase SC-2): before 9 AM the sample day is yesterday, which the boss's day list shows
   // as "Yesterday (sample day)", so every time on screen is a daytime time.
   test(`UX-7 demo seed at ${label}: every seeded shift lasts more than 1 h, in daytime, on the day the boss's list shows`, async () => {
@@ -145,11 +155,11 @@ for (const [label, h, m] of [['6:30 AM', 6, 30], ['7:30 AM', 7, 30], ['9:15 AM',
     const today0 = Report.startOfDay(now);
     const shown0 = h < 9 ? Report.startOfDay(today0 - 1) : today0;
     for (const s of shifts) {
-      const span = (s.outAt || now) - s.inAt;
-      assert.ok(s.inAt && span > 3600000, `${s.crewId} shift is ${(span / 3600000).toFixed(2)} h (in ${new Date(s.inAt).toTimeString().slice(0, 5)})`);
+      const span = (s.outAt || now) - /** @type {number} */ (s.inAt);
+      assert.ok(s.inAt && span > 3600000, `${s.crewId} shift is ${(span / 3600000).toFixed(2)} h (in ${new Date(/** @type {number} */ (s.inAt)).toTimeString().slice(0, 5)})`);
       assert.ok(s.inAt >= shown0 && s.inAt < shown0 + 86400000, `${s.crewId} shift is not on the day the boss's list shows`);
       assert.ok((s.outAt || s.inAt) < now, `${s.crewId} shift ends in the future`);
-      for (const at of [s.inAt, s.outAt].filter(Boolean)) {
+      for (const at of /** @type {number[]} */ ([s.inAt, s.outAt].filter(Boolean))) {
         const hr = new Date(at).getHours();
         assert.ok(hr >= 6 && hr < 18, `${s.crewId} has a punch at ${new Date(at).toTimeString().slice(0, 5)}`);
       }
@@ -179,12 +189,15 @@ test('UX-8 Today summary lists a person with two flagged shifts once and never e
 
 function cssTokens() {
   const css = fs.readFileSync(path.join(__dirname, '../css/app.css'), 'utf8');
+  /** @param {string} src */
   const block = (src) => Object.fromEntries([...src.matchAll(/--([\w-]+):\s*(#[0-9a-f]{6})/gi)].map((m) => [m[1], m[2]]));
-  const light = block(css.match(/:root\s*\{([^}]*)\}/)[1]);
-  const dark = Object.assign({}, light, block(css.match(/@media \(prefers-color-scheme: dark\)\s*\{\s*:root\s*\{([^}]*)\}/)[1]));
+  const light = block(/** @type {RegExpMatchArray} */ (css.match(/:root\s*\{([^}]*)\}/))[1]);
+  const dark = Object.assign({}, light, block(/** @type {RegExpMatchArray} */ (css.match(/@media \(prefers-color-scheme: dark\)\s*\{\s*:root\s*\{([^}]*)\}/))[1]));
   return { light, dark };
 }
+/** @param {string} a @param {string} b */
 function contrast(a, b) {
+  /** @param {string} hex */
   const lum = (hex) => {
     const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
     return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
@@ -203,6 +216,6 @@ test('UX-16 muted, white-on-punch-in and danger-text-on-danger-soft text meet 4.
     ['dark muted on bg', dark.muted, dark.bg], ['dark muted on surface', dark.muted, dark.surface],
   ];
   const missing = pairs.filter(([, fg, bg]) => !fg || !bg).map(([n]) => `${n}: token missing`);
-  const low = pairs.filter(([, fg, bg]) => fg && bg).map(([n, fg, bg]) => [n, contrast(fg, bg)]).filter(([, r]) => r < 4.5);
+  const low = pairs.filter(([, fg, bg]) => fg && bg).map(([n, fg, bg]) => /** @type {[string, number]} */ ([n, contrast(fg, bg)])).filter(([, r]) => r < 4.5);
   assert.deepStrictEqual([...missing, ...low.map(([n, r]) => `${n} ${r.toFixed(2)}:1`)], []);
 });

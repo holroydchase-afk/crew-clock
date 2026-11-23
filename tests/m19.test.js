@@ -7,7 +7,9 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
 const root = path.join(__dirname, '..');
+/** @param {string} f */
 const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
+/** @param {string} name */
 const fn = (name) => read(`supabase/functions/${name}/index.ts`);
 
 // The old code is matched by its SHA-256, so this test doesn't repeat it (PS-M19-6).

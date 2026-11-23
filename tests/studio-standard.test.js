@@ -7,10 +7,11 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const root = path.join(__dirname, '..');
-const exists = (p) => fs.existsSync(path.join(root, p));
-const read = (p) => (exists(p) ? fs.readFileSync(path.join(root, p), 'utf8') : '');
+const exists = (/** @type {string} */ p) => fs.existsSync(path.join(root, p));
+const read = (/** @type {string} */ p) => (exists(p) ? fs.readFileSync(path.join(root, p), 'utf8') : '');
 
 // The text under a `## Heading` up to the next `## ` heading ('' when missing, so a test fails, not crashes).
+/** @param {string} md @param {string} heading */
 function section(md, heading) {
   const lines = md.split('\n');
   const i = lines.findIndex((l) => l.trim() === heading);
@@ -24,18 +25,22 @@ function section(md, heading) {
 }
 
 // Bullet entries in a section: each `- ` line plus its indented continuation lines.
+/** @param {string} text */
 function bullets(text) {
+  /** @type {(string|null)[]} */
   const out = [];
   for (const l of text.split('\n')) {
     if (/^- /.test(l)) out.push(l);
     else if (out.length && /^\s+\S/.test(l)) out[out.length - 1] += ' ' + l.trim();
     else if (out.length && l.trim() === '') out.push(null);
   }
-  return out.filter(Boolean);
+  return /** @type {string[]} */ (out.filter(Boolean));
 }
 
 // Body rows of the markdown tables in a text (header and separator rows dropped), as cell arrays.
+/** @param {string} text */
 function tableRows(text) {
+  /** @type {string[][]} */
   const rows = [];
   const lines = text.split('\n');
   for (let i = 0; i < lines.length; i++) {
@@ -117,11 +122,11 @@ test('SS-5 NOTES.md has Decisions, Lessons, Accounts, Marketing claims register 
 test('SS-6 NOTES Decisions has >= 10 entries CRW-DEC-1..n, no gap or repeat, each dated with Why: and Beat:', () => {
   const entries = bullets(section(read(NOTES), '## Decisions')).filter((e) => /CRW-DEC-\d+/.test(e));
   assert.ok(entries.length >= 10, `${entries.length} decision entries, want >= 10`);
-  const ids = entries.map((e) => Number(e.match(/CRW-DEC-(\d+)/)[1]));
+  const ids = entries.map((e) => Number(/** @type {RegExpMatchArray} */ (e.match(/CRW-DEC-(\d+)/))[1]));
   const sorted = [...ids].sort((a, b) => a - b);
   assert.deepStrictEqual(sorted, sorted.map((_, i) => i + 1), 'IDs run 1..n with no gap or repeat');
   for (const e of entries) {
-    const id = e.match(/CRW-DEC-\d+/)[0];
+    const id = /** @type {RegExpMatchArray} */ (e.match(/CRW-DEC-\d+/))[0];
     assert.match(e, DATE, `${id} has a YYYY-MM-DD date`);
     assert.ok(e.includes('Why:'), `${id} has Why:`);
     assert.ok(e.includes('Beat:'), `${id} has Beat:`);
@@ -190,6 +195,7 @@ test('SS-10 architecture map links ../PRIVACY.md as the contract and names every
 test('SS-11 architecture map retention matches PRIVACY (90 days, 60 days, 3 years, 30 days, For good)', () => {
   const rows = tableRows(read(ARCH));
   const privacy = read('docs/PRIVACY.md');
+  /** @type {Array<[RegExp, string[]]>} */
   const want = [
     [/raw gps/i, ['90 days']],
     [/pictures/i, ['60 days']],

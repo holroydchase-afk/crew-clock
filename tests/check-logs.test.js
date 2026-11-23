@@ -8,6 +8,7 @@ const { spawnSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
 const FIX = path.join('tests', 'fixtures', 'check-logs');
+/** @param {string} file */
 const run = (file) => spawnSync(process.execPath, ['scripts/check-logs.mjs', path.join(FIX, file)], { cwd: ROOT, encoding: 'utf8' });
 
 test('CRW-R1 log check fails on a bare console.error(e)', () => {
@@ -42,6 +43,7 @@ test('CRW-R4 the log check also covers sw.js and config.js', () => {
 // 'http:serve', so a log line says where it came from without carrying any data.
 test('CRW-R5 every Edge Function log starts with a fixed where-tag (\'function:step\')', () => {
   const dir = path.join(ROOT, 'supabase', 'functions');
+  /** @param {string} p @returns {string[]} */
   const files = (p) => fs.statSync(p).isDirectory()
     ? fs.readdirSync(p).filter((f) => f !== 'vendor').flatMap((f) => files(path.join(p, f)))
     : (/\.ts$/.test(p) ? [p] : []);

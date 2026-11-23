@@ -9,6 +9,7 @@ const vm = require('vm');
 const Chain = require('../js/chain.js');
 
 // ---------- ENH-1: Chain.verifyAll ----------
+/** @param {number} n */
 async function phone(n) {
   const keys = await Chain.generateKey();
   const pub = await Chain.exportPublic(keys.publicKey);
@@ -49,6 +50,7 @@ test('ENH-1 verifyAll: a punch put in with a re-made hash breaks the chain or th
 test('ENH-1 verifyAll: a punch that does not point at the one before it is "broken_chain"', async () => {
   const keys = await Chain.generateKey();
   const pub = await Chain.exportPublic(keys.publicKey);
+  /** @param {number} i @returns {Punch} */
   const base = (i) => ({ id: 'p' + i, deviceId: 'd1', crewId: 'c2', jobId: 'j1', type: 'in', at: 1761000000000 + i * 3600000 });
   const p0 = await Chain.signPunch(base(0), keys.privateKey, { seq: 0, hash: 'genesis' });
   const p1 = await Chain.signPunch(base(1), keys.privateKey, { seq: p0.seq, hash: p0.hash });
@@ -66,22 +68,24 @@ test('ENH-1 verifyAll: an unsigned punch is "unsigned" and a punch from an unkno
 });
 
 // ---------- the demo backend in a sandbox, with WebCrypto ----------
+/** @param {{ ls?: Record<string, string>, offline?: boolean }} [opts] */
 function loadDemo(opts = {}) {
   const ls = new Map(Object.entries(opts.ls || {}));
-  const ctx = {
+  const ctx = /** @type {TestSandbox} */ (/** @type {unknown} */ ({
     Date, Math, JSON, Promise, setTimeout, console, navigator: { onLine: true }, crypto: globalThis.crypto,
     TextEncoder, btoa, atob, Uint8Array, Object, Array, String, Number,
-    localStorage: { getItem: (k) => (ls.has(k) ? ls.get(k) : null), setItem: (k, v) => ls.set(k, String(v)), removeItem: (k) => ls.delete(k) },
-  };
+    localStorage: { getItem: (/** @type {string} */ k) => (ls.has(k) ? ls.get(k) : null), setItem: (/** @type {string} */ k, /** @type {string} */ v) => ls.set(k, String(v)), removeItem: (/** @type {string} */ k) => ls.delete(k) },
+  }));
   ctx.self = ctx;
   vm.createContext(ctx);
   for (const f of ['js/report.js', 'js/geo.js', 'js/chain.js', 'js/demo-backend.js']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'), ctx, { filename: f });
   }
-  const db = () => JSON.parse(ls.get([...ls.keys()].find((k) => k.startsWith('cc.demo.db'))));
+  const db = () => JSON.parse(/** @type {string} */ (ls.get(/** @type {string} */ ([...ls.keys()].find((k) => k.startsWith('cc.demo.db'))))));
   return { ctx, db, ls };
 }
-const keysOf = (team) => Object.fromEntries((team.devices || []).map((d) => [d.id, d.publicKey]));
+/** @param {ApiResult} team */
+const keysOf = (team) => Object.fromEntries((team.devices || []).map((/** @type {{ id: string, publicKey: JsonWebKey }} */ d) => [d.id, d.publicKey]));
 
 test('ENH-1 the demo seed is signed and chained, and the boss\'s team view carries the phones\' public keys', async () => {
   const { ctx } = loadDemo();
@@ -97,13 +101,13 @@ test('ENH-1 demo tamper() edits one stored punch\'s time (Jake R.\'s clock-in); 
   const { ctx } = loadDemo();
   const { auth } = await ctx.DemoBackend.handle('demoLogin', { crewId: 'c0' });
   const before = await ctx.DemoBackend.handle('team', { auth });
-  const t = ctx.DemoBackend.tamper();
+  const t = /** @type {{ id: string }} */ (ctx.DemoBackend.tamper());
   assert.ok(ctx.DemoBackend.isTampered());
   const after = await ctx.DemoBackend.handle('team', { auth });
-  const p = after.punches.find((x) => x.id === t.id);
+  const p = after.punches.find((/** @type {Punch} */ x) => x.id === t.id);
   assert.strictEqual(p.crewId, 'c2');
   assert.strictEqual(p.type, 'in');
-  assert.notStrictEqual(p.at, before.punches.find((x) => x.id === t.id).at, 'the time changed');
+  assert.notStrictEqual(p.at, before.punches.find((/** @type {Punch} */ x) => x.id === t.id).at, 'the time changed');
   const r = await Chain.verifyAll(after.punches, keysOf(after));
   assert.deepStrictEqual(Object.entries(r).filter(([, v]) => v !== 'ok').map(([id]) => id), [t.id]);
   ctx.DemoBackend.untamper();
@@ -115,8 +119,8 @@ test('ENH-1 demo tamper() edits one stored punch\'s time (Jake R.\'s clock-in); 
 
 test('ENH-1 the demo without WebCrypto still seeds (unsigned), so an old browser still gets the demo', async () => {
   const ls = new Map();
-  const ctx = { Date, Math, JSON, Promise, setTimeout, console, navigator: { onLine: true },
-    localStorage: { getItem: (k) => (ls.has(k) ? ls.get(k) : null), setItem: (k, v) => ls.set(k, String(v)), removeItem: (k) => ls.delete(k) } };
+  const ctx = /** @type {TestSandbox} */ (/** @type {unknown} */ ({ Date, Math, JSON, Promise, setTimeout, console, navigator: { onLine: true },
+    localStorage: { getItem: (/** @type {string} */ k) => (ls.has(k) ? ls.get(k) : null), setItem: (/** @type {string} */ k, /** @type {string} */ v) => ls.set(k, String(v)), removeItem: (/** @type {string} */ k) => ls.delete(k) } }));
   ctx.self = ctx;
   vm.createContext(ctx);
   for (const f of ['js/report.js', 'js/geo.js', 'js/demo-backend.js']) vm.runInContext(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'), ctx);
@@ -133,7 +137,7 @@ test('ENH-1 a signed punch synced to the demo keeps its signature and chain fiel
     at: Date.now() - 1000, lat: 38.4542, lng: -81.9291, accuracy: 9 }, k.privateKey, { seq: 0, hash: 'genesis' });
   const res = await ctx.DemoBackend.handle('sync', { auth, device: { deviceId: 'dev-v', publicKey: pub }, items: [Object.assign({ kind: 'punch' }, p)] });
   assert.deepStrictEqual([...res.accepted], ['v1']); // an array from the sandbox's realm
-  const stored = db().punches.find((x) => x.id === 'v1');
+  const stored = db().punches.find((/** @type {Punch} */ x) => x.id === 'v1');
   for (const f of ['deviceId', 'seq', 'prevHash', 'hash', 'signature']) assert.ok(stored[f] != null, `stored punch lost ${f}`);
   const boss = await ctx.DemoBackend.handle('demoLogin', { crewId: 'c0' });
   const team = await ctx.DemoBackend.handle('team', { auth: boss.auth });
@@ -145,14 +149,15 @@ test('ENH-3 the demo seed has earlier sample days for the week view: 3+ days of 
   for (const at of [new Date(2026, 9, 26, 10).getTime(), new Date(2026, 9, 28, 14).getTime(), new Date(2026, 10, 1, 20).getTime()]) {
     const RealDate = Date;
     class FixedDate extends RealDate {
-      constructor(...a) { if (a.length) super(...a); else super(at); }
+      /** @param {number[]} a  any Date arguments; none means the fixed time */
+      constructor(...a) { if (a.length) super(.../** @type {[number]} */ (a)); else super(at); }
       static now() { return at; }
     }
     const { ctx } = loadDemo();
     ctx.Date = FixedDate;
     const { auth } = await ctx.DemoBackend.handle('demoLogin', { crewId: 'c0' });
     const team = await ctx.DemoBackend.handle('team', { auth });
-    const days = new Set(team.punches.map((p) => new RealDate(p.at).toDateString()));
+    const days = new Set(team.punches.map((/** @type {Punch} */ p) => new RealDate(p.at).toDateString()));
     assert.ok(days.size >= 3, `sample punches on only ${days.size} day(s) when opened ${new RealDate(at)}`);
     for (const p of team.punches) {
       const d = new RealDate(p.at);
@@ -170,7 +175,7 @@ test('ENH-2 with "No signal" on, every demo request fails the way no signal does
   await ctx.DemoBackend.handle('listCrew', {});
   ctx.DemoBackend.setOffline(true);
   assert.strictEqual(ctx.DemoBackend.isOffline(), true);
-  await assert.rejects(ctx.DemoBackend.handle('listCrew', {}), (e) => e.offline === true && !e.server);
+  await assert.rejects(ctx.DemoBackend.handle('listCrew', {}), (/** @type {AppError} */ e) => e.offline === true && !e.server);
   ctx.DemoBackend.setOffline(false);
   const res = await ctx.DemoBackend.handle('listCrew', {});
   assert.ok(res.ok);
@@ -180,7 +185,9 @@ test('ENH-2 with "No signal" on, every demo request fails the way no signal does
 const Report = require('../js/report.js');
 const H = 3600000;
 const monday = new Date(2026, 9, 26).getTime(); // Mon 26 Oct 2026, local midnight
+/** @param {number} n @param {number} h */
 const day = (n, h) => monday + n * 24 * H + h * H;
+/** @param {string} id @param {string} crewId @param {string} type @param {number} at @param {Partial<Punch>} [extra] @returns {Punch} */
 const pin = (id, crewId, type, at, extra) => Object.assign({ id, crewId, jobId: 'j1', type, at, status: 'onsite' }, extra);
 
 test('ENH-3 weekTotals: hours per person per day Mon to Sun, and a week total', () => {
@@ -273,28 +280,31 @@ test('PS-M113-1 Report.dropOldGps: punches older than 8 days keep their times bu
 test('PS-M113-1 the crew app\'s team view hands back no GPS older than 8 days (it is held and cached in cc.team)', async () => {
   const SB = 'https://fake.supabase.test';
   const now = Date.now();
+  /** @param {string} id @param {number} at */
   const row = (id, at) => ({ id, crew_id: 'c2', by_crew_id: 'c2', job_id: 'j1', type: 'in', phone_at: new Date(at).toISOString(),
     received_at: new Date(at + 30000).toISOString(), lat: 38.4543, lng: -81.9286, accuracy_m: 15, distance_ft: 40,
     status: 'onsite', address: 'Near 38.4543, -81.9286', risk: [] });
+  /** @param {unknown} body */
   const json = (body) => ({ ok: true, status: 200, json: async () => body });
+  /** @param {string} url */
   const fetch = async (url) => {
     if (url.includes('/rest/v1/punches')) return json([row('old', now - 12 * D), row('new', now - 2 * D)]);
     if (url.includes('/rest/v1/crew') || url.includes('/rest/v1/jobs') || url.includes('/rpc/')) return json([]);
     throw new Error('unexpected fetch ' + url);
   };
   const ls = new Map([['cc.sbSession', JSON.stringify({ accessToken: 'at', refreshToken: 'rt', expiresAt: now + 3600000, crewId: 'boss', me: { id: 'boss', role: 'boss' } })]]);
-  const sandbox = {
+  const sandbox = /** @type {TestSandbox} */ (/** @type {unknown} */ ({
     APP_CONFIG: { backend: 'supabase', supabaseUrl: SB, supabaseAnonKey: 'anon' }, Report,
-    Store: { outbox: { add: async (it) => it }, local: { get: (k, d) => d, set() {} } },
-    localStorage: { getItem: (k) => (ls.has(k) ? ls.get(k) : null), setItem: (k, v) => ls.set(k, v), removeItem: (k) => ls.delete(k) },
+    Store: { outbox: { add: async (/** @type {unknown} */ it) => it }, local: { get: (/** @type {string} */ k, /** @type {unknown} */ d) => d, set() {} } },
+    localStorage: { getItem: (/** @type {string} */ k) => (ls.has(k) ? ls.get(k) : null), setItem: (/** @type {string} */ k, /** @type {string} */ v) => ls.set(k, v), removeItem: (/** @type {string} */ k) => ls.delete(k) },
     fetch, Blob, atob, URLSearchParams, AbortController, setTimeout, clearTimeout, console, Date,
-  };
+  }));
   sandbox.self = sandbox;
   vm.createContext(sandbox);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/api-supabase.js'), 'utf8'), sandbox);
   const team = await sandbox.SupabaseApi.team({ crewId: 'boss' }, now - 13 * D);
-  const old = team.punches.find((p) => p.id === 'old');
-  const recent = team.punches.find((p) => p.id === 'new');
+  const old = team.punches.find((/** @type {Punch} */ p) => p.id === 'old');
+  const recent = team.punches.find((/** @type {Punch} */ p) => p.id === 'new');
   for (const f of ['lat', 'lng', 'accuracy', 'address', 'distanceFt']) assert.ok(old[f] == null, `a 12-day-old punch still has ${f}`);
   assert.ok(old.at, 'the old punch keeps its time');
   assert.strictEqual(recent.lat, 38.4543);
@@ -317,7 +327,7 @@ test('UX-R35 the day summary says "1 of 1 shift was" for a single shift', () => 
 
 test('PS-M113-2 docs/PRIVACY.md: the team cache row says GPS for 8 days only, and the weekly CSV has its own row', () => {
   const doc = fs.readFileSync(path.join(__dirname, '../docs/PRIVACY.md'), 'utf8');
-  const cache = doc.split('\n').find((l) => l.includes('`cc.team`'));
+  const cache = String(doc.split('\n').find((l) => l.includes('`cc.team`')));
   assert.match(cache, /13 days/);
   assert.match(cache, /GPS only for the last 8/);
   const csv = doc.split('\n').find((l) => /^\|\s*Weekly (timesheet )?CSV/i.test(l));

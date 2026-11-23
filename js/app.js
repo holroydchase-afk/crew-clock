@@ -1,8 +1,9 @@
 // Crew Clock: screens, punch flow, sync loop and the boss views.
 (function () {
   const { Geo, Report, Store, Api, Icons } = self;
+  /** @type {AppConfig} */
   const cfg = self.APP_CONFIG || {};
-  const $app = document.getElementById('app');
+  const $app = /** @type {HTMLElement} */ (document.getElementById('app'));
   const FIX_WINDOW_MS = 2 * 60 * 1000;
   const SMALL_TODAY = '(max-width: 420px)'; // boss Today puts the people above the summary (UX-R49)
 
@@ -11,10 +12,11 @@
   try {
     const ua = navigator.userAgent || '';
     const ios = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    const installed = navigator.standalone === true || (self.matchMedia && matchMedia('(display-mode: standalone)').matches);
+    const installed = navigator.standalone === true || (/** @type {unknown} */ (self.matchMedia) && matchMedia('(display-mode: standalone)').matches);
     if (ios && !installed) document.documentElement.classList.add('ios-safari-tab');
   } catch (e) { /* old browser: no extra padding */ }
 
+  /** @type {Record<string, { word: string, cls: string }>} */
   const STATUS = {
     onsite: { word: 'On site', cls: 's-onsite' },
     near: { word: 'Near', cls: 's-near' },
@@ -28,6 +30,7 @@
     { ft: 600, word: 'Big', hint: 'Big lot or road' },
   ];
 
+  /** @type {AppState} */
   const state = {
     auth: Store.local.get('auth', null),
     me: Store.local.get('me', null),
@@ -46,70 +49,90 @@
   };
 
   // ---------- helpers ----------
+  /** @param {unknown} s */
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    /** @type {Record<string, string>} */ ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  /** @param {number | null | undefined} ms */
   const time = (ms) => (ms ? new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '');
+  /** @param {number} ms */
   const dayLabel = (ms) => {
     const d0 = Report.startOfDay(Date.now());
     if (ms >= d0) return 'Today';
     if (ms >= d0 - 86400000) return 'Yesterday';
     return new Date(ms).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
   };
+  /** @param {string | null | undefined} id @returns {Job | null | undefined} */
   const jobById = (id) => state.jobs.find((j) => j.id === id) || (state.team && state.team.jobs.find((j) => j.id === id));
+  /** @param {string | null | undefined} id @returns {CrewMember | null | undefined} */
   const crewById = (id) => (state.team && state.team.crew.find((c) => c.id === id)) || state.crew.find((c) => c.id === id) || (state.me && state.me.id === id ? state.me : null);
   // 6 h 36 min / 45 min / less than a minute (never "0 min", UX-R20)
+  /** @param {number} ms */
   const duration = (ms) => {
     const m = Math.round(ms / 60000);
     if (m < 1) return 'less than a minute';
     return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`;
   };
+  /** @param {string | null | undefined} name */
   const initials = (name) => String(name || '?').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-  const isBoss = () => state.me && state.me.role === 'boss';
-  const isLead = () => state.me && (state.me.role === 'foreman' || state.me.role === 'boss');
+  /** @returns {boolean} */
+  const isBoss = () => /** @type {boolean} */ (state.me && state.me.role === 'boss');
+  /** @returns {boolean} */
+  const isLead = () => /** @type {boolean} */ (state.me && (state.me.role === 'foreman' || state.me.role === 'boss'));
 
   // ---------- location consent (docs/PRIVACY.md "Consent") ----------
   // A new text version asks everyone again (C4). The words live in screens.consent and PRIVACY.md.
   const CONSENT_VERSION = 'loc-v1';
+  /** @param {ConsentRecord | null | undefined} c */
   const agreed = (c) => !!c && c.action === 'agree' && c.textVersion === CONSENT_VERSION;
   // This phone's newest record per worker, so a worker who agreed offline stays agreed.
+  /** @returns {Record<string, ConsentRecord>} */
   const knownConsents = () => Store.local.get('consents', {});
+  /** @param {string} crewId @param {ConsentRecord | null | undefined} c */
   function rememberConsent(crewId, c) {
     if (!c) return;
     const all = knownConsents();
-    if (all[crewId] && all[crewId].at > c.at) return; // newest wins, here or from the server
+    if (all[crewId] && /** @type {number} */ (all[crewId].at) > /** @type {number} */ (c.at)) return; // newest wins, here or from the server
     all[crewId] = { id: c.id, action: c.action, textVersion: c.textVersion, at: c.at };
     Store.local.set('consents', all);
   }
   // A record the server refused never counts: forget it, so the worker is asked again and no GPS is read.
+  /** @param {string} crewId @param {string} id */
   function forgetConsent(crewId, id) {
     const all = knownConsents();
     if (all[crewId] && all[crewId].id === id) { delete all[crewId]; Store.local.set('consents', all); }
   }
   // Own record from this phone or the server; a teammate's from the team status (unknown = no).
+  /** @param {string} crewId */
   function hasConsent(crewId) {
     if (state.me && crewId === state.me.id) return agreed(knownConsents()[crewId]);
     const st = state.team && state.team.consents;
     return !!st && agreed(st.find((c) => c.crewId === crewId));
   }
+  /** @param {'agree' | 'withdraw'} action */
   async function saveConsent(action) {
+    /** @type {string | null} */
     let deviceId = null;
     if (self.Device && Device.supported()) {
       try { const d = await Device.get(); deviceId = d ? d.id : null; } catch (e) { /* recorded without a device id */ }
     }
-    const item = { kind: 'consent', id: Store.uid(), crewId: state.me.id, byCrewId: state.me.id,
+    const item = { kind: 'consent', id: Store.uid(), crewId: /** @type {CrewMember} */ (state.me).id, byCrewId: /** @type {CrewMember} */ (state.me).id,
       action, textVersion: CONSENT_VERSION, at: Date.now(), deviceId };
     await Store.outbox.add(item); // same offline queue as punches (C5)
-    rememberConsent(state.me.id, item);
+    rememberConsent(/** @type {CrewMember} */ (state.me).id, item);
     await countPending();
     syncNow();
   }
 
+  /** @param {string | null | undefined} status @param {boolean} [hasPhoto] */
   function chip(status, hasPhoto) {
-    const s = STATUS[status] || STATUS.nogps;
+    const s = STATUS[String(status)] || STATUS.nogps;
     return `<span class="chip ${s.cls}"><i></i>${s.word}${hasPhoto ? ` <span class="chip-cam">${Icons.camera}</span>` : ''}</span>`;
   }
 
+  /** @typedef {{ _t?: ReturnType<typeof setTimeout>, _t2?: ReturnType<typeof setTimeout> }} ToastTimers */
+  /** @param {string} msg */
   function toast(msg) {
+    const timers = /** @type {ToastTimers} */ (toast);
     let t = document.getElementById('toast');
     if (!t) {
       t = document.createElement('div');
@@ -120,26 +143,30 @@
     }
     t.textContent = msg;
     t.className = 'show';
-    clearTimeout(toast._t);
-    clearTimeout(toast._t2);
+    clearTimeout(timers._t);
+    clearTimeout(timers._t2);
     // After it fades, the words leave the page too: a new PIN must not sit in the DOM (PS-M111-1).
-    toast._t = setTimeout(() => { t.className = ''; }, 3000);
-    toast._t2 = setTimeout(() => { t.textContent = ''; }, 3400);
+    const shown = t;
+    timers._t = setTimeout(() => { shown.className = ''; }, 3000);
+    timers._t2 = setTimeout(() => { shown.textContent = ''; }, 3400);
   }
   // A new screen never carries the last screen's message (UX-R4).
   function clearToast() {
     const t = document.getElementById('toast');
-    clearTimeout(toast._t);
-    clearTimeout(toast._t2);
+    const timers = /** @type {ToastTimers} */ (toast);
+    clearTimeout(timers._t);
+    clearTimeout(timers._t2);
     if (t) { t.className = 'gone'; t.textContent = ''; }
   }
 
   // A form error sits under its field, is read out, marks the field and puts the cursor there (UX-R4).
   // target: an input, or a .field holding several inputs (each is marked).
+  /** @param {Element | null} target @param {string} msg */
   function fieldError(target, msg) {
     if (!target) return toast(msg);
     const field = target.closest('.field') || target;
-    const inputs = target.matches('input') ? [target] : [...target.querySelectorAll('input')];
+    /** @type {HTMLInputElement[]} */
+    const inputs = target.matches('input') ? [/** @type {HTMLInputElement} */ (target)] : [...target.querySelectorAll('input')];
     const id = `${(inputs[0] && inputs[0].id) || 'field'}-error`;
     document.querySelectorAll('.field-error').forEach((e) => e.remove());
     document.querySelectorAll('[aria-invalid="true"]').forEach((e) => { e.removeAttribute('aria-invalid'); e.removeAttribute('aria-describedby'); });
@@ -158,6 +185,7 @@
     if (inputs[0]) inputs[0].focus();
   }
 
+  /** @param {string} name @param {Partial<AppState>} [data] */
   function setScreen(name, data) {
     clearToast();
     state.screen = name;
@@ -170,14 +198,17 @@
   // Only what the signed-in person made is theirs to send. Someone else's queued punches
   // stay on the phone until that person signs in again (HRD-1).
   // A job/crew edit queued before edits carried byCrewId is the boss's to send (PS-7b).
+  /** @param {OutboxItem} it */
   const isMine = (it) => (it.byCrewId ? !!state.me && it.byCrewId === state.me.id
     : (it.kind !== 'job' && it.kind !== 'crew') || isBoss());
   // A refused item's stub: enough for the sync line to explain it, no GPS, photo or edit data (PS-2).
   const STUB_KEYS = ['kind', 'id', 'crewId', 'byCrewId', 'type', 'at', 'jobId', 'queuedAt'];
+  /** @param {OutboxItem} it @param {string} reason @returns {OutboxItem} */
   const toStub = (it, reason) => {
+    /** @type {Record<string, unknown>} */
     const stub = {};
     STUB_KEYS.forEach((k) => { if (it[k] !== undefined) stub[k] = it[k]; });
-    return Object.assign(stub, { rejected: reason, rejectedAt: Date.now() });
+    return /** @type {OutboxItem} */ (/** @type {unknown} */ (Object.assign(stub, { rejected: reason, rejectedAt: Date.now() })));
   };
 
   async function countPending() {
@@ -189,8 +220,9 @@
 
   // Server refusals that mean "this phone may never send this": safe to drop.
   const PERMISSION = /^(Only a foreman|Unknown crew member|Boss only|Not yours|Turned off)/i;
+  /** @param {unknown} reason */
   function rejectWords(reason) {
-    if (/too old/i.test(reason || '')) return "Punch too old. Check the phone's clock and date are right, then tell the boss.";
+    if (/too old/i.test(String(reason || ''))) return "Punch too old. Check the phone's clock and date are right, then tell the boss.";
     return `The office couldn't take it (${reason || 'no reason given'}). Tell the boss.`;
   }
 
@@ -211,12 +243,14 @@
       for (let i = 0; i < items.length; i += 4) {
         const batch = items.slice(i, i + 4);
         const res = await Api.sync(auth, batch);
+        /** @type {Record<string, string>} */
         const why = {};
-        (res.reasons || []).forEach((r) => { why[r.id] = r.reason; });
-        const drop = (res.rejected || []).filter((id) => PERMISSION.test(why[id] || ''));
+        (res.reasons || []).forEach((/** @type {{ id: string, reason: string }} */ r) => { why[r.id] = r.reason; });
+        /** @type {string[]} */
+        const drop = (res.rejected || []).filter((/** @type {string} */ id) => PERMISSION.test(why[id] || ''));
         // A refused consent record is dropped and forgotten; the consent screen asks again.
         const refusedConsents = batch.filter((x) => x.kind === 'consent' && (res.rejected || []).includes(x.id));
-        refusedConsents.forEach((x) => forgetConsent(x.crewId, x.id));
+        refusedConsents.forEach((x) => forgetConsent(/** @type {string} */ (x.crewId), x.id));
         await Store.outbox.remove([...(res.accepted || []), ...drop, ...refusedConsents.map((x) => x.id)]);
         if (refusedConsents.length && state.auth === auth) {
           toast("Your location answer didn't save. You'll be asked again.");
@@ -233,7 +267,8 @@
       state.sendFailed = false;
       state.lastSyncAt = Date.now();
       Store.local.set('lastSyncAt', state.lastSyncAt);
-    } catch (e) {
+    } catch (err) {
+      const e = /** @type {AppError} */ (err);
       state.sendFailed = true;
       if (state.auth === auth) { // signed out mid-sync: not the next person's error
         if (e.signIn) signOut('Please sign in again with your PIN.');
@@ -260,7 +295,7 @@
     if (res.last && (!state.last || res.last.at >= state.last.at)) setLast(res.last);
     if (res.consent) rememberConsent(res.me.id, res.consent);
     if (isLead()) await loadTeam();
-    if (['home', 'boss', 'pick-teammate'].includes(state.screen)) render();
+    if (['home', 'boss', 'pick-teammate'].includes(/** @type {string} */ (state.screen))) render();
   }
 
   // Until the first team list arrives, pick-teammate can't tell who is on the clock (UX-R36). It waits
@@ -287,6 +322,7 @@
     state.teamWaitUntil = 0;
   }
 
+  /** @param {LastPunch | Punch | null | undefined} p */
   function setLast(p) {
     state.last = p ? { id: p.id, jobId: p.jobId, type: p.type, at: p.at, status: p.status } : null;
     Store.local.set('last', state.last);
@@ -317,14 +353,15 @@
   }
 
   // ---------- punches ----------
+  /** @param {Omit<Punch, 'id'>} p @returns {Promise<Punch & OutboxItem>} */
   async function savePunch(p) {
-    let item = Object.assign({ kind: 'punch', id: Store.uid(), byCrewId: state.me.id }, p);
+    let item = /** @type {Punch & OutboxItem} */ (Object.assign({ kind: 'punch', id: Store.uid(), byCrewId: /** @type {CrewMember} */ (state.me).id }, p));
     if (self.Device && Device.supported()) {
       try { item = await Device.sign(item); } catch (e) { /* unsigned punches still save; the server flags them */ }
     }
     await Store.outbox.add(item);
-    if (item.crewId === state.me.id && item.type !== 'void') setLast(item);
-    else if (item.crewId !== state.me.id) {
+    if (item.crewId === /** @type {CrewMember} */ (state.me).id && item.type !== 'void') setLast(item);
+    else if (item.crewId !== /** @type {CrewMember} */ (state.me).id) {
       state.matePunches = (state.matePunches || []).concat({ id: item.id, crewId: item.crewId, jobId: item.jobId, type: item.type, at: item.at, voidsId: item.voidsId });
     }
     await countPending();
@@ -333,14 +370,19 @@
   }
 
   // A teammate's open clock-in, from the team list plus what this phone just saved for them (UX-3).
+  /** @param {string} crewId */
   function mateOpen(crewId) {
     const p = Report.lastPunchByCrew(teamPunches().concat(state.matePunches || []))[crewId];
     return p && p.type === 'in' ? p : null;
   }
 
+  /**
+   * @param {string} type
+   * @param {{ crewId?: string, fixing?: Punch | null, consentAsked?: boolean }} [opts]
+   */
   function startPunch(type, opts) {
     const o = opts || {};
-    const crewId = o.crewId || state.me.id;
+    const crewId = o.crewId || /** @type {CrewMember} */ (state.me).id;
     // No consent, no location (PRIVACY L3): the worker is asked first; a teammate can't be asked
     // by the foreman, so their clock-in uses a picture. Either way the clock-in still happens.
     const noLocation = !hasConsent(crewId);
@@ -363,7 +405,7 @@
   // One rough reading for the job list; it stops when they pick a job or leave the list (L2).
   async function sortJobsByDistance() {
     if (fakeGps()) return;
-    const flow = state.flow;
+    const flow = /** @type {Flow} */ (state.flow);
     const fix = await watchGps(navigator.geolocation, () => state.screen === 'pick-job' && state.flow === flow,
       { timeoutMs: 8000, goodEnoughM: Infinity, highAccuracy: false, maximumAgeMs: 120000 });
     if (!fix || state.screen !== 'pick-job' || state.flow !== flow) return;
@@ -371,22 +413,25 @@
     render();
   }
 
+  /** @param {string} jobId */
   function pickJob(jobId) {
-    if (state.flow.picked) return; // a double tap picks once (HRD-3)
-    state.flow.picked = true;
-    state.flow.jobId = jobId;
-    if (state.flow.fixing) {
+    const flow = /** @type {Flow} */ (state.flow);
+    if (flow.picked) return; // a double tap picks once (HRD-3)
+    flow.picked = true;
+    flow.jobId = jobId;
+    if (flow.fixing) {
       // Same time and place as the original punch, just the right job.
-      const orig = state.flow.fixing;
-      state.flow.fix = orig.lat == null ? null : { lat: orig.lat, lng: orig.lng, accuracy: orig.accuracy };
-      state.flow.at = orig.at;
-      state.flow.photo = orig.photo || null;
+      const orig = /** @type {Punch} */ (flow.fixing);
+      flow.fix = orig.lat == null ? null : /** @type {{ lat: number, lng: number, accuracy: number }} */ ({ lat: orig.lat, lng: orig.lng, accuracy: orig.accuracy });
+      flow.at = orig.at;
+      flow.photo = orig.photo || null;
       return afterFix();
     }
     locate();
   }
 
   // Plain words for the live fix; "weak" is the same line that asks for a photo (UX-10).
+  /** @param {number} accuracyM */
   function gpsWords(accuracyM) {
     return Geo.fenceStatus(0, accuracyM, 1) === 'weak'
       ? `GPS signal: weak (about ${Geo.formatDistance(Geo.toFeet(accuracyM))})` : 'GPS signal: good';
@@ -394,7 +439,9 @@
 
   // The one GPS watch the app may have open, and the screen it belongs to (PRIVACY L2). Leaving
   // that screen, or the app going to the background, stops it at once.
+  /** @type {{ stillWanted: () => boolean, ac: AbortController } | null} */
   let gpsWatch = null;
+  /** @type {(source: Geolocation, stillWanted: () => boolean, opts: Parameters<typeof Geo.bestFix>[1]) => Promise<Fix | null>} */
   function watchGps(geolocation, stillWanted, opts) {
     stopGps();
     const ac = new AbortController();
@@ -409,16 +456,16 @@
   document.addEventListener('visibilitychange', () => { if (document.hidden) stopGps(); });
 
   async function locate() {
-    const flow = state.flow; // a late fix must only finish the flow that asked for it (HRD-4)
+    const flow = /** @type {Flow} */ (state.flow); // a late fix must only finish the flow that asked for it (HRD-4)
     flow.at = Date.now();
     if (flow.noLocation) { flow.fix = null; return afterFix(); }
     flow.liveAccuracy = null;
     setScreen('locating');
-    const job = jobById(state.flow.jobId);
+    const job = jobById(/** @type {Flow} */ (state.flow).jobId);
     let fix;
     if (fakeGps() && job) {
       await new Promise((r) => setTimeout(r, 900));
-      fix = { lat: job.lat + 0.0002, lng: job.lng - 0.0001, accuracy: 9, at: Date.now() };
+      fix = { lat: /** @type {number} */ (job.lat) + 0.0002, lng: /** @type {number} */ (job.lng) - 0.0001, accuracy: 9, at: Date.now() };
     } else {
       fix = await watchGps(navigator.geolocation, () => state.screen === 'locating' && state.flow === flow, {
         timeoutMs: cfg.gpsTimeoutMs || 20000,
@@ -437,11 +484,12 @@
   }
 
   function afterFix() {
-    const job = jobById(state.flow.jobId);
-    const check = Geo.checkFix(state.flow.fix, job);
-    state.flow.check = check;
-    const photoRequired = state.flow.forTeammate || state.flow.noLocation || Geo.needsPhoto(check.status);
-    if (photoRequired && !state.flow.photo) return setScreen('photo');
+    const flow = /** @type {Flow} */ (state.flow);
+    const job = jobById(flow.jobId);
+    const check = Geo.checkFix(flow.fix, job);
+    flow.check = check;
+    const photoRequired = flow.forTeammate || flow.noLocation || Geo.needsPhoto(check.status);
+    if (photoRequired && !flow.photo) return setScreen('photo');
     finishPunch();
   }
 
@@ -459,8 +507,8 @@
       lat: fix ? fix.lat : null,
       lng: fix ? fix.lng : null,
       accuracy: fix ? Math.round(fix.accuracy) : null,
-      status: f.check.status,
-      distanceFt: f.check.distanceFt,
+      status: /** @type {NonNullable<Flow['check']>} */ (f.check).status,
+      distanceFt: /** @type {NonNullable<Flow['check']>} */ (f.check).distanceFt,
       photo: f.photo || null,
     });
     f.saved = saved;
@@ -469,6 +517,7 @@
   }
 
   // Shrink to 1024px and stamp who/where/when on the picture.
+  /** @param {Blob} file @param {string[]} lines @returns {Promise<string>} */
   function stampPhoto(file, lines) {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -481,7 +530,7 @@
         const c = document.createElement('canvas');
         c.width = w;
         c.height = h;
-        const ctx = c.getContext('2d');
+        const ctx = /** @type {CanvasRenderingContext2D} */ (c.getContext('2d'));
         ctx.drawImage(img, 0, 0, w, h);
         const fs = Math.max(16, Math.round(w / 34));
         ctx.font = `600 ${fs}px -apple-system, system-ui, sans-serif`;
@@ -513,9 +562,10 @@
   // Demo with PINs turned off (config demoPin): tapping a name signs straight in.
   const demoNoPin = () => Api.isDemo && !!Api.demoLogin && !cfg.demoPin;
 
+  /** @param {string} crewId @param {string | null} pin */
   async function tryLogin(crewId, pin) {
     try {
-      const res = pin == null ? await Api.demoLogin(crewId) : await Api.login(crewId, pin);
+      const res = pin == null ? await /** @type {NonNullable<CrewApi['demoLogin']>} */ (Api.demoLogin)(crewId) : await Api.login(crewId, pin);
       state.auth = res.auth || { crewId, pin };
       Store.local.set('auth', state.auth);
       state.me = res.me;
@@ -526,18 +576,19 @@
       Store.local.set('crew', state.crew);
       setLast(res.last);
       if (res.consent) rememberConsent(res.me.id, res.consent);
-      if (isLead()) loadTeam().then(() => { if (['boss', 'pick-teammate'].includes(state.screen)) render(); });
+      if (isLead()) loadTeam().then(() => { if (['boss', 'pick-teammate'].includes(/** @type {string} */ (state.screen))) render(); });
       goHome();
       countPending().then(() => syncNow()); // send what this person left queued last time
     } catch (e) {
       state.pinEntry = '';
-      state.pinError = e.offline ? 'No signal. The first sign-in needs signal.' : "That PIN didn't work. Try again.";
+      state.pinError = /** @type {AppError} */ (e).offline ? 'No signal. The first sign-in needs signal.' : "That PIN didn't work. Try again.";
       render();
       const dots = document.querySelector('.pin-dots');
       if (dots) dots.classList.add('shake');
     }
   }
 
+  /** @param {string} [msg] */
   async function signOut(msg) {
     const waiting = await countPending();
     if (waiting.length && !msg) {
@@ -553,9 +604,9 @@
   function goHome() {
     if (!state.auth) return setScreen('names');
     if (isBoss()) return setScreen('boss');
-    if (!hasConsent(state.me.id)) {
+    if (!hasConsent(/** @type {CrewMember} */ (state.me).id)) {
       // CON-1: asked before Home, unless they said no to these same words (then only when clocking in)
-      const mine = knownConsents()[state.me.id];
+      const mine = knownConsents()[/** @type {CrewMember} */ (state.me).id];
       const saidNo = mine && mine.action === 'withdraw' && mine.textVersion === CONSENT_VERSION;
       if (!state.consentAsked && !saidNo) return setScreen('consent', { consentNext: null });
       return setScreen('home'); // "Not now": no location, so no phone permission to ask for
@@ -565,6 +616,7 @@
   }
 
   // ---------- screens ----------
+  /** @type {Record<string, () => string>} */
   const screens = {};
 
   // HRD-13: private browsing on some phones refuses every storage write. Punches still go out
@@ -576,6 +628,7 @@
 
   // Names and addresses never keep control characters or text-direction overrides (HRD-14).
   // Same rule as cleanText in supabase/functions/_shared/core.ts.
+  /** @param {unknown} v */
   function cleanText(v) {
     // eslint-disable-next-line no-control-regex
     return String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '').trim();
@@ -601,11 +654,13 @@
     return namesHtml();
   };
   const DEMO_START = 'c5'; // the sample crew member who is never on the clock when the demo opens
+  /** @param {CrewMember} c */
   function nameBtn(c) {
+    /** @type {Record<string, string>} */
     const role = { boss: 'Boss', foreman: 'Foreman' };
     return `<button class="name-btn" data-action="pick-name" data-id="${esc(c.id)}">
           <span class="avatar">${esc(initials(c.name))}</span><span>${esc(c.name)}</span>
-          ${demoNoPin() && role[c.role] ? `<span class="name-role">${role[c.role]}</span>` : ''}
+          ${demoNoPin() && role[String(c.role)] ? `<span class="name-role">${role[String(c.role)]}</span>` : ''}
         </button>`;
   }
   function namesHtml() {
@@ -617,7 +672,7 @@
         <div class="brand">${Icons.job}<span>Crew Clock</span></div>
         <h1>Who are you?</h1>
         <p class="privacy">${Icons.pin}<span>This app only checks where you are when you tap <b>Clock in</b> or <b>Clock out</b>. It does not follow you.</span></p>
-        ${loading || `<div class="name-grid">${list.map(nameBtn).join('')}</div>`}
+        ${loading || `<div class="name-grid">${/** @type {CrewMember[]} */ (list).map(nameBtn).join('')}</div>`}
       </main>`;
     }
     // The public demo: the pitch, then one obvious way in (UX-R1); side by side on a laptop (UX-R17).
@@ -647,6 +702,7 @@
   }
 
   screens.pin = () => {
+    /** @type {Partial<CrewMember>} */
     const c = (state.names || []).find((x) => x.id === state.pinFor) || {};
     const n = (state.pinEntry || '').length;
     const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'];
@@ -692,23 +748,23 @@
 
   screens.home = () => {
     const onClock = state.last && state.last.type === 'in';
-    const job = onClock ? jobById(state.last.jobId) : null;
+    const job = onClock ? jobById(/** @type {LastPunch} */ (state.last).jobId) : null;
     const status = onClock
       ? `<div class="status-card on"><span class="status-dot"></span><div>
           <div class="status-title">You are on the clock</div>
-          <div class="status-sub">${esc(job ? job.name : 'Job')} · since ${time(state.last.at)}</div></div></div>`
+          <div class="status-sub">${esc(job ? job.name : 'Job')} · since ${time(/** @type {LastPunch} */ (state.last).at)}</div></div></div>`
       : `<div class="status-card off"><span class="status-dot"></span><div>
           <div class="status-title">You are off the clock</div>
           <div class="status-sub">${state.last ? `Last clocked out ${dayLabel(state.last.at).toLowerCase()} at ${time(state.last.at)}` : 'Tap the green button when you get to the job'}</div></div></div>`;
     const big = onClock
       ? `<button class="punch out" data-action="punch" data-type="out">${Icons.out}<span>Clock out</span></button>`
       : `<button class="punch in" data-action="punch" data-type="in">${Icons.in}<span>Clock in</span></button>`;
-    const fake = Api.isDemo && hasConsent(state.me.id)
+    const fake = Api.isDemo && hasConsent(/** @type {CrewMember} */ (state.me).id)
       ? `<label class="demo-toggle"><input type="checkbox" data-action="demo-fake" ${fakeGps() ? 'checked' : ''}> Demo: pretend I'm at the job</label>`
       : '';
     return `<main class="screen home">
         <header class="home-head">
-          <div><div class="muted small">Signed in as</div><div class="who">${esc(state.me.name)}</div></div>
+          <div><div class="muted small">Signed in as</div><div class="who">${esc(/** @type {CrewMember} */ (state.me).name)}</div></div>
           <button class="link" data-action="sign-out">Not you?</button>
         </header>
         ${status}
@@ -717,16 +773,17 @@
         <div class="sync-line" data-sync-line>${syncLineHtml()}</div>
         ${demoControls() && !DemoBackend.isOffline() ? '<p class="muted small demo-hint">Demo: turn on No signal above, then clock in.</p>' : ''}
         ${isLead() ? `<button class="btn secondary" data-action="teammate">${Icons.teammate} Clock in or out a teammate</button>` : ''}
-        ${state.me.role === 'foreman' ? `<button class="btn secondary" data-action="go" data-to="boss">${Icons.map} See the team map</button>` : ''}
+        ${/** @type {CrewMember} */ (state.me).role === 'foreman' ? `<button class="btn secondary" data-action="go" data-to="boss">${Icons.map} See the team map</button>` : ''}
         ${self.Messenger ? `<button class="btn secondary" data-action="go" data-to="chat-list">${Icons.chat} Messages <span class="badge" data-unread></span></button>` : ''}
         <div id="push-slot"></div>
-        ${hasConsent(state.me.id)
+        ${hasConsent(/** @type {CrewMember} */ (state.me).id)
           ? '<button class="link" data-action="consent-withdraw">Stop using my location</button>'
           : '<p class="muted location-off">Location is off. When you clock in, the app asks again, or you can use a picture.</p><button class="link" data-action="consent-ask">Use my location for clock-ins</button>'}
         ${fake}
       </main>`;
   };
 
+  /** @param {string} crewId */
   function mateLine(crewId) {
     const p = mateOpen(crewId);
     const job = p && jobById(p.jobId);
@@ -734,7 +791,7 @@
   }
 
   screens['pick-teammate'] = () => {
-    const mates = state.crew.filter((c) => c.id !== state.me.id && c.role !== 'boss');
+    const mates = state.crew.filter((c) => c.id !== /** @type {CrewMember} */ (state.me).id && c.role !== 'boss');
     return `<main class="screen">
       <button class="back" data-action="go-home">${Icons.back} Back</button>
       <h1>Which teammate?</h1>
@@ -751,10 +808,10 @@
   };
 
   screens['pick-job'] = () => {
-    const f = state.flow;
+    const f = /** @type {Flow} */ (state.flow);
     const rough = f.roughFix;
     const jobs = state.jobs.filter((j) => j.active !== false).map((j) => ({
-      j, d: rough && j.lat != null ? Geo.toFeet(Geo.distanceM(rough.lat, rough.lng, j.lat, j.lng)) : null,
+      j, d: rough && j.lat != null ? Geo.toFeet(Geo.distanceM(rough.lat, rough.lng, j.lat, /** @type {number} */ (j.lng))) : null,
     }));
     jobs.sort((a, b) => (a.d == null || b.d == null ? a.j.name.localeCompare(b.j.name) : a.d - b.d));
     const who = f.forTeammate ? crewById(f.crewId) : null;
@@ -776,7 +833,7 @@
   };
 
   screens.locating = () => {
-    const flow = state.flow;
+    const flow = /** @type {Flow} */ (state.flow);
     const job = jobById(flow.jobId);
     setTimeout(() => {
       const b = document.getElementById('skip-gps');
@@ -793,7 +850,7 @@
   };
 
   screens.photo = () => {
-    const f = state.flow;
+    const f = /** @type {Flow} */ (state.flow);
     const who = f.forTeammate ? crewById(f.crewId) : null;
     const name = esc(who ? who.name : 'They');
     const why = f.forTeammate && f.noLocation ? `${name} hasn't agreed to use location, so take a picture of them at the job.`
@@ -815,7 +872,7 @@
   };
 
   screens.done = () => {
-    const f = state.flow;
+    const f = /** @type {Flow & Required<Pick<Flow, 'check' | 'savedAt' | 'at'>>} */ (state.flow);
     const job = jobById(f.jobId);
     const who = f.forTeammate ? crewById(f.crewId) : null;
     const s = STATUS[f.check.status];
@@ -842,7 +899,9 @@
   };
 
   // ---------- boss ----------
+  /** @type {L.Map | null} */
   let leafletMap = null;
+  /** @type {L.Map | null} */
   let jobFormMap = null;
 
   screens.boss = () => {
@@ -876,6 +935,7 @@
   };
 
   // Risk flags: the server's when it sent them, otherwise the same rules run here.
+  /** @param {Punch | null | undefined} p @returns {{ code: string, level?: string }[]} */
   function riskFor(p) {
     if (!p || !self.Risk) return [];
     if (Array.isArray(p.risk)) return p.risk;
@@ -888,6 +948,7 @@
     if (punchChanged(p)) flags.push({ code: 'bad_signature', level: Risk.RULES.bad_signature.level });
     return flags;
   }
+  /** @param {{ code: string, level?: string }[]} flags */
   function riskHtml(flags) {
     const high = flags.filter((f) => f.level === 'high');
     if (!high.length) return '';
@@ -906,24 +967,29 @@
     const el = document.getElementById('team-map');
     if (!el || !self.L) return;
     if (leafletMap) { leafletMap.remove(); leafletMap = null; }
-    leafletMap = L.map(el, { zoomControl: true, attributionControl: true });
-    addBaseLayers(leafletMap);
+    const map = L.map(el, { zoomControl: true, attributionControl: true });
+    leafletMap = map;
+    addBaseLayers(map);
+    /** @type {L.LatLngTuple[]} */
     const pts = [];
     const jobs = (state.team && state.team.jobs) || state.jobs;
     jobs.filter((j) => j.active !== false && j.lat != null).forEach((j) => {
-      L.circle([j.lat, j.lng], { radius: Geo.toMeters(j.radiusFt || 300), color: '#AD371D', weight: 2, fillOpacity: 0.08 }).addTo(leafletMap);
-      L.marker([j.lat, j.lng], { icon: jobIcon(), title: j.name, alt: j.name }).addTo(leafletMap).bindPopup(`<b>${esc(j.name)}</b><br>${esc(j.address || '')}`);
-      pts.push([j.lat, j.lng]);
+      L.circle(/** @type {L.LatLngTuple} */ ([j.lat, j.lng]), { radius: Geo.toMeters(j.radiusFt || 300), color: '#AD371D', weight: 2, fillOpacity: 0.08 }).addTo(map);
+      L.marker(/** @type {L.LatLngTuple} */ ([j.lat, j.lng]), { icon: jobIcon(), title: j.name, alt: j.name }).addTo(map).bindPopup(`<b>${esc(j.name)}</b><br>${esc(j.address || '')}`);
+      pts.push(/** @type {L.LatLngTuple} */ ([j.lat, j.lng]));
     });
     const last = Report.lastPunchByCrew(teamPunches());
     const { today0, shifts } = bossDay(); // the sample day in the demo (M1.6)
     // A person's dot shows their latest shift's status, the same word as their Today row (UX-R3).
+    /** @type {Record<string, Shift>} */
     const shiftOf = {};
-    shifts.forEach((sh) => { if (!shiftOf[sh.crewId] || (sh.inAt || sh.outAt) >= (shiftOf[sh.crewId].inAt || shiftOf[sh.crewId].outAt)) shiftOf[sh.crewId] = sh; });
+    shifts.forEach((sh) => { if (!shiftOf[sh.crewId] || /** @type {number} */ (sh.inAt || sh.outAt) >= /** @type {number} */ (shiftOf[sh.crewId].inAt || shiftOf[sh.crewId].outAt)) shiftOf[sh.crewId] = sh; });
     // Everyone whose last punch counts as at a job (not off site) sits in one row above that job's
     // pin, so the dots never cover each other or the pin; an off-site punch sits where it was.
+    /** @type {Record<string, string[]>} */
     const rows = {};
-    const placed = teamCrew().map((c) => {
+    /** @typedef {{ c: CrewMember, p: Punch, job: Job | null | undefined, ll: L.LatLngTuple, row: string[] | null }} Placed */
+    const placed = /** @type {Placed[]} */ (teamCrew().map((c) => {
       const p = last[c.id];
       if (!p) return null;
       const job = jobById(p.jobId);
@@ -933,12 +999,12 @@
       const row = atJob ? (rows[job.id] = rows[job.id] || []) : null;
       if (row) row.push(c.id);
       return { c, p, job, ll, row };
-    }).filter(Boolean);
+    }).filter(Boolean));
     placed.forEach(({ c, p, job, ll, row }) => {
       const stale = p.at < today0;
       const sh = !stale && shiftOf[c.id];
       const status = sh ? sh.status : p.status;
-      const s = STATUS[status] || STATUS.nogps;
+      const s = STATUS[String(status)] || STATUS.nogps;
       const out = p.type === 'out';
       const shift = row ? (row.indexOf(c.id) - (row.length - 1) / 2) * 52 : 0;
       const icon = L.divIcon({
@@ -947,17 +1013,18 @@
         iconSize: [48, 48], iconAnchor: [24 - shift, row ? 76 : 24], popupAnchor: [shift, row ? -74 : -22],
       });
       const label = `${c.name}, ${s.word}${out ? ', clocked out' : ''}`;
-      L.marker(ll, { icon, zIndexOffset: out ? 500 : 1000, title: label, alt: label }).addTo(leafletMap).bindPopup(punchPopup(c, p, job, status));
+      L.marker(ll, { icon, zIndexOffset: out ? 500 : 1000, title: label, alt: label }).addTo(map).bindPopup(punchPopup(c, p, job, status));
       pts.push(ll);
     });
-    if (pts.length) leafletMap.fitBounds(pts, { padding: [40, 40], maxZoom: 16 });
-    else leafletMap.setView([38.44, -81.88], 11); // Teays Valley / Cross Lanes
-    leafletMap.on('popupopen', (e) => {
+    if (pts.length) map.fitBounds(pts, { padding: [40, 40], maxZoom: 16 });
+    else map.setView([38.44, -81.88], 11); // Teays Valley / Cross Lanes
+    map.on('popupopen', (e) => {
       const btn = e.popup.getElement().querySelector('[data-action="show-photo"]');
       if (btn) btn.addEventListener('click', () => showPhoto(btn.dataset.id));
     });
   }
 
+  /** @param {CrewMember} c @param {Punch} p @param {Job | null | undefined} job @param {string | null} [status] */
   function punchPopup(c, p, job, status = p.status) {
     const verb = p.type === 'in' ? 'Clocked in' : 'Clocked out';
     const late = sentLate(p) ? `<br><span class="muted">${sentLate(p)}</span>` : '';
@@ -974,6 +1041,7 @@
     return L.divIcon({ className: '', html: `<div class="job-pin"><span>${Icons.job}</span></div>`, iconSize: [48, 48], iconAnchor: [24, 24] });
   }
 
+  /** @param {L.Map} map */
   function addBaseLayers(map) {
     const streets = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19, attribution: '&copy; OpenStreetMap',
@@ -1015,13 +1083,15 @@
   // Sent well after the tap: the phone had no signal. Five minutes, so a phone clock a little off
   // never reads as no signal (M1.13 ENH-2; the map popup said 15 minutes before).
   const LATE_MS = 5 * 60000;
+  /** @param {Punch | null | undefined} p */
   function sentLate(p) {
     if (punchChanged(p)) return ''; // its time was edited: the gap says nothing about signal (UX-R31)
     return p && p.receivedAt && p.receivedAt - p.at > LATE_MS ? `Sent at ${time(p.receivedAt)} (no signal)` : '';
   }
+  /** @param {Punch | null | undefined} p */
   function punchChanged(p) {
     const v = p && verifyResults();
-    return !!(v && (v[p.id] === 'changed' || v[p.id] === 'broken_chain'));
+    return !!(v && (v[/** @type {Punch} */ (p).id] === 'changed' || v[/** @type {Punch} */ (p).id] === 'broken_chain'));
   }
 
   // ---------- ENH-1: the visible tamper check ----------
@@ -1036,7 +1106,7 @@
     return state.verify && state.verify.team === state.team ? state.verify.res : null;
   }
   function startVerify() {
-    const team = state.team;
+    const team = /** @type {Team} */ (state.team);
     const keys = teamKeys();
     if (!keys || state.verifying === team) return;
     state.verifying = team;
@@ -1046,7 +1116,9 @@
       if (state.screen === 'boss' && state.bossTab === 'today') render();
     }, () => { /* can't check on this browser: no line */ });
   }
+  /** @type {Record<string, string>} */
   const KIND = { in: 'clock-in', out: 'clock-out', void: 'fix' };
+  /** @param {Punch[]} dayPunches */
   function verifyHtml(dayPunches) {
     if (!teamKeys() || !dayPunches.length) return '';
     const res = verifyResults();
@@ -1080,6 +1152,7 @@
     return line + undo;
   }
   // How the check works, for the demo: under the people list, so the list comes first on a phone (UX-R43)
+  /** @param {Punch[]} dayPunches */
   function verifyHintHtml(dayPunches) {
     const res = teamKeys() && dayPunches.length && verifyResults();
     if (!res || !demoControls() || DemoBackend.isTampered() || !dayPunches.some((p) => res[p.id] === 'ok')) return '';
@@ -1092,6 +1165,7 @@
     return state.weekBack ? Report.weekStart(ws - 86400000) : ws;
   }
   function weekNames() {
+    /** @type {Record<string, string>} */
     const names = {};
     ((state.team && state.team.crew) || state.crew).forEach((c) => { names[c.id] = c.name; });
     return names;
@@ -1103,11 +1177,15 @@
     const names = weekNames();
     const ids = [...new Set(teamCrew().map((c) => c.id).concat(Object.keys(w.byCrew)))]
       .sort((a, b) => String(names[a] || '').localeCompare(String(names[b] || '')));
+    /** @param {number} h @param {boolean | undefined} open */
     const hrs = (h, open) => (open ? `${Report.fmtHours(h)}+` : h ? Report.fmtHours(h) : '–');
+    /** @type {{ days: number[], total: number, open: boolean[] }} */
     const none = { days: [0, 0, 0, 0, 0, 0, 0], total: 0, open: [] };
     // Totals add up the tenths shown, so a row's days always sum to its total on screen (the CSV
     // keeps hundredths)
+    /** @param {number} h */
     const r1 = (h) => Math.round((h || 0) * 10) / 10;
+    /** @param {string} id */
     const rowOf = (id) => {
       const r = w.byCrew[id] || none;
       const days = r.days.map(r1);
@@ -1158,18 +1236,18 @@
     const punchById = Object.fromEntries(teamPunches().map((p) => [p.id, p]));
     // After the demo's day is over (6 PM, or the sample day is yesterday) no one is coming in "yet" (UX-R46a)
     const dayOver = sampleYesterday || (Api.isDemo && self.DemoBackend && DemoBackend.sampleDay(Date.now()).done);
-    shifts.sort((a, b) => (Report.SEVERITY[b.status] || 0) - (Report.SEVERITY[a.status] || 0) || (a.inAt || 0) - (b.inAt || 0));
+    shifts.sort((a, b) => (Report.SEVERITY[String(b.status)] || 0) - (Report.SEVERITY[String(a.status)] || 0) || (a.inAt || 0) - (b.inAt || 0));
     const rows = shifts.map((s) => {
       const c = crewById(s.crewId) || { name: '?' };
       const job = jobById(s.jobId);
-      const photoP = [punchById[s.inId], punchById[s.outId]].find((p) => p && p.hasPhoto);
+      const photoP = [punchById[String(s.inId)], punchById[String(s.outId)]].find((p) => p && p.hasPhoto);
       const dupes = (s.duplicateOuts || []).map((id) => punchById[id]);
-      const flags = [punchById[s.inId], punchById[s.outId], ...dupes].filter(Boolean).flatMap(riskFor);
+      const flags = [punchById[String(s.inId)], punchById[String(s.outId)], ...dupes].filter(Boolean).flatMap(riskFor);
       // Times never break mid-value (UX-R12): each one is a no-wrap piece of the line. The hours sit
       // under the status chip, so they never drop to a line of their own (UX-R24).
       // The whole range is one unbreakable piece (UX-R27).
       const span = `<span class="nw">${s.inAt ? time(s.inAt) : '?'} – ${s.outAt ? time(s.outAt) : s.open ? '<b class="on-clock">on the clock</b>' : '<b class="warn">no clock-out</b>'}</span>`;
-      const late = sentLate(punchById[s.inId]) || sentLate(punchById[s.outId]); // ENH-2
+      const late = sentLate(punchById[String(s.inId)]) || sentLate(punchById[String(s.outId)]); // ENH-2
       const ids = [s.inId, s.outId, ...(s.duplicateOuts || [])].filter(Boolean).join(' ');
       return `<div class="shift" data-punches="${esc(ids)}" tabindex="-1">
         <span class="avatar">${esc(initials(c.name))}</span>
@@ -1190,14 +1268,14 @@
       const text = state.aiSummary || AI.plainSummary(shifts, names, jobNames, notIn.map((c) => c.name), Date.now(), { pastDay: sampleYesterday, dayOver: !!dayOver });
       state.summaryFacts = text;
       // The demo never loads a model: it would fetch a script from another site (SEP-2)
-      const canWrite = !Api.isDemo && AI.tier() >= 2 && !state.aiSummary && shifts.length;
+      const canWrite = !Api.isDemo && AI.modelTier(cfg) >= 2 && !state.aiSummary && shifts.length;
       summary = `<div class="summary"><div class="summary-text" id="summary-text">${esc(text)}</div>
         ${canWrite ? `<button class="link" data-action="ai-summary">Write it up with AI on this phone</button>` : ''}
         ${state.aiSummary ? '<div class="muted small">Written by an AI model running on this phone.</div>' : ''}</div>`;
     }
     // On a small phone the people come first and the summary follows them, so a whole shift row
     // shows above the tab bar (UX-R49). DOM order matches what is seen, so reading and focus order do too.
-    const small = !!(self.matchMedia && matchMedia(SMALL_TODAY).matches);
+    const small = !!(/** @type {unknown} */ (self.matchMedia) && matchMedia(SMALL_TODAY).matches);
     return `<div class="pad">
       <div class="today-head"><h2>${sampleYesterday ? 'Yesterday (sample day)' : 'Today'}</h2>${seg}</div>
       ${visitorToday ? '<p class="muted small">Your own punches from this morning are added to it.</p>' : ''}
@@ -1229,6 +1307,7 @@
   }
 
   // C3: the boss sees who hasn't agreed. Unknown (status not loaded) shows nothing rather than a guess.
+  /** @param {CrewMember} c */
   function consentLine(c) {
     if (c.role === 'boss' || !state.team || !state.team.consents || hasConsent(c.id)) return '';
     return `<span class="job-addr no-consent">${Icons.alert} No location consent</span>`;
@@ -1236,6 +1315,7 @@
 
   function bossCrewHtml() {
     const crew = state.crew.filter((c) => c.active !== false);
+    /** @type {Record<string, string>} */
     const role = { boss: 'Boss', foreman: 'Foreman', crew: 'Crew' };
     return `<div class="pad">
       <div class="row-between"><h2>Crew</h2><button class="btn primary sm" data-action="crew-new">${Icons.plus} Add person</button></div>
@@ -1243,7 +1323,7 @@
         <button class="job-btn" data-action="crew-edit" data-id="${esc(c.id)}">
           <span class="avatar">${esc(initials(c.name))}</span>
           <span class="grow"><span class="job-name">${esc(c.name)}</span>${consentLine(c)}</span>
-          <span class="job-dist">${role[c.role] || 'Crew'}</span>
+          <span class="job-dist">${role[String(c.role)] || 'Crew'}</span>
         </button>`).join('')}</div>
       ${syncFooter()}
     </div>`;
@@ -1253,7 +1333,7 @@
 
   // Job form: address (default) / drop pin / where I'm standing.
   screens['job-form'] = () => {
-    const j = state.editJob;
+    const j = /** @type {EditJob} */ (state.editJob);
     const mode = state.jobMode || 'address';
     const results = state.geoResults;
     return `<main class="screen form">
@@ -1285,34 +1365,38 @@
     const el = document.getElementById('job-map');
     if (!el || !self.L) return;
     if (jobFormMap) { jobFormMap.remove(); jobFormMap = null; }
-    const j = state.editJob;
-    jobFormMap = L.map(el);
-    addBaseLayers(jobFormMap);
+    const j = /** @type {EditJob} */ (state.editJob);
+    const map = L.map(el);
+    jobFormMap = map;
+    addBaseLayers(map);
+    /** @type {L.Marker | null} */
     let marker = null;
+    /** @type {L.Circle | null} */
     let circle = null;
+    /** @param {number} lat @param {number} lng @param {number} [zoom] */
     const place = (lat, lng, zoom) => {
       j.lat = lat;
       j.lng = lng;
       if (!marker) {
-        marker = L.marker([lat, lng], { draggable: true }).addTo(jobFormMap);
-        marker.on('dragend', () => { const p = marker.getLatLng(); place(p.lat, p.lng); });
-        circle = L.circle([lat, lng], { radius: Geo.toMeters(j.radiusFt || 300), color: '#AD371D', weight: 2, fillOpacity: 0.1 }).addTo(jobFormMap);
+        marker = L.marker([lat, lng], { draggable: true }).addTo(/** @type {L.Map} */ (jobFormMap));
+        marker.on('dragend', () => { const p = /** @type {L.Marker} */ (marker).getLatLng(); place(p.lat, p.lng); });
+        circle = L.circle([lat, lng], { radius: Geo.toMeters(j.radiusFt || 300), color: '#AD371D', weight: 2, fillOpacity: 0.1 }).addTo(/** @type {L.Map} */ (jobFormMap));
       } else {
         marker.setLatLng([lat, lng]);
-        circle.setLatLng([lat, lng]);
+        /** @type {L.Circle} */ (circle).setLatLng([lat, lng]);
       }
-      if (zoom) jobFormMap.setView([lat, lng], zoom);
+      if (zoom) /** @type {L.Map} */ (jobFormMap).setView([lat, lng], zoom);
     };
-    if (j.lat != null) place(j.lat, j.lng, 17);
-    else jobFormMap.setView([38.44, -81.88], 11);
-    jobFormMap.on('click', (e) => {
+    if (j.lat != null) place(j.lat, /** @type {number} */ (j.lng), 17);
+    else map.setView([38.44, -81.88], 11);
+    map.on('click', (e) => {
       if ((state.jobMode || 'address') !== 'address') place(e.latlng.lat, e.latlng.lng);
     });
     state.placeJobPin = place;
   }
 
   screens['crew-form'] = () => {
-    const c = state.editCrew;
+    const c = /** @type {EditCrew} */ (state.editCrew);
     return `<main class="screen form">
       <button class="back" data-action="boss-back">${Icons.back} Crew</button>
       <h1>${c.isNew ? 'Add person' : esc(c.name)}</h1>
@@ -1325,16 +1409,18 @@
           `<button class="${(c.role || 'crew') === k ? 'on' : ''}" data-action="crew-role" data-role="${k}">${l}</button>`).join('')}</div>
         <small class="muted">Foreman can clock in a teammate and see the team map.</small></div>
       <button class="btn primary xl" data-action="crew-save">Save</button>
-      ${!c.isNew && c.id !== state.me.id ? '<button class="link danger" data-action="crew-off">No longer works here (turn off)</button>' : ''}
+      ${!c.isNew && c.id !== /** @type {CrewMember} */ (state.me).id ? '<button class="link danger" data-action="crew-off">No longer works here (turn off)</button>' : ''}
     </main>`;
   };
 
+  /** @param {'job' | 'crew'} kind @param {Record<string, unknown>} data */
   async function queueEdit(kind, data) {
-    await Store.outbox.add({ kind, id: Store.uid(), byCrewId: state.me.id, data });
+    await Store.outbox.add({ kind, id: Store.uid(), byCrewId: /** @type {CrewMember} */ (state.me).id, data });
     await countPending();
     syncNow();
   }
 
+  /** @param {string} punchId */
   async function showPhoto(punchId) {
     const overlay = document.createElement('div');
     overlay.className = 'overlay';
@@ -1345,7 +1431,7 @@
       const res = await Api.photo(state.auth, punchId);
       const src = res.url || res.dataUrl;
       overlay.innerHTML = src ? `<img src="${esc(src)}" alt="Clock-in photo">` : '<p>Photo not found.</p>';
-      if (src && !Api.isDemo && self.AI && AI.tier() >= 1) {
+      if (src && !Api.isDemo && self.AI && AI.modelTier(cfg) >= 1) {
         const b = document.createElement('button');
         b.className = 'btn secondary ai-check';
         b.textContent = "What's in this picture?";
@@ -1354,7 +1440,7 @@
           b.disabled = true;
           b.textContent = 'Looking… (first time downloads a small model)';
           try {
-            const r = await AI.labelPhoto(src);
+            const r = await AI.labelPhoto(src, cfg);
             b.textContent = (r.looksLikeSite ? 'Looks like a job site: ' : "Doesn't look like a job site: ") + r.labels.slice(0, 3).map((l) => l.label).join(', ');
           } catch (e) {
             b.textContent = "Couldn't check this picture on this phone";
@@ -1371,7 +1457,9 @@
   // A redraw of the same boss tab (the check finishing, a refresh) keeps where the boss had
   // scrolled to, so "Show me" and reading down the list are not thrown back to the top (UX-R31).
   // A redraw that is briefly shorter (the check still running) remembers the spot for the next one.
+  /** @type {{ tab: string | null, want: number, got: number }} */
   let bossScroll = { tab: null, want: 0, got: 0 };
+  /** @param {string} html */
   function paint(html) {
     const tab = state.screen === 'boss' ? state.bossTab : null;
     const old = tab && tab === bossScroll.tab ? $app.querySelector('.boss-body') : null;
@@ -1388,7 +1476,7 @@
 
   function render() {
     if (gpsWatch && !gpsWatch.stillWanted()) stopGps();
-    const fn = screens[state.screen] || screens.names;
+    const fn = screens[String(state.screen)] || screens.names;
     paint(fn());
     if (state.screen === 'boss' && state.bossTab === 'map') mountTeamMap();
     if (state.screen === 'job-form') mountJobMap();
@@ -1396,9 +1484,10 @@
     mountPush();
   }
   // Turning a phone or resizing across 420px moves the Today summary to its place for that width (UX-R49)
-  if (self.matchMedia) {
+  if (/** @type {unknown} */ (self.matchMedia)) {
     const mq = matchMedia(SMALL_TODAY);
     // The card itself moves (no redraw), so the boss keeps focus and scroll spot (UX-R54).
+    /** @param {{ matches: boolean }} e */
     const onSmall = (e) => {
       if (state.screen !== 'boss' || state.bossTab !== 'today' || state.todayView === 'week') return;
       const card = $app.querySelector('.boss-body .summary');
@@ -1407,7 +1496,7 @@
       const body = $app.querySelector('.boss-body');
       const keep = body ? body.scrollTop : 0;
       if (e.matches) list.after(card);
-      else { const notIn = list.parentNode.querySelector('.not-in'); (notIn || list).before(card); }
+      else { const notIn = /** @type {ParentNode} */ (list.parentNode).querySelector('.not-in'); (notIn || list).before(/** @type {Element} */ (card)); }
       if (body) body.scrollTop = keep;
     };
     if (mq.addEventListener) mq.addEventListener('change', onSmall); else if (mq.addListener) mq.addListener(onSmall);
@@ -1417,6 +1506,7 @@
     const slot = document.getElementById('push-slot');
     if (!slot || !self.Push || !state.auth) return;
     const st = await Push.status().catch(() => 'unsupported');
+    /** @type {Record<string, string>} */
     const words = {
       ready: `<button class="btn secondary" data-action="push-enable">${Icons.alert} Get alerts on this phone</button>`,
       'install-first': `<p class="muted small center">To get alerts on iPhone: tap Share, then <b>Add to Home Screen</b>, and open the app from there.</p>`,
@@ -1427,6 +1517,7 @@
   }
 
   // ---------- events ----------
+  /** @type {Record<string, ActionHandler>} */
   const handlers = {
     'go': (el) => setScreen(el.dataset.to),
     'go-home': () => { state.flow = null; goHome(); },
@@ -1439,7 +1530,7 @@
       state.pinEntry = (state.pinEntry || '') + el.dataset.k;
       state.pinError = null;
       render();
-      if (state.pinEntry.length === 4) tryLogin(state.pinFor, state.pinEntry);
+      if (state.pinEntry.length === 4) tryLogin(/** @type {string} */ (state.pinFor), state.pinEntry);
     },
     'pin-del': () => { state.pinEntry = (state.pinEntry || '').slice(0, -1); render(); },
     'consent-agree': async () => {
@@ -1474,15 +1565,15 @@
     'teammate': () => setScreen('pick-teammate'),
     'mate-punch': (el) => startPunch(el.dataset.type, { crewId: el.dataset.id }),
     'pick-job': (el) => pickJob(el.dataset.id),
-    'skip-gps': () => { state.screen = 'skipping'; stopGps(); state.flow.fix = null; afterFix(); },
+    'skip-gps': () => { state.screen = 'skipping'; stopGps(); /** @type {Flow} */ (state.flow).fix = null; afterFix(); },
     'no-photo': () => finishPunch(),
     'photo-anyway': () => {
-      state.flow.photoChecked = true;
-      onPhotoFile(state.flow.pendingFile);
+      /** @type {Flow} */ (state.flow).photoChecked = true;
+      onPhotoFile(/** @type {File} */ (/** @type {Flow} */ (state.flow).pendingFile));
     },
     'fix-job': async () => {
-      const orig = await Store.outbox.get(state.flow.saved.id) || state.flow.saved;
-      startPunch('in', { fixing: Object.assign({}, orig, { photo: state.flow.photo }) });
+      const orig = await Store.outbox.get(/** @type {Punch} */ (/** @type {Flow} */ (state.flow).saved).id) || /** @type {Flow} */ (state.flow).saved;
+      startPunch('in', { fixing: /** @type {Punch} */ (Object.assign({}, orig, { photo: /** @type {Flow} */ (state.flow).photo })) });
     },
     'demo-fake': (el) => Store.local.set('demoFake', el.checked),
     // Demo only (ENH-2): "No signal" makes the sample server act like there is no signal; turning
@@ -1503,7 +1594,8 @@
       if (window.Messenger && window.Messenger.stop) window.Messenger.stop();
       // Wait for the deletes: reloading first can leave the visitor's unsent punches in the outbox,
       // and they would sync straight back into the fresh sample data.
-      const gone = (db) => new Promise((done) => {
+      /** @param {string} db @returns {Promise<void>} */
+      const gone = (db) => new Promise((/** @type {(v?: void) => void} */ done) => {
         try { const r = indexedDB.deleteDatabase(db); r.onsuccess = r.onerror = r.onblocked = () => done(); } catch (e) { done(); }
         setTimeout(done, 2000);
       });
@@ -1522,7 +1614,7 @@
     },
     // UX-R31: from the red line to the changed punch's row
     'show-flagged': (el) => {
-      const row = [...document.querySelectorAll('.shift[data-punches]')].find((r) => r.dataset.punches.split(' ').includes(el.dataset.id));
+      const row = [.../** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.shift[data-punches]'))].find((r) => String(r.dataset.punches).split(' ').includes(el.dataset.id));
       if (!row) return;
       row.scrollIntoView({ block: 'center' });
       row.focus({ preventScroll: true });
@@ -1567,7 +1659,7 @@
       el.disabled = true;
       el.textContent = 'Writing… (first time downloads the model)';
       try {
-        state.aiSummary = (await AI.writeSummary('Facts for today: ' + state.summaryFacts)).trim();
+        state.aiSummary = (await AI.writeSummary('Facts for today: ' + state.summaryFacts, cfg)).trim();
       } catch (e) {
         toast("This phone couldn't run the AI model");
         el.remove();
@@ -1590,7 +1682,7 @@
     'job-new': () => setScreen('job-form', { editJob: { id: Store.uid(), name: '', address: '', lat: null, lng: null, radiusFt: 300, active: true, isNew: true }, jobMode: 'address', geoResults: null, addressQuery: null }),
     'job-edit': (el) => setScreen('job-form', { editJob: Object.assign({}, jobById(el.dataset.id)), jobMode: 'address', geoResults: null, addressQuery: null }),
     'job-mode': (el) => { keepJobInputs(); state.jobMode = el.dataset.mode; render(); },
-    'job-fence': (el) => { keepJobInputs(); state.editJob.radiusFt = +el.dataset.ft; render(); },
+    'job-fence': (el) => { keepJobInputs(); /** @type {EditJob} */ (state.editJob).radiusFt = +el.dataset.ft; render(); },
     'geo-search': async () => {
       keepJobInputs();
       const q = state.addressQuery;
@@ -1606,11 +1698,11 @@
     },
     'geo-pick': (el) => {
       keepJobInputs();
-      const r = state.geoResults[+el.dataset.i];
-      state.editJob.address = r.label;
+      const r = /** @type {NonNullable<AppState['geoResults']>} */ (state.geoResults)[+el.dataset.i];
+      /** @type {EditJob} */ (state.editJob).address = r.label;
       state.addressQuery = r.label;
-      state.editJob.lat = r.lat;
-      state.editJob.lng = r.lng;
+      /** @type {EditJob} */ (state.editJob).lat = r.lat;
+      /** @type {EditJob} */ (state.editJob).lng = r.lng;
       state.geoResults = null;
       render();
     },
@@ -1625,12 +1717,12 @@
       el.disabled = false;
       el.innerHTML = `${Icons.locate} Use where I'm standing`;
       if (!fix) return toast("Couldn't get GPS. Try Drop a pin.");
-      state.placeJobPin(fix.lat, fix.lng, 18);
-      if (!state.editJob.address) state.editJob.address = `Pin ${fix.lat.toFixed(5)}, ${fix.lng.toFixed(5)}`;
+      /** @type {NonNullable<AppState['placeJobPin']>} */ (state.placeJobPin)(fix.lat, fix.lng, 18);
+      if (!/** @type {EditJob} */ (state.editJob).address) /** @type {EditJob} */ (state.editJob).address = `Pin ${fix.lat.toFixed(5)}, ${fix.lng.toFixed(5)}`;
     },
     'job-save': async () => {
       keepJobInputs();
-      const j = state.editJob;
+      const j = /** @type {EditJob} */ (state.editJob);
       j.name = cleanText(j.name).slice(0, 60);
       j.address = cleanText(j.address).slice(0, 200);
       if (!j.name) return fieldError(document.getElementById('job-name'), 'Give the job a name');
@@ -1651,15 +1743,16 @@
     },
     'crew-new': () => setScreen('crew-form', { editCrew: { id: Store.uid(), name: '', role: 'crew', isNew: true, active: true } }),
     'crew-edit': (el) => setScreen('crew-form', { editCrew: Object.assign({}, state.crew.find((c) => c.id === el.dataset.id)) }),
-    'crew-role': (el) => { keepCrewInputs(); state.editCrew.role = el.dataset.role; render(); },
+    'crew-role': (el) => { keepCrewInputs(); /** @type {EditCrew} */ (state.editCrew).role = el.dataset.role; render(); },
     'crew-save': async () => {
       keepCrewInputs();
-      const c = state.editCrew;
+      const c = /** @type {EditCrew} */ (state.editCrew);
       const pin = document.getElementById('crew-pin');
       c.name = cleanText(c.name).slice(0, 60);
       if (!c.name) return fieldError(document.getElementById('crew-name'), 'Type their name');
       if (c.newPin && !/^\d{4}$/.test(c.newPin)) return fieldError(pin, 'The PIN is 4 numbers');
       if (c.isNew && !c.newPin) return fieldError(pin, 'Give them a 4 number PIN');
+      /** @type {{ id: string, name: string, role: string, active: boolean, pin?: string }} */
       const rec = { id: c.id, name: c.name.trim(), role: c.role || 'crew', active: true };
       if (c.newPin) rec.pin = c.newPin;
       upsertLocal('crew', { id: rec.id, name: rec.name, role: rec.role, active: true });
@@ -1669,7 +1762,7 @@
       toast(c.isNew ? `${rec.name} added. Their PIN is ${c.newPin}.` : 'Saved');
     },
     'crew-off': async () => {
-      const c = state.editCrew;
+      const c = /** @type {EditCrew} */ (state.editCrew);
       if (!confirm(`Turn off ${c.name}? They won't be able to sign in.`)) return;
       upsertLocal('crew', { id: c.id, name: c.name, role: c.role, active: false });
       await queueEdit('crew', { id: c.id, name: c.name, role: c.role, active: false });
@@ -1678,23 +1771,26 @@
   };
 
   function keepJobInputs() {
-    const n = document.getElementById('job-name');
-    const a = document.getElementById('job-address');
-    if (n) state.editJob.name = n.value;
-    if (a) { state.addressQuery = a.value.trim(); if (!state.editJob.address) state.editJob.address = a.value.trim(); }
+    const n = /** @type {HTMLInputElement | null} */ (document.getElementById('job-name'));
+    const a = /** @type {HTMLInputElement | null} */ (document.getElementById('job-address'));
+    if (n) /** @type {EditJob} */ (state.editJob).name = n.value;
+    if (a) { state.addressQuery = a.value.trim(); if (!(/** @type {EditJob} */ (state.editJob).address)) /** @type {EditJob} */ (state.editJob).address = a.value.trim(); }
   }
   function keepCrewInputs() {
-    const n = document.getElementById('crew-name');
-    const p = document.getElementById('crew-pin');
-    if (n) state.editCrew.name = n.value;
-    if (p) state.editCrew.newPin = p.value.trim();
+    const n = /** @type {HTMLInputElement | null} */ (document.getElementById('crew-name'));
+    const p = /** @type {HTMLInputElement | null} */ (document.getElementById('crew-pin'));
+    if (n) /** @type {EditCrew} */ (state.editCrew).name = n.value;
+    if (p) /** @type {EditCrew} */ (state.editCrew).newPin = p.value.trim();
   }
+  /** @param {'jobs' | 'crew'} key @param {{ id: string, name: string } & Record<string, unknown>} rec */
   function upsertLocal(key, rec) {
+    /** @type {{ id: string }[]} */
     const list = state[key];
     const i = list.findIndex((x) => x.id === rec.id);
     if (i >= 0) list[i] = Object.assign(list[i], rec); else list.push(rec);
     Store.local.set(key, list);
     if (state.team) {
+      /** @type {{ id: string }[]} */
       const tl = state.team[key];
       const k = tl.findIndex((x) => x.id === rec.id);
       if (k >= 0) tl[k] = Object.assign(tl[k], rec); else tl.push(rec);
@@ -1702,18 +1798,20 @@
   }
 
   document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-action]');
+    const el = /** @type {ActionEl | null} */ (/** @type {Element} */ (e.target).closest('[data-action]'));
     if (!el || el.tagName === 'INPUT') return;
     const h = handlers[el.dataset.action];
     if (h) { e.preventDefault(); h(el, e); }
   });
+  /** @param {File} file */
   async function onPhotoFile(file) {
-    const f = state.flow;
+    const f = /** @type {Flow} */ (state.flow);
     const who = crewById(f.crewId);
     const job = jobById(f.jobId);
     // On-phone check (every phone): ask for a retake if the picture is too dark or blurry.
     if (self.AI && !f.photoChecked) {
       const url = URL.createObjectURL(file);
+      /** @type {{ problem?: string | null }} */
       const q = await AI.photoQuality(url).catch(() => ({}));
       URL.revokeObjectURL(url);
       if (state.flow !== f) return;
@@ -1726,7 +1824,7 @@
     try {
       f.photo = await stampPhoto(file, [
         `${who ? who.name : ''} · ${f.type === 'in' ? 'Clock in' : 'Clock out'}`,
-        `${job ? job.name : ''} · ${new Date(f.at).toLocaleString()}`,
+        `${job ? job.name : ''} · ${new Date(/** @type {number} */ (f.at)).toLocaleString()}`,
       ]);
     } catch (err) {
       return toast("That picture didn't work. Try again.");
@@ -1736,12 +1834,12 @@
   }
 
   document.addEventListener('change', (e) => {
-    const el = e.target;
+    const el = /** @type {HTMLInputElement & ActionEl} */ (e.target);
     if (el.dataset.action === 'demo-fake') handlers['demo-fake'](el);
     if (el.dataset.action === 'photo-file' && el.files && el.files[0]) onPhotoFile(el.files[0]);
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && e.target.id === 'job-address') { e.preventDefault(); handlers['geo-search'](); }
+    if (e.key === 'Enter' && /** @type {Element} */ (e.target).id === 'job-address') { e.preventDefault(); /** @type {() => unknown} */ (handlers['geo-search'])(); }
   });
 
   // Retry whenever there is a chance of signal: back online, app reopened, every minute.

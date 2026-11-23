@@ -12,7 +12,7 @@ const cases = [];
 const t = (name, fn) => cases.push({ name, fn });
 
 function gpsAtJob() {
-  const at = () => ({ coords: { latitude: 38.454, longitude: -81.929, accuracy: 8 }, timestamp: Date.now() });
+  const at = () => /** @type {GeolocationPosition} */ ({ coords: { latitude: 38.454, longitude: -81.929, accuracy: 8 }, timestamp: Date.now() });
   navigator.geolocation.watchPosition = (ok) => { setTimeout(() => ok(at()), 0); return 1; };
   navigator.geolocation.clearWatch = () => {};
   navigator.geolocation.getCurrentPosition = (ok) => setTimeout(() => ok(at()), 0);

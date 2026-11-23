@@ -45,6 +45,9 @@ or were his own words.
 - **CRW-DEC-12** (2026-10-22) Never block a clock-in: a bad fix or no signal means a picture or a
   flag. Why: the crew is low-tech on weak signal, and a refused punch loses pay. Beat: a strict
   geofence. Measured by the `M1.16` eval.
+- **CRW-DEC-13** (2026-11-23) Shelve on-phone AI (behind a setting, code kept) and the Google Sheets
+  export; keep crew chat for the beta; continue TypeScript. Why: quality over quantity for the demo
+  and the beta. Beat: shipping every feature half-finished. Merged in #47.
 
 Still open for Chase (recommendation in PLAN and HANDOFF): ts-mls for the beta (yes); hours-only
 reports (yes); consent kept for good vs crew + 3 years; tighten the geofence (no).

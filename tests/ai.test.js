@@ -10,6 +10,7 @@ test('tiers: cheap phones never get a model', () => {
   assert.strictEqual(AI.tier({ deviceMemory: 8, hardwareConcurrency: 8, gpu: {} }), 2);
 });
 
+/** @param {number} w @param {number} h @param {(x: number, y: number) => number} fn */
 function img(w, h, fn) {
   const d = new Uint8ClampedArray(w * h * 4);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {

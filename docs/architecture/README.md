@@ -57,5 +57,5 @@ crew app is live (`M2.4`).
 ## Outside services
 
 Supabase (database, sign-in, functions), Backblaze B2 (pictures), web push services (alert
-delivery), Google Sheets (reports), and the US Census and OpenStreetMap geocoders for addresses
-the boss types, never a worker's location. Metadata only: the OpenStreetMap / USGS tile servers see which area the boss's map is showing, and capable phones download AI models from Hugging Face (nothing is sent to it). Accounts by type: [NOTES.md](../product/NOTES.md#accounts).
+delivery), Google Sheets (nightly export, shelved; the Week view CSV covers it), and the US Census and OpenStreetMap geocoders for addresses
+the boss types, never a worker's location. Metadata only: the OpenStreetMap / USGS tile servers see which area the boss's map is showing. Hugging Face: none while on-phone AI is shelved (`onPhoneAi` off in every build). Accounts by type: [NOTES.md](../product/NOTES.md#accounts).
