@@ -638,7 +638,7 @@
       }
       target.dataset.hint = String(h.step);
       target.setAttribute('aria-describedby', 'hint-nudge');
-      target.insertAdjacentHTML('beforeend', '<span class="hint-dot" aria-hidden="true"></span>');
+      target.insertAdjacentHTML('beforeend', '<span class="hint-dot" aria-hidden="true"><span class="hint-ring"></span></span>');
       return; // at most one dot
     }
   }

@@ -507,22 +507,39 @@ h3 { font-size: var(--type-base); font-weight: 600; }
   .signin .name-btn .name-role { margin-top: 0; }
 }
 
-/* Demo hints (SPEC-DEMO-HINTS): a 12px accent dot in the target's top-right padding corner with a
-   ring that pulses (transform and opacity only). It means "tap here" (principle 6), never a status.
-   It never takes a tap, never moves the target and is hidden from screen readers; the target is
-   described by #hint-nudge instead. */
+/* Demo hints (SPEC-DEMO-HINTS, UX-R70..R73): a hollow ring that means "tap here" (principle 6), never a
+   status. .hint-dot is a 20px circle whose 2px --ink border is the stroke that separates it from any
+   colour behind (no shadow or outline: DS-5, DS-9). .hint-ring inside it is 16px: --bg fill, 2px
+   --accent edge, a 6px accent dot in the middle. The pulse is .hint-dot::before (transform and opacity
+   only, at most 1.2x) and stays off under reduced motion. It never takes a tap, never moves or resizes
+   the target, never covers a word, and is hidden from screen readers; the target is described by
+   #hint-nudge instead. Boxed targets: inside, 8px in from the top-right corner. Inline links: just
+   after the last word, taking no width. The No signal switch: on the knob. */
 [data-hint] { position: relative; }
-.hint-dot { position: absolute; top: 0; right: 0; width: 12px; height: 12px; box-sizing: border-box; border-radius: 50%;
-  background: var(--accent); border: 2px solid var(--bg); pointer-events: none; }
-.hint-dot::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid var(--accent);
-  opacity: 0; animation: hint-pulse 1.6s ease-out infinite; }
+.hint-dot { position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; box-sizing: border-box; border-radius: 50%;
+  border: 2px solid var(--ink); pointer-events: none; }
+.hint-ring { position: absolute; inset: 0; box-sizing: border-box; border-radius: 50%; background: var(--bg); border: 2px solid var(--accent); }
+.hint-ring::after { content: ''; position: absolute; top: 3px; left: 3px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.hint-dot::before { content: ''; position: absolute; top: -2px; left: -2px; width: 20px; height: 20px; box-sizing: border-box; border-radius: 50%;
+  border: 2px solid var(--accent); opacity: 0; animation: hint-pulse 1.6s ease-out infinite; }
 @keyframes hint-pulse {
-  0% { transform: scale(0.75); opacity: 0.9; }
-  100% { transform: scale(1.75); opacity: 0; }
+  0% { transform: scale(1); opacity: 0.9; }
+  100% { transform: scale(1.2); opacity: 0; }
+}
+/* Inline links ("Not you?", "Try tampering"): in the line, after the last word, taking no width */
+.link > .hint-dot, .verify-try > .hint-dot { position: relative; top: auto; right: auto; display: inline-block; vertical-align: middle;
+  margin: -4px -24px -4px 4px; }
+/* "Not you?" sits on the screen's right edge: step it in so its ring stays on screen */
+.home-head > .link[data-hint] { margin-right: 12px; }
+/* The No signal switch: on the knob, clear of the words beside it */
+.demo-switch > .hint-dot { top: calc(50% - 10px); right: auto; left: 8px; }
+/* Laptop tabs are one row (icon, label): the ring sits just after the label, middle of the row */
+@media (min-width: 960px) {
+  .tabbar button > .hint-dot { top: calc(50% - 10px); right: -12px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .hint-dot, .hint-dot::after { animation: none; transition: none; }
-  .hint-dot::after { opacity: 0.6; transform: none; }
+  .hint-dot, .hint-dot::before { animation: none; transition: none; }
+  .hint-dot::before { opacity: 0; transform: none; }
 }
 .visually-hidden { position: absolute; top: 0; left: 0; width: 1px; height: 1px; padding: 0; overflow: hidden;
   clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }

@@ -407,6 +407,11 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
   screen with no dot, and the demo's pretend-GPS "locating" screen lasts 900 ms); UX-R25
   (e2e-polish, the Start-here avatar) and UX-R32/R35 (e2e-enhance, the removed verify explainer)
   still assert UI the spec removes and need rewriting like UX-R1/R17. Then qa-tdd 3x, ux-reviewer (HINT-14), privacy-security, PR.
+  UX-R70..R73 (engineer, 2026-11-23, QA-R2 markup): `.hint-dot` is a 20px circle with a 2px --ink border
+  (the stroke; no shadow or outline, so DS-5/DS-9 hold) holding `.hint-ring` (16px, --bg fill, 2px --accent
+  edge, 6px accent ::after); pulse on `.hint-dot::before` up to 1.2x, off under reduced motion. Placement:
+  8px in from top-right on boxed targets; after the last word on "Not you?", "Try tampering" and the laptop
+  tab; on the No signal knob. npm test and test:e2e green once; qa-tdd 3x next.
 
 - DS-1 studio design system restyle (2026-11-21, Chase), PR on `claude/project-thread-wc5ywq`. Spec
   `docs/design/CRW-RESTYLE.md`; source `docs/design/STUDIO-CORE.md` + `tokens.json` (copied from hearth).
