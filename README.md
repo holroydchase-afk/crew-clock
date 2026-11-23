@@ -92,7 +92,7 @@ The full privacy contract is in [docs/PRIVACY.md](docs/PRIVACY.md).
 | Encrypted crew chat (MLS) | Yes, between demo people in one browser | Yes, the server sees only ciphertext |
 | Push alerts to the boss's phone | No | Yes |
 | Daily and weekly Google Sheets reports | No (the button says so) | Yes |
-| On-phone AI photo labels and written summary | No (they download a model) | On phones that can run it |
+| On-phone AI photo labels and written summary | No | No: on-phone AI models are shelved (off, no model download) |
 
 The crew app is not live yet. Its server setup is waiting on accounts (see [HANDOFF.md](HANDOFF.md)).
 
@@ -119,7 +119,7 @@ Where things stand and what's next: [HANDOFF.md](HANDOFF.md). Milestones: [PLAN.
 | Photos | Backblaze B2, private bucket, presigned upload and view links |
 | Alerts | Web push (VAPID) |
 | Chat crypto | [ts-mls](https://github.com/LukaJCB/ts-mls), suite X25519 / AES-128-GCM / Ed25519 |
-| On-phone AI | Plain-JS image checks; Transformers.js models on capable phones (crew app only) |
+| On-phone AI | Plain-JS image checks (dark or blurry photo); on-phone AI models are shelved (config `onPhoneAi`, off) |
 | Reports | Apps Script in a Google Sheet pulls a read-only export nightly |
 
 No paid services, no analytics, no tracking scripts.

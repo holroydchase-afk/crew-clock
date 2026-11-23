@@ -201,7 +201,8 @@ Data that leaves to other services:
   is being looked at (not who is on it). [true] `js/app.js:645`, `sw.js:28-30`
 - **US Census geocoder, then OpenStreetMap Nominatim**: job addresses the boss types. Never a
   worker's location. [true] `supabase/functions/geocode/index.ts`
-- **Hugging Face**: AI models are downloaded to capable phones; no data is sent to them.
+- **Hugging Face**: none. On-phone AI models are shelved (config `onPhoneAi` is off in every build),
+  so no model is downloaded; the photo too-dark or too-blurry check runs in plain JS on the phone. [true] `js/ai.js`, `scripts/build-site.mjs`
 - **Web push services** (Apple, Google, Mozilla): alert text such as "Jake R.: check this punch".
   No coordinates are put in push text. [true] `supabase/functions/sync/index.ts:31`
 - No analytics, ads, trackers or AI vendors get any crew data. [true]

@@ -7,7 +7,8 @@
 // - with --demo (the public GitHub Pages demo), ignores those variables and refuses to build
 //   anything but demo mode, so a visitor can never reach the real crew's backend;
 // - stamps the service worker VERSION with a hash of the app files, so phones always
-//   pick up a new release even if nobody remembered to bump it.
+//   pick up a new release even if nobody remembered to bump it;
+// - always ships onPhoneAi: false (on-phone AI models are shelved), whatever the environment says.
 import { createHash } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -45,6 +46,14 @@ export function fillConfig(src, env) {
 }
 
 // The public demo must never point at a real backend, whatever the config or environment says.
+// On-phone AI models are shelved (Chase, 2026-11-23): both builds ship onPhoneAi false, no env var
+// turns it on. Restoring it is a code change, reviewed like one.
+export function shelveAi(src) {
+  const re = /^(\s*onPhoneAi:\s*)[^,\n]*/m;
+  if (!re.test(src)) throw new Error('config.js has no onPhoneAi line');
+  return src.replace(re, (_, head) => head + 'false');
+}
+
 export function assertDemo(config) {
   const cfg = new Function('window', `${config}; return window.APP_CONFIG;`)({});
   const live = ['supabaseUrl', 'supabaseAnonKey', 'orgCode', 'vapidPublicKey', 'backendUrl', 'sheetUrl'].filter((k) => cfg[k]);
@@ -71,9 +80,9 @@ function build() {
   for (const p of COPY) cpSync(join(root, p), join(out, p), { recursive: true });
 
   const configPath = join(out, 'config.js');
-  const config = readFileSync(configPath, 'utf8');
+  const config = shelveAi(readFileSync(configPath, 'utf8'));
   if (demoOnly) assertDemo(config);
-  else writeFileSync(configPath, fillConfig(config, process.env));
+  writeFileSync(configPath, demoOnly ? config : fillConfig(config, process.env));
 
   const swPath = join(out, 'sw.js');
   const sw = readFileSync(swPath, 'utf8');

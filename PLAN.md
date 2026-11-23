@@ -68,6 +68,7 @@ _Done when the beta crew has used the real app for 2 weeks, every worker's conse
 - Chase's own MLS implementation: not on the critical path; same interface allows a later swap.
 - Pay-rate reports: payroll data raises the privacy bar; hours only for the beta.
 - Real-phone AI model download testing: belongs to the beta phones (M2.5), not the demo.
+- On-phone AI models (shelved by Chase 2026-11-23; `onPhoneAi` flag).
 - Continuous or background location tracking: against the consent promise; location only at the tap.
 - Background sync on iPhone: platform limit; the app already tells crew to open it on signal.
 - Multi-company / sign-up for other contractors: one crew first.

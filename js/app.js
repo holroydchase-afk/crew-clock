@@ -1190,7 +1190,7 @@
       const text = state.aiSummary || AI.plainSummary(shifts, names, jobNames, notIn.map((c) => c.name), Date.now(), { pastDay: sampleYesterday, dayOver: !!dayOver });
       state.summaryFacts = text;
       // The demo never loads a model: it would fetch a script from another site (SEP-2)
-      const canWrite = !Api.isDemo && AI.tier() >= 2 && !state.aiSummary && shifts.length;
+      const canWrite = !Api.isDemo && AI.modelTier(cfg) >= 2 && !state.aiSummary && shifts.length;
       summary = `<div class="summary"><div class="summary-text" id="summary-text">${esc(text)}</div>
         ${canWrite ? `<button class="link" data-action="ai-summary">Write it up with AI on this phone</button>` : ''}
         ${state.aiSummary ? '<div class="muted small">Written by an AI model running on this phone.</div>' : ''}</div>`;
@@ -1345,7 +1345,7 @@
       const res = await Api.photo(state.auth, punchId);
       const src = res.url || res.dataUrl;
       overlay.innerHTML = src ? `<img src="${esc(src)}" alt="Clock-in photo">` : '<p>Photo not found.</p>';
-      if (src && !Api.isDemo && self.AI && AI.tier() >= 1) {
+      if (src && !Api.isDemo && self.AI && AI.modelTier(cfg) >= 1) {
         const b = document.createElement('button');
         b.className = 'btn secondary ai-check';
         b.textContent = "What's in this picture?";
@@ -1354,7 +1354,7 @@
           b.disabled = true;
           b.textContent = 'Looking… (first time downloads a small model)';
           try {
-            const r = await AI.labelPhoto(src);
+            const r = await AI.labelPhoto(src, cfg);
             b.textContent = (r.looksLikeSite ? 'Looks like a job site: ' : "Doesn't look like a job site: ") + r.labels.slice(0, 3).map((l) => l.label).join(', ');
           } catch (e) {
             b.textContent = "Couldn't check this picture on this phone";
@@ -1567,7 +1567,7 @@
       el.disabled = true;
       el.textContent = 'Writing… (first time downloads the model)';
       try {
-        state.aiSummary = (await AI.writeSummary('Facts for today: ' + state.summaryFacts)).trim();
+        state.aiSummary = (await AI.writeSummary('Facts for today: ' + state.summaryFacts, cfg)).trim();
       } catch (e) {
         toast("This phone couldn't run the AI model");
         el.remove();

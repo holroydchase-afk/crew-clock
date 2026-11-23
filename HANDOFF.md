@@ -3,17 +3,17 @@
 stage: building
 goal: portfolio
 milestone: CRW-M2
-now: studio-agents wiring (issue #43) in review
+now: AI-SHELF (on-phone AI models off) and TS-1 (tsc type-check, issue #36 PR 1) on claude/project-thread-9sslyq
 next: design doc and stale service worker post-mortem (portfolio review item 2)
 waiting_on_chase:
   - Supabase project, SETUP steps 1.1 to 1.4 (unblocks M2.1)
-  - Shelve card answer (portfolio review item 4)
+  - "Sheets export: shelve or keep (recommended shelve)"
 blockers: []
 -->
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-11-22 (DS-1 restyle, PR #42, merged with main; wired to studio-agents, issue #43)
+Updated: 2026-11-23 (AI-SHELF and TS-1 on claude/project-thread-9sslyq)
 
 ## What it is
 
@@ -25,6 +25,14 @@ Plan and milestone IDs: [PLAN.md](PLAN.md). Hard rules: [CLAUDE.md](CLAUDE.md). 
 contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
+
+- AI-SHELF (2026-11-23, Chase shelved on-phone AI; reversible). `config.js` `onPhoneAi: false`;
+  `scripts/build-site.mjs` forces it false in both builds (no env var turns it on).
+  `AI.modelTier(config, nav)` is 0 unless `onPhoneAi === true`; `AI.labelPhoto` / `AI.writeSummary`
+  reject before any import when it is off. `js/app.js` gates the summary button and photo labels on
+  `AI.modelTier(cfg)`. Tier 0 (dark/blurry photo check, plain summary) unchanged. README, PRIVACY
+  (Hugging Face: none) and PLAN "Not now" updated. Tests: `tests/aishelf.test.js` (qa-tdd red first).
+  No demo change (the demo never offered AI).
 
 - Wired to studio-agents (2026-11-22, issue #43). Re-synced `.claude/agents/` (adds
   `release-captain` and `story-keeper`, refreshes `qa-tdd`, `ux-reviewer`, `privacy-security`) and
@@ -488,6 +496,9 @@ file's "In progress" section above is stale (everything in it is merged) and goe
 `M2.1` still waits on Chase's Supabase project (Blockers 1).
 
 ## Decisions to review
+
+- **AI tier 0 kept (no download)** (2026-11-23): with on-phone AI shelved, the plain-JS photo
+  too-dark/too-blurry check and the plain-words summary stay; only the model tiers (1 and 2) are off.
 
 - **DS-10 exception to principle 6 (Chase, 2026-11-21, UX-R61): text links are ink, not accent.**
   "Not you?", "Stop using my location", "Wrong job? Fix it", "Sign out" and "Back" are `--ink`,

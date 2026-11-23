@@ -2,6 +2,7 @@
 //   Tier 0 (every phone): photo too dark / too blurry checks, plain-words day summary.
 //   Tier 1 (4 GB+ RAM): a small image model labels what's in a punch photo (~14 MB, once, on Wi-Fi).
 //   Tier 2 (WebGPU + 6 GB+ RAM, usually the boss's phone): a small language model writes the day summary.
+// Tiers 1 and 2 are shelved (Chase, 2026-11-23): off unless config onPhoneAi is true, so no model downloads.
 (function (root) {
   const TRANSFORMERS = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2';
   const VISION_MODEL = 'Xenova/mobilenet_v2_1.0_224';
@@ -20,6 +21,20 @@
     if (saveData || typeof WebAssembly === 'undefined' || mem < 4 || cores < 4) return 0;
     if (n.gpu && mem >= 6) return 2;
     return 1;
+  }
+
+  // The tier the app may use for models: 0 while on-phone AI is shelved (config onPhoneAi not true).
+  function modelTier(config, nav) {
+    return config && config.onPhoneAi === true ? tier(nav) : 0;
+  }
+
+  function aiOn(config) {
+    const cfg = config || (typeof self !== 'undefined' && self.APP_CONFIG) || null;
+    return !!(cfg && cfg.onPhoneAi === true);
+  }
+
+  function shelved() {
+    return Promise.reject(new Error('On-phone AI is shelved (config onPhoneAi is not true)'));
   }
 
   function onWifi(nav) {
@@ -130,7 +145,8 @@
   }
 
   let vision = null;
-  async function labelPhoto(dataUrl) {
+  async function labelPhoto(dataUrl, config) {
+    if (!aiOn(config)) return shelved();
     const t = await transformers();
     vision = vision || t.pipeline('image-classification', VISION_MODEL, { dtype: 'q8' });
     const out = await (await vision)(dataUrl, { top_k: 5 });
@@ -140,7 +156,8 @@
   }
 
   let writer = null;
-  async function writeSummary(facts) {
+  async function writeSummary(facts, config) {
+    if (!aiOn(config)) return shelved();
     const t = await transformers();
     writer = writer || t.pipeline('text-generation', TEXT_MODEL, { device: 'webgpu', dtype: 'q4f16' });
     const messages = [
@@ -152,7 +169,7 @@
     return Array.isArray(last) ? last[last.length - 1].content : String(last);
   }
 
-  const api = { tier, onWifi, analyzePixels, photoQuality, PHOTO_WORDS, plainSummary, tenths: (h) => tenths(h).toFixed(1), labelPhoto, writeSummary, SITE_WORDS };
+  const api = { tier, modelTier, onWifi, analyzePixels, photoQuality, PHOTO_WORDS, plainSummary, tenths: (h) => tenths(h).toFixed(1), labelPhoto, writeSummary, SITE_WORDS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AI = api;
 })(typeof self !== 'undefined' ? self : globalThis);
