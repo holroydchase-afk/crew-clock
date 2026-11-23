@@ -22,7 +22,7 @@ const crewRow = (o: Record<string, unknown> = {}) =>
 
 // ---------- F-03: PIN lockout escalates; a blocked PIN waits for the boss ----------
 
-// F-03a..d (lock counting, rounds, block) moved to tests/sql/m19_test.sql: public.pin_fail does it in
+// F-03a..d (lock counting, rounds, block) moved to tests/sql/60_m19_test.sql: public.pin_fail does it in
 // one locked update, so parallel wrong PINs can't share one strike (PS-M19-2).
 
 Deno.test('F-03e a timed lock refuses until it runs out, then lets the PIN be tried', () => {

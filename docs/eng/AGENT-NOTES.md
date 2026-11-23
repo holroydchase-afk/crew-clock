@@ -9,4 +9,5 @@ Project facts for studio agents. Rules live in CLAUDE.md (hard rules) and docs/P
 - `js/geo.js`, `js/report.js`, `js/chain.js` and `js/risk.js` are shared with the Edge Functions. After editing, run `./scripts/sync-shared.sh` (CI fails on drift).
 - Logs never carry location, PINs, punches, phones or photos. The `bannedWords` list in `studio-checks.json` is enforced by `scripts/check-logs.mjs`.
 - Agents come from studio-agents. Never hand-edit `.claude/agents/`; re-sync with that repo's `scripts/sync.sh`.
+- Database grants (intake #35, `20261123000000_revoke_defaults.sql`): every new table, sequence or function the migration role creates starts closed to `anon`, `authenticated` and PUBLIC, in every schema including `app`. A migration that adds one must grant exactly what phones use, and a helper called inside an RLS policy must `grant execute ... to authenticated` or the policy fails closed. Add the grant to `tests/sql/70_grants_test.sql` (GRANT-3) in the same PR.
 - Commands (test, test:sql, test:edge, test:mls, test:e2e) are listed in CLAUDE.md.

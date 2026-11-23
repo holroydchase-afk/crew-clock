@@ -3,8 +3,8 @@
 stage: building
 goal: portfolio
 milestone: CRW-M2
-now: studio standard PR #50 for intakes #39 #40 #46 (#44 and #47 merged)
-next: Supabase pre-connect grants (intake #35), TS-2 (issue #36 PR 2), demo bar (#38) after #48; then metrics and beta scorecard (portfolio review item 3)
+now: Supabase pre-connect grants (intake #35, M2.0) on claude/project-thread-4p3a4i, built; privacy-security review (M2.0.4) next
+next: M2.0.4 review and PR for #35, TS-2 (issue #36 PR 2), demo bar (#38) after #48; then metrics and beta scorecard (portfolio review item 3)
 waiting_on_chase:
   - Supabase project, SETUP steps 1.1 to 1.4 (unblocks M2.1)
 blockers: []
@@ -12,7 +12,7 @@ blockers: []
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-11-23 (demo hints, PR #48, merged with main after #50; studio standard, intakes #39, #40 and #46)
+Updated: 2026-11-23 (demo hints, PR #48, merged with main after #52; intake #35 Supabase pre-connect grants, M2.0.1-M2.0.3)
 
 ## What it is
 
@@ -24,6 +24,25 @@ Plan and milestone IDs: [PLAN.md](PLAN.md). Hard rules: [CLAUDE.md](CLAUDE.md). 
 contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
+
+- `M2.0.1`-`M2.0.3` Supabase pre-connect grants (2026-11-23, intake #35, spec
+  `docs/product/SPEC-SUPABASE-GRANTS.md`). New migration `20261123000000_revoke_defaults.sql`
+  revokes everything on public tables, sequences and (non-extension) functions from `anon` and
+  `authenticated` (functions from PUBLIC too), grants back exactly the app's list (23 table, 16
+  column grants, the chat id sequence, `shifts`, `crew_consent_status`, `erase_crew_data`), and
+  alters default privileges so later objects start closed (functions lose PUBLIC execute
+  globally, so a new function in any schema needs its own grant). `service_role` and
+  `supabase_auth_admin` keep theirs. The SQL stub now grants like hosted Supabase (tables,
+  sequences, functions: QA-R1). SQL tests renamed `10_rls_test.sql` .. `60_m19_test.sql` plus
+  `70_grants_test.sql`; `tests/sql/run.sh` globs migrations then `tests/sql/[0-9]*_test.sql` in
+  `LC_ALL=C` order, takes `--list` and `--skip <file>`, uses `PGHOST` when set; CI's SQL step runs
+  `npm run test:sql` (= run.sh, then `tests/sql/runner.test.mjs`). `m19.test.js`'s run-in-CI check
+  now asks `run.sh --list` (QA-R2). Schedules moved to `supabase/manual/schedules.sql` (SETUP 1.2
+  and 6, digest header QA-R5, NOTES Accounts, PRIVACY S6, architecture map). Tests:
+  `tests/grants.test.js`, `tests/sql/70_grants_test.sql`, `tests/sql/runner.test.mjs` (qa-tdd red
+  first). Still to do: privacy-security (M2.0.4, GRANT-14), qa-tdd 3x, the PR, and GRANT-15 on the
+  real project after M2.1. Note: `.gitleaksignore` fingerprints keep the old path
+  `tests/sql/retention_test.sql` (they pin a past commit, so the rename does not change them).
 
 - Studio standard (2026-11-23, intakes #39, #40 and #46). Re-synced the studio agents
   (`qa-tdd`, `staff-pm`, `ux-reviewer`) and `.claude/design-rules.md`; synced
@@ -543,6 +562,14 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
 
 ## Exact next step
 
+Before M2.1 connects real phones (intake #35 review follow-ups, each with a failing test first):
+PS-R1 narrow the grant-back to what phones really use (boss edits go through the sync function as
+service role, so `jobs` INSERT/UPDATE and `crew` UPDATE can go; `mls_key_packages` UPDATE only on
+`claimed`, and narrow the `kp_claim` policy); PS-R2/ARCH-R1 a SQL test that `authenticated` can
+execute every `app` function a policy calls; at M2.1, GRANT-15 plus `pg_default_acl` on the real
+project (PS-R3, QA-R7) and Postgres 17's MAINTAIN privilege (QA-R6). ARCH-R3 goes to Product
+Studio as an INTAKE (studio-agents `templates/supabase` lacks the default-privileges revoke).
+
 From the 2026-11-18 portfolio review, in order: (3) `docs/METRICS.md`
 with targets and the M2.6 go/no-go bar, then issue #35; (5) the reliability pass, each with a failing
 test first: `Chain.verifyAll` flags a missing seq, retry backoff with jitter (PS-3),
@@ -563,6 +590,14 @@ activate (it failed once in CI on timing).
 - **Demo hints have no word label (Chase, 2026-11-23, SPEC-DEMO-HINTS):** the pulsing dot carries no
   text, a deliberate demo-only exception to principle 3 ("Words, not puzzles"). Every dotted target
   already has its own words, and screen readers hear "Suggested next step". Not in the crew app.
+- **Schedules moved out of migrations** (2026-11-23, #35): the old schedules migration (dated 2026-10-22) is now
+  `supabase/manual/schedules.sql`, so `supabase db push` can never run its `PROJECT_REF` and
+  `CRON_SECRET` placeholders or need pg_cron; SETUP step 6 runs it by hand in the SQL editor.
+  Reversible: move it back (it created no tables). Scheduling through a secret-free migration is M2.4.
+- **SQL tests renamed with numeric prefixes** (2026-11-23, #35): `10_rls_test.sql` ..
+  `70_grants_test.sql`, so `run.sh` can glob them and keep today's order (the tests share one
+  database and `10_rls_test.sql` seeds it). Reversible: rename back and list files again.
+
 - **TS-1 e2e on a lighter config** (2026-11-23): the Playwright files run code inside the page and are
   checked with `strict: false` (`tsconfig.e2e.json`); everything else is strict. The root still has no
   lockfile, so CI installs the two pinned dev tools with `--no-package-lock`.

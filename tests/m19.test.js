@@ -1,5 +1,5 @@
 // M1.9 crew sign-in and server hardening: the parts that are wiring, not logic (F-03, F-06, F-12,
-// F-13, F-15). The logic is in tests/edge/m19.test.ts and tests/sql/m19_test.sql.
+// F-13, F-15). The logic is in tests/edge/m19.test.ts and tests/sql/60_m19_test.sql.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
@@ -104,11 +104,17 @@ test('F-15 CI scans the whole history for secrets with gitleaks', () => {
 });
 
 test('M1.9 the new migration and SQL test run locally and in CI', () => {
-  for (const f of ['tests/sql/run.sh', '.github/workflows/ci.yml']) {
-    const src = read(f);
-    assert.match(src, /20261029000000_crew_auth\.sql/, f);
-    assert.match(src, /tests\/sql\/m19_test\.sql/, f);
-  }
+  // run.sh finds files by glob (GRANT-10, QA-R2), so ask it what it runs instead of grepping names.
+  const list = execFileSync('sh', ['tests/sql/run.sh', '--list'], {
+    cwd: root, encoding: 'utf8',
+    env: { ...process.env, PGHOST: '/nonexistent/no-postgres-for-list', PGPORT: '1' },
+  }).split('\n').map((l) => path.basename(l.trim()));
+  assert.ok(list.includes('20261029000000_crew_auth.sql'), 'run.sh runs the M1.9 migration');
+  assert.ok(list.includes('60_m19_test.sql'), 'run.sh runs the M1.9 SQL test');
+  assert.ok(list.indexOf('20261029000000_crew_auth.sql') < list.indexOf('60_m19_test.sql'), 'migration before its test');
+  const ci = read('.github/workflows/ci.yml');
+  const step = ci.split(/\n\s*- name: /).find((s) => /^Database schema/.test(s)) || '';
+  assert.match(step, /tests\/sql\/run\.sh|npm run test:sql/, 'CI runs the same run.sh');
 });
 
 test('F-15 .gitleaksignore only waves through test fixtures, one exact finding at a time', () => {

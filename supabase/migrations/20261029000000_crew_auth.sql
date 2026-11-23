@@ -1,7 +1,7 @@
 -- M1.9 crew sign-in hardening (F-03, docs/reviews/2026-10-23-privacy-security.md).
 -- Lock rounds on the crew row: the third PIN lockout in a day blocks the PIN until the boss sets a
 -- new one. Per-IP limits for pin-login and crew-list, counted under an HMAC of the IP (never the IP),
--- kept a day at most. Tests: tests/sql/m19_test.sql, tests/edge/m19.test.ts.
+-- kept a day at most. Tests: tests/sql/60_m19_test.sql, tests/edge/m19.test.ts.
 
 alter table public.crew
   add column if not exists lock_rounds integer not null default 0 check (lock_rounds >= 0),
