@@ -60,3 +60,26 @@ const tsc = path.join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc');
 test('TS-1 tsc -p tsconfig.json passes', { skip: !fs.existsSync(tsc) && 'typescript not installed (npm install); CI runs npm run typecheck' }, () => {
   execFileSync(process.execPath, [tsc, '-p', 'tsconfig.json'], { cwd: ROOT, stdio: 'pipe' });
 });
+
+// ARCH-1 / PS-SHELF-3: reproducible, least-privilege CI install of the dev tools.
+// No ci.yml job needs more than read access today (checkout, git diff, docker, local postgres;
+// nothing pushes, comments or uploads), so one top-level `permissions: contents: read` covers all jobs.
+test('ARCH-1 root package-lock.json exists and pins typescript at the devDependencies version', () => {
+  assert.ok(fs.existsSync(path.join(ROOT, 'package-lock.json')), 'package-lock.json missing at the repo root');
+  const want = JSON.parse(read('package.json')).devDependencies.typescript;
+  const lock = JSON.parse(read('package-lock.json'));
+  const ts = (lock.packages || {})['node_modules/typescript'] || {};
+  assert.strictEqual(ts.version, want, 'lockfile typescript version matches package.json exactly');
+});
+
+test('ARCH-1 CI installs the root dev tools with npm ci, not npm install --no-package-lock', () => {
+  const ci = read('.github/workflows/ci.yml');
+  assert.doesNotMatch(ci, /npm install --no-package-lock/);
+  assert.match(ci, /^\s*run:\s*npm ci\s*$/m, 'a root step runs plain `npm ci`');
+});
+
+test('PS-SHELF-3 ci.yml declares top-level permissions: contents: read', () => {
+  const ci = read('.github/workflows/ci.yml');
+  assert.match(ci, /^permissions:\s*\n\s+contents:\s*read\s*$/m, 'top-level (unindented) permissions block with contents: read');
+  assert.doesNotMatch(ci, /^\s+\w[\w-]*:\s*write\s*$/m, 'no job asks for write access');
+});
