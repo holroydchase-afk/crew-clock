@@ -74,7 +74,9 @@ over) and a link back to chaseholroyd.com.
 - **The demo is not the crew app.** The public demo is its own build with no server address in it,
   so a visitor can never reach real crew data.
 
-The full privacy contract is in [docs/PRIVACY.md](docs/PRIVACY.md).
+The full privacy contract is in [docs/PRIVACY.md](docs/PRIVACY.md). How it is built, the decisions and
+their costs, and where it is weak: [docs/DESIGN.md](docs/DESIGN.md). One real failure and its fix:
+[the stale service worker post-mortem](docs/postmortems/2026-10-28-stale-service-worker.md).
 
 ## What the demo shows, and what only the crew app does
 
