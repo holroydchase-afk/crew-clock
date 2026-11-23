@@ -51,12 +51,13 @@ jobs:
         run: ./scripts/sync-shared.sh && git diff --exit-code
 
       - name: Database schema and row-level security
+        # run.sh globs the stub, every migration and tests/sql/[0-9]*_test.sql (LC_ALL=C order),
+        # then runner.test.mjs checks the grants migration is what makes it pass (GRANT-1, GRANT-9).
         env:
+          PGHOST: localhost
+          PGUSER: postgres
           PGPASSWORD: postgres
-        run: |
-          psql -h localhost -U postgres -c 'create database crewclock_test'
-          psql -h localhost -U postgres -d crewclock_test -v ON_ERROR_STOP=1 -q \
-            -f tests/sql/supabase_stub.sql -f supabase/migrations/20261022000000_init.sql -f supabase/migrations/20261023000000_auth_hook.sql -f supabase/migrations/20261023100000_location_consents.sql -f supabase/migrations/20261024000000_retention.sql -f supabase/migrations/20261028000000_harden.sql -f supabase/migrations/20261029000000_crew_auth.sql -f tests/sql/rls_test.sql -f tests/sql/auth_test.sql -f tests/sql/consent_test.sql -f tests/sql/retention_test.sql -f tests/sql/harden_test.sql -f tests/sql/m19_test.sql
+        run: npm run test:sql
 
       - name: Edge Functions (logic + type check)
         run: |

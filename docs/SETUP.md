@@ -8,8 +8,10 @@ and a computer with [Deno](https://deno.com) and the [Supabase CLI](https://supa
 
 1. Create a project at supabase.com. Pick the US East region (closest to WV).
 2. In this repo: `supabase link --project-ref YOUR_REF`, then `supabase db push`.
-   That runs `20261022000000_init.sql` (tables, security rules, geofence) and
-   `20261023000000_auth_hook.sql` (session claims). Leave `20261022000100_schedules.sql` for step 6.
+   That runs every file in `supabase/migrations/` in order: tables, security rules and geofence,
+   session claims, consent, retention, sign-in limits, and last `20261123000000_revoke_defaults.sql`,
+   which closes Supabase's default grants so signed-out callers (`anon`) get nothing and phones get
+   only what the app uses. The alert schedules are not a migration: they wait for step 6.
 3. Note from **Project Settings > API Keys**: the project URL and the publishable (`anon`) key.
 4. Sign-in security, in the dashboard:
    - **Project Settings > JWT Keys**: if it still says "Legacy JWT secret", click
@@ -106,7 +108,8 @@ the service worker with a hash of the app files, so phones pick up every release
 ## 6. Morning and evening alerts
 
 Enable the `pg_cron` and `pg_net` extensions (**Database > Extensions**). Open
-`supabase/migrations/20261022000100_schedules.sql`, replace `PROJECT_REF` and `CRON_SECRET`,
+`supabase/manual/schedules.sql` (kept out of `supabase/migrations/` so `db push` never runs its
+placeholders), replace `PROJECT_REF` and `CRON_SECRET` in your copy only, never in the repo,
 and run it in the SQL editor. Times are UTC; the file explains the Eastern time offsets.
 
 ## 7. Google Sheets reports

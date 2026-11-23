@@ -4,6 +4,9 @@ A map, not the contract. The contract is [docs/PRIVACY.md](../PRIVACY.md): what 
 sees it and how long it is kept. If this map and PRIVACY disagree, PRIVACY wins and this map is
 fixed in the same PR. Any PR that changes how data is stored, moved, logged or shared updates the
 matching section here (studio standard, section 3). Tables come from `supabase/migrations/`.
+Who may touch them at all is set by grants (`20261123000000_revoke_defaults.sql`, PRIVACY S6):
+signed-out callers nothing, phones only what the app uses, then row-level security picks the rows.
+The alert schedules (`supabase/manual/schedules.sql`) are run by hand, not by `db push`.
 
 ## The two builds
 

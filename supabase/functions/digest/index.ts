@@ -1,5 +1,5 @@
 // Scheduled pushes: 8:30 AM "not in yet" and 7 PM day summary. Called by pg_cron
-// (see supabase/migrations/*_schedules.sql) with the CRON_SECRET, or by the boss's
+// (see supabase/manual/schedules.sql, run by hand at SETUP step 6) with the CRON_SECRET, or by the boss's
 // "Send today's report now" button with their session token.
 import { bearer, HttpError, requireActive } from '../_shared/core.ts';
 import { session } from '../_shared/auth.ts';

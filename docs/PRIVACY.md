@@ -93,7 +93,7 @@ Rules:
 - **C2** Row-level security: a worker can insert and read only their own records; the boss can
   read every record in the company; nobody can update or delete one. A foreman sees only each
   teammate's latest action and text version (`crew_consent_status()`), never the records. [true]
-  `supabase/migrations/20261023100000_location_consents.sql`, tested in `tests/sql/consent_test.sql`
+  `supabase/migrations/20261023100000_location_consents.sql`, tested in `tests/sql/30_consent_test.sql`
 - **C3** Withdraw: Home > **Stop using my location** adds a `withdraw` record, the app stops
   reading location for that worker, and the boss's Crew tab shows "No location consent".
   They can agree again later. After a withdrawal the app asks again only when they tap Clock in,
@@ -107,7 +107,7 @@ Rules:
 - **C6** Consent records are kept for good: nothing edits or deletes them (CLAUDE.md hard rule),
   so the company can show consent for any GPS it ever had. The plan was "on the crew plus 3 years,
   the same as their hours"; that waits on Chase changing the hard rule. [true since M1.4: tested in
-  `tests/sql/retention_test.sql` RET-2g and DEL-3]
+  `tests/sql/40_retention_test.sql` RET-2g and DEL-3]
 
 The phone's own location permission ("Allow While Using App") is separate and still needed. The
 app asks for consent first, then shows the existing permission primer.
@@ -126,9 +126,9 @@ federal; West Virginia's own rules are a "needs Chase" check (see the end).
 | Chat ciphertext | Supabase `mls_messages` | **30 days** | Deleted. Phones keep their own decrypted copy. | [built, M1.4] |
 | Used MLS key packages | Supabase `mls_key_packages` | **30 days** after claimed (`claimed_at`) | Deleted | [built, M1.4] |
 | Chat on the phone (decrypted) | Phone IndexedDB `crewclock-chat` | **90 days** | Trimmed by the app | [to build, M1.4; today kept forever] |
-| Consent records | Supabase `location_consents` | For good | Never edited or deleted (CLAUDE.md hard rule). Was "on the crew + 3 years"; that needs Chase to change the hard rule (HANDOFF, Decisions to review) | [true: nothing deletes them; tested in `tests/sql/retention_test.sql` RET-2g, DEL-3] |
+| Consent records | Supabase `location_consents` | For good | Never edited or deleted (CLAUDE.md hard rule). Was "on the crew + 3 years"; that needs Chase to change the hard rule (HANDOFF, Decisions to review) | [true: nothing deletes them; tested in `tests/sql/40_retention_test.sql` RET-2g, DEL-3] |
 | Phone keys and user agent | Supabase `devices` | While in use; 90 days after revoked (`revoked_at`) or the worker leaves | Deleted | [built, M1.4] |
-| Sign-in limit counts: a keyed hash (HMAC with `RATE_HMAC_KEY`) of the caller's IP, or of the company for the company cap, and the time, per scope; never the IP itself | Supabase `app.rate_hits` (no phone can read it) | **1 day** | Deleted by `app.apply_retention` | [built, M1.9: `20261029000000_crew_auth.sql`, `tests/sql/m19_test.sql`] |
+| Sign-in limit counts: a keyed hash (HMAC with `RATE_HMAC_KEY`) of the caller's IP, or of the company for the company cap, and the time, per scope; never the IP itself | Supabase `app.rate_hits` (no phone can read it) | **1 day** | Deleted by `app.apply_retention` | [built, M1.9: `20261029000000_crew_auth.sql`, `tests/sql/60_m19_test.sql`] |
 | Wrong-PIN count, lock time, lock rounds and "PIN blocked" | Supabase `crew` (server-only columns) | Until the next good PIN (count), the end of the lock, or the boss sets a new PIN (rounds, block) | Reset to 0/null/false | [built, M1.9: `guard.ts` `pinFailure`, `PIN_RESET`; `tests/edge/m19.test.ts`] |
 | Push subscriptions | Supabase `push_subscriptions` | While in use | Deleted when the worker leaves or the browser retires it | [partly true: retired ones are deleted, `_shared/push.ts:28`] |
 | Boss and foreman's team cache | Their phone, localStorage `cc.team` | Up to 13 days of punch times (from the Monday a week before this week, for the week view); GPS only for the last 8 days | Lat, lng, accuracy, address and distance are dropped from any punch older than 8 days before it is held or cached; replaced on each refresh; cleared on sign-out | [true, PS-M113-1] `Report.dropOldGps` in `js/api-supabase.js` `team()` and `js/app.js` `loadTeam()`; `tests/enhance.test.js` |
@@ -141,7 +141,7 @@ federal; West Virginia's own rules are a "needs Chase" check (see the end).
 Rules:
 - **R1** One SQL function (`app.apply_retention()`) does every server-side row above, runs daily
   from `pg_cron`, and has local tests with rows on both sides of each cutoff. Phones can't run it.
-  [built, M1.4: `tests/sql/retention_test.sql`; scheduled live in M2.4]
+  [built, M1.4: `tests/sql/40_retention_test.sql`; scheduled live in M2.4]
 - **R2** Photo deletion lists B2 keys from the punches being trimmed and deletes those objects
   through an Edge Function holding the B2 key; a bucket lifecycle rule (hide and delete after 60
   days) is the backstop. [half built, M1.4: keys are queued in `app.photo_purge`; the Edge Function
@@ -239,6 +239,17 @@ Rules:
 - **S5** The crew app never runs the old Google Sheets backend (`backend: 'sheets'`): it keeps the
   PIN in the phone's storage (`js/app.js:295`). [to build: refuse `sheets` in a non-demo build,
   M1.1]
+- **S6** Database grants: a signed-out caller (`anon`) holds no right on any public table, column,
+  sequence or function. A signed-in phone (`authenticated`) holds only what the app uses: read
+  orgs, devices and punches; read, add and change jobs and chat rows; its own push subscriptions;
+  read and add consent records (never change or delete them); read and rename crew names, roles and
+  active flags (never PIN or lock columns); run `shifts`, `crew_consent_status` and
+  `erase_crew_data`. No phone can TRUNCATE a table, which row-level security does not cover. Tables,
+  sequences and functions that migrations or the SQL editor add later (created as `postgres`) start
+  closed to both roles; objects another role creates are not covered, so M2.1 checks `pg_default_acl`
+  on the real project. Row-level security still decides
+  which rows. [built, M2.0: `20261123000000_revoke_defaults.sql`, `tests/sql/70_grants_test.sql`
+  GRANT-2..8 on a stub with hosted Supabase's default grants; checked on the real project at M2.1]
 
 ## Needs Chase (legal, not code)
 

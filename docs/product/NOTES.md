@@ -48,6 +48,11 @@ or were his own words.
 - **CRW-DEC-13** (2026-11-23) Shelve on-phone AI (behind a setting, code kept) and the Google Sheets
   export; keep crew chat for the beta; continue TypeScript. Why: quality over quantity for the demo
   and the beta. Beat: shipping every feature half-finished. Merged in #47.
+- **CRW-DEC-14** (2026-11-23) Temporary exception to "schema only through committed migrations": the
+  pg_cron schedules move to `supabase/manual/schedules.sql`, run by hand at SETUP step 6. Why: the file
+  needs the cron secret and project URL, and `db push` would run it with placeholders. Beat: keeping a
+  migration that fails on the first push. Ends at M2.4: schedules become a secret-free migration
+  reading the secret from Supabase Vault (architect ARCH-R2).
 
 Still open for Chase (recommendation in PLAN and HANDOFF): ts-mls for the beta (yes); hours-only
 reports (yes); consent kept for good vs crew + 3 years; tighten the geofence (no).
@@ -88,7 +93,7 @@ only in the crew app host's variables (CLAUDE.md). Status comes from HANDOFF "Bl
 
 | Account | What it holds | Where the name is baked in | Rename cost |
 |---|---|---|---|
-| Supabase | Database, sign-in, Edge Functions, scheduled alerts (not created yet, Blocker 1) | Crew app build variables, the schedules migration's placeholders, the Sheet's script properties | Rename cost: low before install day; after it, every crew phone's refresh token points at the old project and needs a fresh sign-in |
+| Supabase | Database, sign-in, Edge Functions, scheduled alerts (not created yet, Blocker 1) | Crew app build variables, the placeholders in `supabase/manual/schedules.sql` (filled in the SQL editor at SETUP 6, never in the repo), the Sheet's script properties | Rename cost: low before install day; after it, every crew phone's refresh token points at the old project and needs a fresh sign-in |
 | Backblaze B2 | Clock-in pictures, private bucket | Bucket name and CORS rule (crew app address only), function secrets | Rename cost: low; a new bucket means moving or dropping pictures under 60 days old |
 | Resend | Email, named in the CLAUDE.md hard rules; not wired into SETUP yet | Nothing in the repo | Rename cost: none today |
 | GitHub and GitHub Pages | The public repo and the public demo | Repo name in the demo path, README badge, portfolio links, Pages workflow | Rename cost: medium; the demo path and portfolio card links move together |
