@@ -77,7 +77,7 @@
   // M1.13 ENH-3: the weekdays in the 9 days before the sample day, so the boss's week view has a
   // few days of work. Kept apart from the sample day's punches (db.earlier), and returned only in
   // the boss's team view. Daytime only; each day's GPS a little different, so no reading repeats.
-  // Travis K. (c5) has none: he is the visitor's "Start here" worker and starts with a clean slate.
+  // Travis K. (c5) has none: he is the visitor's first worker (hint step 1) and starts with a clean slate.
   /** @param {number} base @param {Job[]} jobs @returns {Punch[]} */
   function earlierDays(base, jobs) {
     /** @type {Punch[]} */

@@ -403,7 +403,7 @@ t('UX-R31b a redraw of the boss\'s Today (like the check finishing) keeps where 
   return page;
 });
 
-t('UX-R32/R35 with a single punch the verify line and the summary use the singular', async (browser) => {
+t('UX-R32/R35 with a single punch the verify line and the summary use the singular, and Try tampering (with its hint dot) sits in the verify card', async (browser) => {
   const page = await open(browser, { hour: 13.5 });
   await editDb(page, (db) => { db.punches = db.punches.filter((p) => p.crewId === 'c2' && p.type === 'in'); });
   await bossToday(page);
@@ -412,8 +412,14 @@ t('UX-R32/R35 with a single punch the verify line and the summary use the singul
   if (!/1 punch matches what the phone sent/.test(await text(page.locator('[data-verify-line]')))) throw new Error('not singular');
   const summary = await text(page.locator('.summary'));
   if (!/1 of 1 shift was/.test(summary)) throw new Error(`summary: ${summary}`);
-  const hint = await text(page.locator('.verify-demo'));
-  if (!/signed on the phone and chained/.test(hint)) throw new Error(`the demo hint does not say how: ${hint}`);
+  // Rewritten for SPEC-DEMO-HINTS (I10): the explainer paragraph is gone; the verify card's
+  // "Try tampering" carries the hint dot (step 6) instead.
+  const tamper = page.getByRole('button', { name: 'Try tampering' });
+  if (await tamper.count() !== 1) throw new Error('expected one "Try tampering" button with the verify line');
+  if (!(await tamper.evaluate((el) => !!el.closest('.verify') && el.getAttribute('data-hint') === '6' && !!el.querySelector('.hint-dot')))) {
+    throw new Error('"Try tampering" is not in the verify card carrying the step 6 hint dot');
+  }
+  if (await page.getByText(/signed on the phone and chained|Each punch is signed/).count()) throw new Error('the removed explainer paragraph is back');
   return page;
 });
 
@@ -439,14 +445,32 @@ t('UX-R33 Week shows hours so far for shifts still open today as "6.6+", with a 
   return page;
 });
 
-t('UX-R34 demo worker Home invites a visitor to try No signal, until it is on', async (browser) => {
+// Rewritten for SPEC-DEMO-HINTS (QA-R1): the "Demo: turn on No signal above, then clock in." line
+// became hint step 7, a dot on the banner's No signal switch once steps 1-6 are done.
+t('UX-R34 demo worker Home invites a visitor to try No signal (the hint dot on the switch, after the other hints), until it is on', async (browser) => {
   const page = await open(browser);
+  // Steps 1-6: Travis K., Clock in (and Done), Not you?, Sam W., Today, Try tampering
+  await travisClocksIn(page);
+  await signOut(page);
+  await bossToday(page);
+  await page.getByRole('button', { name: 'Try tampering' }).click();
+  await page.waitForSelector('[data-verify-line].bad', { timeout: 10000 });
+  await page.click('[data-action="sign-out"]');
+  await page.waitForSelector('.name-btn');
   await signIn(page, 'Travis K.');
-  const hint = page.getByText('Demo: turn on No signal above, then clock in.');
-  if (await hint.count() !== 1) throw new Error('no hint on worker Home');
-  await page.getByRole('switch', { name: 'No signal' }).click();
+  await page.waitForTimeout(250);
+  const sw = page.getByRole('switch', { name: 'No signal' });
+  if (await sw.count() !== 1) throw new Error('no "No signal" switch on worker Home');
+  const dotsOn = () => page.evaluate(() => [...document.querySelectorAll('.hint-dot')]
+    .filter((d) => d.getBoundingClientRect().width > 0)
+    .map((d) => { const t = d.closest('[data-hint]'); return t ? `${t.dataset.hint}:${(t.innerText || '').replace(/\s+/g, ' ').trim()}` : 'no target'; }));
+  const before = await dotsOn();
+  if (before.length !== 1 || !/^7:.*No signal/.test(before[0])) throw new Error(`worker Home: want one hint dot, on the No signal switch (step 7); see ${JSON.stringify(before)}`);
+  if (await page.getByText(/Demo: turn on No signal/).count()) throw new Error('the old "Demo: turn on No signal" line is still there');
+  await sw.click();
   await page.waitForTimeout(200);
-  if (await hint.count()) throw new Error('the hint stays while No signal is on');
+  const after = await dotsOn();
+  if (after.length) throw new Error(`the invitation stays while No signal is on: ${JSON.stringify(after)}`);
   return page;
 });
 

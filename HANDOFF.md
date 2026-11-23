@@ -12,7 +12,7 @@ blockers: []
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-11-23 (intake #35 Supabase pre-connect grants built, M2.0.1-M2.0.3)
+Updated: 2026-11-23 (demo hints, PR #48, merged with main after #52; intake #35 Supabase pre-connect grants, M2.0.1-M2.0.3)
 
 ## What it is
 
@@ -459,6 +459,25 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
   offers "Clock out"); its assertions are unchanged.
 ## In progress
 
+- Demo hints (2026-11-23, Chase's ask), `docs/product/SPEC-DEMO-HINTS.md`, on `claude/project-thread-wc5ywq`,
+  not committed yet. Done: the demo's names screen is the crew app's ("Who are you?", Travis K. first);
+  the pitch, proof list, "Try it", "Start here", "Clock in as a worker", "Or pick someone else",
+  "Demo: turn on No signal" and the verify explainer are gone with their CSS; the checkbox reads
+  "Pretend I'm at the job". One accent `.hint-dot` (CSS pulse, static under reduced motion) walks
+  steps 1-7 (Travis K., Clock in, Not you?, Sam W., Today, Try tampering, No signal); progress in
+  `localStorage` `crewclock.hints`, cleared by Reset; demo build only (`demoControls()` guard). The
+  boss body is now a `<main>` landmark (HINT-9 reloads wait for `#app main`). README walkthrough
+  and alt text follow the new first screen; `docs/screenshots/demo-signin.png` is now stale.
+  Next, for qa-tdd (tests not edited by engineer): HINT-6 is red (its loop gives up after 500 ms on a
+  screen with no dot, and the demo's pretend-GPS "locating" screen lasts 900 ms); UX-R25
+  (e2e-polish, the Start-here avatar) and UX-R32/R35 (e2e-enhance, the removed verify explainer)
+  still assert UI the spec removes and need rewriting like UX-R1/R17. Then qa-tdd 3x, ux-reviewer (HINT-14), privacy-security, PR.
+  UX-R70..R73 (engineer, 2026-11-23, QA-R2 markup): `.hint-dot` is a 20px circle with a 2px --ink border
+  (the stroke; no shadow or outline, so DS-5/DS-9 hold) holding `.hint-ring` (16px, --bg fill, 2px --accent
+  edge, 6px accent ::after); pulse on `.hint-dot::before` up to 1.2x, off under reduced motion. Placement:
+  8px in from top-right on boxed targets; after the last word on "Not you?", "Try tampering" and the laptop
+  tab; on the No signal knob. npm test and test:e2e green once; qa-tdd 3x next.
+
 - DS-1 studio design system restyle (2026-11-21, Chase), PR on `claude/project-thread-wc5ywq`. Spec
   `docs/design/CRW-RESTYLE.md`; source `docs/design/STUDIO-CORE.md` + `tokens.json` (copied from hearth).
   Paper theme (light, dark, high contrast light and dark), Atkinson Hyperlegible Next bundled in
@@ -568,6 +587,9 @@ activate (it failed once in CI on timing).
 
 ## Decisions to review
 
+- **Demo hints have no word label (Chase, 2026-11-23, SPEC-DEMO-HINTS):** the pulsing dot carries no
+  text, a deliberate demo-only exception to principle 3 ("Words, not puzzles"). Every dotted target
+  already has its own words, and screen readers hear "Suggested next step". Not in the crew app.
 - **Schedules moved out of migrations** (2026-11-23, #35): the old schedules migration (dated 2026-10-22) is now
   `supabase/manual/schedules.sql`, so `supabase db push` can never run its `PROJECT_REF` and
   `CRON_SECRET` placeholders or need pg_cron; SETUP step 6 runs it by hand in the SQL editor.
@@ -827,6 +849,11 @@ Waiting on Chase, in order (each unblocks an M2 task; nothing in M1 needs these)
    P2 on M1.6, 2026-10-24). Needed before the portfolio link (M1.8).
 
 ## Portfolio / public presence
+
+- 2026-11-23 (demo hints, in progress): the demo drops its pitch and "Demo:" explainers and opens on
+  the crew app's own "Who are you?" screen; a single pulsing dot leads a visitor through clock-in,
+  the boss map, the tamper check and No signal. README walkthrough updated; the sign-in screenshot
+  is retaken. Live demo unchanged until merge.
 
 - 2026-11-22: README links the new design doc and post-mortem. No change to the demo.
 - 2026-11-21: the demo restyled to the studio design system (Paper theme, Atkinson Hyperlegible
