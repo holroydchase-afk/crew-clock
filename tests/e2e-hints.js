@@ -27,7 +27,7 @@ let lastPage = null;
 // The demo starts with "pretend I'm at the job" on, so these reads should never happen; counted anyway.
 function gpsAtJob() {
   window.__reads = 0;
-  const at = () => ({ coords: { latitude: 38.454, longitude: -81.929, accuracy: 8 }, timestamp: Date.now() });
+  const at = () => /** @type {GeolocationPosition} */ ({ coords: { latitude: 38.454, longitude: -81.929, accuracy: 8 }, timestamp: Date.now() });
   navigator.geolocation.watchPosition = (ok) => { window.__reads++; setTimeout(() => ok(at()), 0); return 1; };
   navigator.geolocation.clearWatch = () => {};
   navigator.geolocation.getCurrentPosition = (ok) => { window.__reads++; setTimeout(() => ok(at()), 0); };

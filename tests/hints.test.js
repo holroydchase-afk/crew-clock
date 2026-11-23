@@ -6,7 +6,9 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
+/** @param {string} p */
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+/** @param {string} dir @param {string} ext */
 const filesIn = (dir, ext) => fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })
   .filter((e) => e.isFile() && e.name.endsWith(ext)).map((e) => `${dir}/${e.name}`);
 

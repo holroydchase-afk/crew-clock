@@ -651,6 +651,7 @@
   function hintsDone() {
     try { const v = JSON.parse(localStorage.getItem(HINTS_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; }
   }
+  /** @param {number} step */
   function finishHint(step) {
     if (!demoControls()) return;
     const done = hintsDone();
@@ -679,7 +680,7 @@
     const done = hintsDone();
     for (const h of HINT_STEPS) {
       if (done.includes(h.step) || (h.after || []).some((n) => !done.includes(n))) continue;
-      const target = h.find();
+      const target = /** @type {HTMLElement | null | false | undefined} */ (h.find());
       if (!target) continue;
       let nudge = document.getElementById('hint-nudge');
       if (!nudge) {
@@ -697,7 +698,8 @@
   }
   // A tap on the dotted target finishes its step (before the tap's own action redraws the screen)
   document.addEventListener('click', (e) => {
-    const t = e.target.closest && e.target.closest('[data-hint]');
+    const el = /** @type {Element | null} */ (e.target);
+    const t = /** @type {HTMLElement | null} */ (el && el.closest ? el.closest('[data-hint]') : null);
     if (t && demoControls()) finishHint(Number(t.dataset.hint));
   }, true);
 
@@ -727,7 +729,7 @@
     // The public demo is the crew app's own screen; its first worker leads the grid, where hint
     // step 1 sits (SPEC-DEMO-HINTS, HINT-11).
     const start = demoNoPin() && list ? list.find((c) => c.id === DEMO_START) : null;
-    const names = start ? [start].concat(list.filter((c) => c !== start)) : list;
+    const names = start && list ? [start].concat(list.filter((c) => c !== start)) : list;
     return `<main class="screen${demoNoPin() ? ' signin' : ''}">
         <div class="brand">${Icons.job}<span>Crew Clock</span></div>
         <h1>Who are you?</h1>
