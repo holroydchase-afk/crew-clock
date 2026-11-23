@@ -3,8 +3,8 @@
 stage: building
 goal: portfolio
 milestone: CRW-M2
-now: studio-agents wiring (issue #43) in review
-next: design doc and stale service worker post-mortem (portfolio review item 2)
+now: studio standard PR for intakes #39 #40 #46
+next: Supabase pre-connect grants, intake #35
 waiting_on_chase:
   - Supabase project, SETUP steps 1.1 to 1.4 (unblocks M2.1)
   - Shelve card answer (portfolio review item 4)
@@ -13,7 +13,7 @@ blockers: []
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-11-22 (DS-1 restyle, PR #42, merged with main; wired to studio-agents, issue #43)
+Updated: 2026-11-23 (studio standard, intakes #39, #40 and #46)
 
 ## What it is
 
@@ -25,6 +25,16 @@ Plan and milestone IDs: [PLAN.md](PLAN.md). Hard rules: [CLAUDE.md](CLAUDE.md). 
 contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
+
+- Studio standard (2026-11-23, intakes #39, #40 and #46). Re-synced the studio agents
+  (`qa-tdd`, `staff-pm`, `ux-reviewer`) and `.claude/design-rules.md`; synced
+  `scripts/check-findings.mjs`, `scripts/ux-rules.mjs` and the other studio tools into `scripts/`
+  (with `docs/references/ux/`), leaving this repo's existing scripts as they were. `agents-check.yml`
+  takes the template's stricter skip rule. New `docs/product/NOTES.md` (decisions `CRW-DEC-n`,
+  lessons, accounts, marketing claims register) and `docs/architecture/README.md` (the data map,
+  with PRIVACY as the contract), both linked from CLAUDE.md's "Read first". CLAUDE.md gets the #46
+  self-check paragraph after the Studio standard line; hard rules unchanged. PLAN `M0.2`. Tests:
+  `tests/studio-standard.test.js` (SS-1..SS-15, qa-tdd red first). Docs and CI only; no demo change.
 
 - Wired to studio-agents (2026-11-22, issue #43). Re-synced `.claude/agents/` (adds
   `release-captain` and `story-keeper`, refreshes `qa-tdd`, `ux-reviewer`, `privacy-security`) and
