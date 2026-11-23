@@ -4,6 +4,7 @@ const assert = require('node:assert');
 const AI = require('../js/ai.js');
 
 const NOW = Date.UTC(2026, 9, 29, 8, 0);
+/** @type {(Partial<Shift> & { crewId: string })[]} */
 const sample = [
   { crewId: 'a', jobId: 'j1', status: 'onsite', hours: 8.45 },
   { crewId: 'b', jobId: 'j1', status: 'onsite', hours: 8.5 },

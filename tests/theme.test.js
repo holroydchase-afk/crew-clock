@@ -28,9 +28,16 @@ const FAMILY = 'Atkinson Hyperlegible Next';
 // Returns every style rule as { media, selector, decls: [{ prop, value }] }. Nested @media (and
 // @supports) blocks are walked and their conditions joined with " and "; @font-face is kept as a
 // rule with selector "@font-face"; @keyframes and other at-rules are skipped.
+/**
+ * @typedef {{ prop: string, value: string }} Decl
+ * @typedef {{ media: string | null, selector: string, decls: Decl[] }} CssRule
+ * @param {string} src @returns {CssRule[]}
+ */
 function parseCss(src) {
   src = src.replace(/\/\*[\s\S]*?\*\//g, '');
+  /** @type {CssRule[]} */
   const rules = [];
+  /** @param {string} s @param {string | null} media */
   const walk = (s, media) => {
     let i = 0;
     while (i < s.length) {
@@ -53,7 +60,9 @@ function parseCss(src) {
   return rules;
 }
 // Splits a block body on semicolons that are not inside parentheses (url(), calc()).
+/** @param {string} body @returns {Decl[]} */
 function declsOf(body) {
+  /** @type {Decl[]} */
   const out = [];
   let depth = 0;
   let start = 0;
@@ -71,12 +80,17 @@ function declsOf(body) {
   return out;
 }
 const RULES = parseCss(CSS);
+/** @param {CssRule} r @param {Decl} d */
 const where = (r, d) => `${r.media ? `@media ${r.media} ` : ''}${r.selector} { ${d.prop}: ${d.value} }`;
+/** @param {(prop: string, r: CssRule) => boolean} pred */
 const decls = (pred) => RULES.flatMap((r) => r.decls.filter((d) => pred(d.prop, r)).map((d) => ({ r, d })));
+/** @param {CssRule} r @param {RegExp} re */
 const allSelectors = (r, re) => r.selector.split(',').every((s) => re.test(s));
+/** @param {CssRule} r */
 const isLeaflet = (r) => allSelectors(r, /\.leaflet-/);
 
 // ---------- tokens, mode by mode, following the cascade ----------
+/** @type {Record<string, { dark: boolean, hc: boolean }>} */
 const MODES = {
   light: { dark: false, hc: false },
   dark: { dark: true, hc: false },
@@ -85,6 +99,7 @@ const MODES = {
 };
 // Does a media condition apply in this mode? Only colour scheme and contrast are understood; a
 // condition with anything else in it (widths etc.) doesn't hold the theme tokens.
+/** @param {string | null} media @param {{ dark: boolean, hc: boolean }} mode */
 function mediaApplies(media, mode) {
   if (!media) return true;
   if (/prefers-color-scheme:\s*dark/.test(media) && !mode.dark) return false;
@@ -93,36 +108,47 @@ function mediaApplies(media, mode) {
   const rest = media.replace(/\(\s*prefers-color-scheme:\s*(dark|light)\s*\)|\(\s*prefers-contrast:\s*more\s*\)|\band\b|\b(screen|all)\b|\s/g, '');
   return rest === '';
 }
+/** @param {string} modeName @returns {Record<string, string>} */
 function tokensFor(modeName) {
   const mode = MODES[modeName];
+  /** @type {Record<string, string>} */
   const raw = {};
   for (const r of RULES) {
     if (!r.selector.split(',').some((s) => s.trim() === ':root') || !mediaApplies(r.media, mode)) continue;
     for (const d of r.decls) if (d.prop.startsWith('--')) raw[d.prop.slice(2)] = d.value;
   }
+  /** @param {string} v @param {number} [seen] @returns {string} */
   const resolve = (v, seen = 0) => (seen > 10 ? v : v.replace(/var\(\s*--([\w-]+)\s*(?:,\s*([^)]*))?\)/g,
-    (m, n, fb) => (raw[n] != null ? resolve(raw[n], seen + 1) : (fb != null ? fb : m))));
+    (/** @type {string} */ m, /** @type {string} */ n, /** @type {string | undefined} */ fb) => (raw[n] != null ? resolve(raw[n], seen + 1) : (fb != null ? fb : m))));
   return Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, resolve(v).trim().toLowerCase()]));
 }
 const T = Object.fromEntries(Object.keys(MODES).map((m) => [m, tokensFor(m)]));
 // Light tokens resolve var() in any value (used for spacing and type tokens).
-const resolveLight = (v) => v.replace(/var\(\s*--([\w-]+)\s*(?:,\s*([^)]*))?\)/g, (m, n, fb) => T.light[n] || fb || m);
+/** @param {string} v */
+const resolveLight = (v) => v.replace(/var\(\s*--([\w-]+)\s*(?:,\s*([^)]*))?\)/g, (/** @type {string} */ m, /** @type {string} */ n, /** @type {string | undefined} */ fb) => T.light[n] || fb || m);
 
 // ---------- WCAG 2 contrast (same maths as tests/harden.test.js UX-16) ----------
+/** @param {string | null | undefined} h */
 const isHex = (h) => /^#[0-9a-f]{6}$/i.test(h || '');
+/** @param {string} hex */
 function lum(hex) {
   const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
   return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
 }
+/** @param {string} a @param {string} b */
 function contrast(a, b) {
   const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
   return (x + 0.05) / (y + 0.05);
 }
+/** @param {string} h */
 const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 // `top` mixed into `page`, with `pagePart` of the page (0.93 light, 0.82 dark), like safeSoft.
+/** @param {string} top @param {string} page @param {number} pagePart */
 const mix = (top, page, pagePart) => rgb(top).map((v, i) => Math.round(v * (1 - pagePart) + rgb(page)[i] * pagePart));
+/** @param {string} hex @param {number[]} want */
 const near = (hex, want) => isHex(hex) && rgb(hex).every((v, i) => Math.abs(v - want[i]) <= 1);
 
+/** @param {string} s */
 const kebab = (s) => s.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
 const STUDIO = ['bg', 'surface', 'ink', 'muted', 'line', 'fill', 'accent', 'accent-ink', 'accent-soft', 'safe', 'safe-soft',
   'danger', 'on-danger', 'danger-text', 'tab-line', 'scrim'];
@@ -144,7 +170,7 @@ test('DS-1 app.css declares @font-face for Atkinson Hyperlegible Next 400, 500 a
     if (f['font-style'] && f['font-style'] !== 'normal') errs.push(`${w}: font-style ${f['font-style']}`);
     const urls = [...(f.src || '').matchAll(/url\(\s*["']?([^"')]+)["']?\s*\)/g)].map((m) => m[1]);
     const want = FONT_FILES.find((x) => x.includes(`-${w}-`));
-    if (!urls.some((u) => path.normalize(path.join(ROOT, 'css', u)) === path.join(ROOT, want))) errs.push(`${w}: src ${JSON.stringify(urls)} is not ../${want}`);
+    if (!urls.some((u) => path.normalize(path.join(ROOT, 'css', u)) === path.join(ROOT, /** @type {string} */ (want)))) errs.push(`${w}: src ${JSON.stringify(urls)} is not ../${want}`);
     if (urls.some((u) => /^(https?:)?\/\//.test(u))) errs.push(`${w}: src points off the site`);
   }
   assert.deepStrictEqual(errs, []);
@@ -159,6 +185,7 @@ test('DS-1 body uses "Atkinson Hyperlegible Next", system-ui, sans-serif', () =>
       if (d.prop === 'font') { const m = d.value.match(/\d[\w.%]*(?:\/\S+)?\s+(.+)$/); if (m) family = m[1]; }
     }
   }
+  /** @param {string | null | undefined} s */
   const norm = (s) => (s || '').replace(/'/g, '"').replace(/\s*,\s*/g, ', ').trim();
   assert.strictEqual(norm(family), `"${FAMILY}", system-ui, sans-serif`);
 });
@@ -178,6 +205,7 @@ test('DS-1 no other font: no font host, no @import, no other font file in the re
   if (/@import/i.test(CSS)) errs.push('app.css has an @import');
   if (/url\(\s*["']?(https?:)?\/\//i.test(CSS)) errs.push('app.css has an off-site url()');
   const skip = new Set(['node_modules', '.git', 'dist']);
+  /** @param {string} dir @returns {string[]} */
   const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
     if (skip.has(e.name)) return [];
     const p = path.join(dir, e.name);
@@ -219,6 +247,7 @@ test('DS-3 the ramp tokens are --type-base 17px, --type-title 22px, --type-displ
 test('DS-3 every font-size in app.css is 17, 22, 28 or 34 px, a ramp var(), inherit or 1em (font shorthand too)', () => {
   const okPx = new Set(['17px', '22px', '28px', '34px']);
   const okVar = /^var\(--type-(base|title|display|large)\)$/;
+  /** @param {string} v */
   const fine = (v) => okPx.has(v) || okVar.test(v) || v === 'inherit' || v === '1em';
   const bad = [];
   for (const { r, d } of decls((p) => p === 'font-size' || p === '--type-base' || p === '--type-title' || p === '--type-display' || p === '--type-large')) {
@@ -237,6 +266,7 @@ test('DS-3 every font-size in app.css is 17, 22, 28 or 34 px, a ramp var(), inhe
 const SPACE = new Set([0, 4, 8, 12, 16, 24, 32]);
 // Every number with a length unit in a value (after var() is resolved); unitless multipliers in
 // calc() are fine. em/rem count as off-grid unless 0, so they can't slip past the px check.
+/** @param {string} value */
 function lengths(value) {
   return [...resolveLight(value).matchAll(/(-?\d*\.?\d+)(px|em|rem|pt|vw|vh|%)?/g)]
     .filter((m) => m[2] || Number(m[1]) === 0)
@@ -293,7 +323,7 @@ test('DS-6 prefers-color-scheme: dark tokens equal tokens.json themes.paper.dark
 
 test('DS-6 product extras --danger-soft and --warn-soft are mixed into the page like safeSoft (93% light, 82% dark)', () => {
   const errs = [];
-  for (const [mode, part] of [['light', 0.93], ['dark', 0.82]]) {
+  for (const [mode, part] of /** @type {[string, number][]} */ ([['light', 0.93], ['dark', 0.82]])) {
     const t = T[mode];
     if (!isHex(t.warn)) errs.push(`${mode}: --warn missing or not a hex colour (${t.warn})`);
     else if (!near(t['warn-soft'], mix(t.warn, t.bg, part))) errs.push(`${mode}: --warn-soft ${t['warn-soft']} is not --warn mixed into --bg`);
@@ -312,8 +342,8 @@ test('DS-6 the old blue/gray palette names are gone (--card, --blue*, --gray*, -
 
 test('DS-6 prefers-contrast: more has a light and a dark block', () => {
   const hc = RULES.filter((r) => r.selector.split(',').some((s) => s.trim() === ':root') && /prefers-contrast:\s*more/.test(r.media || ''));
-  assert.ok(hc.some((r) => !/prefers-color-scheme:\s*dark/.test(r.media)), 'no high contrast block for light');
-  assert.ok(hc.some((r) => /prefers-color-scheme:\s*dark/.test(r.media)), 'no high contrast block for dark');
+  assert.ok(hc.some((r) => !/prefers-color-scheme:\s*dark/.test(/** @type {string} */ (r.media))), 'no high contrast block for light');
+  assert.ok(hc.some((r) => /prefers-color-scheme:\s*dark/.test(/** @type {string} */ (r.media))), 'no high contrast block for dark');
   for (const [hcMode, base] of [['hc-light', 'light'], ['hc-dark', 'dark']]) {
     assert.notStrictEqual(T[hcMode].muted, T[base].muted, `${hcMode} --muted is the same as ${base}`);
   }
@@ -324,6 +354,7 @@ test('DS-6 high contrast: accent moves at least 30% toward ink (light and dark)'
   for (const [hcMode, base] of [['hc-light', 'light'], ['hc-dark', 'dark']]) {
     const a = T[base].accent; const ink = T[base].ink; const got = T[hcMode].accent;
     if (![a, ink, got].every(isHex)) { errs.push(`${hcMode}: accent/ink missing (${a}, ${ink}, ${got})`); continue; }
+    /** @param {string} p @param {string} q */
     const dist = (p, q) => Math.hypot(...rgb(p).map((v, i) => v - rgb(q)[i]));
     if (dist(got, ink) > 0.7 * dist(a, ink) + 1.5) errs.push(`${hcMode}: --accent ${got} is not 30%+ of the way from ${a} to ink ${ink}`);
   }
@@ -336,6 +367,7 @@ for (const mode of Object.keys(MODES)) {
   test(`DS-7 ${mode}: every studio contrast pair passes WCAG 2`, () => {
     const t = T[mode];
     const hc = MODES[mode].hc;
+    /** @type {[string, string, string, number][]} */
     const pairs = [
       ['ink on bg', 'ink', 'bg', 7],
       ['muted on bg', 'muted', 'bg', hc ? 7 : 4.5], ['muted on fill', 'muted', 'fill', hc ? 7 : 4.5],
@@ -345,8 +377,9 @@ for (const mode of Object.keys(MODES)) {
       ['tab-line on bg', 'tab-line', 'bg', 3], ['tab-line on surface', 'tab-line', 'surface', 3],
       ['warn on warn-soft', 'warn', 'warn-soft', 4.5], ['danger-text on danger-soft', 'danger-text', 'danger-soft', 4.5],
       ['white on punch-in (Clock in)', '#ffffff', 'punch-in', 4.5], ['white on punch-out (Clock out)', '#ffffff', 'punch-out', 4.5],
-      ...(hc ? [['line on bg (high contrast)', 'line', 'bg', 4.5]] : []),
+      .../** @type {[string, string, string, number][]} */ (hc ? [['line on bg (high contrast)', 'line', 'bg', 4.5]] : []),
     ];
+    /** @param {string} k */
     const col = (k) => (k.startsWith('#') ? k : t[k]);
     const bad = pairs.flatMap(([name, fg, bg, min]) => {
       if (!isHex(col(fg)) || !isHex(col(bg))) return [`${name}: missing token (--${fg}=${col(fg)}, --${bg}=${col(bg)})`];

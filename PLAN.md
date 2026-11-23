@@ -10,6 +10,7 @@ Plain-JS PWA, no build step except `scripts/build-site.mjs` (copies the app to `
 
 ## M0: Studio setup
 - `M0.1` Studio setup: CLAUDE.md, PLAN.md, agents, handoff-check, dependabot, LICENSE, README CI badge, Pages waits for CI and builds forced demo, HANDOFF sections — done (merged 2026-10-23, #4) — done when the PR is merged with CI green and a Pages build with repo variables set still ships `backend: 'demo'` — branch `claude/project-thread-rewwa2` (named by the session)
+- `M0.2` Studio standard: issue #46 self-check paragraph in CLAUDE.md, `docs/product/NOTES.md` (decisions, lessons, accounts, claims), `docs/architecture/README.md` (data map), studio agents, design rules and tools re-synced, agents-check on the template's stricter skip rule (intakes #39, #40, #46) — done (2026-11-23) — done when `tests/studio-standard.test.js` SS-1..SS-15 are green and the PR is merged with CI green — branch `claude/project-thread-4p3a4i`
 
 ## M1: Recruiter-demoable v1
 _Done when the recruiter-ready bar (pm-tools ONBOARDING section 5) passes and `docs/reviews/<date>-recruiter-ready.md` says go. Every M1 task is buildable with no accounts from Chase._
@@ -29,6 +30,7 @@ _Done when the recruiter-ready bar (pm-tools ONBOARDING section 5) passes and `d
 - `M1.13` Enhancements for a recruiter's 90-second visit: ENH-1 visible tamper check, ENH-2 demo "No signal" switch, ENH-3 weekly timesheet and CSV — done (merged 2026-10-28, #29) — done when `tests/enhance.test.js` and `tests/e2e-enhance.js` pass 3x and ux-reviewer and privacy-security have no P0/P1 — branch `claude/project-thread-1jlll2-m1.13`
 - `M1.14` Demo verify: README walkthrough and screenshots match the demo; local load measured; live demo check untested (sandbox blocks the domain) — done when `tests/readme.test.js` passes and the screenshots show the current build — branch `claude/project-thread-1jlll2-m1.14`
 - `M1.16` Geofence fairness eval (first item of the 2026-11-18 portfolio review): a seeded simulation measures the shipped rule against a strict fence and a capped variant — done when tests pass (`tests/eval-geofence.test.js` EVAL-1..7; report `docs/evals/geofence.md`; the rule itself is unchanged) — done when `npm test` passes with the EVAL thresholds and `node evals/geofence/run.mjs --check` exits 0 — branch `claude/project-thread-p7uiu9`
+- `M1.17` Design doc and post-mortem (second item of the 2026-11-18 portfolio review) — done when merged (`docs/DESIGN.md`, `docs/postmortems/2026-10-28-stale-service-worker.md`; docs only, every claim cited to a file) — done when both are linked from the README and `tests/readme.test.js` passes — branch `claude/project-thread-p7uiu9`
 
 ### M1.1 acceptance criteria (SEP)
 - **SEP-1 (auto, done in M0.1: `tests/site.test.js` "--demo build ignores backend variables")** Given the Pages workflow with `CREW_BACKEND=supabase` and `SUPABASE_URL` set, when `build-site.mjs` runs in demo-forced mode, then `dist/config.js` has `backend: 'demo'` and empty `supabaseUrl`, `supabaseAnonKey`, `orgCode`, `vapidPublicKey`, `backendUrl`.
@@ -53,7 +55,7 @@ _Done when the beta crew has used the real app for 2 weeks, every worker's conse
 
 - `M2.1` Supabase project live (SETUP 1.1-1.4, migrations incl. consent and retention) — blocked: Chase creates the Supabase project and pastes URL + anon key (about 25 min) — done when CI's e2e-supabase passes against it — branch `m2.1-supabase-live`
 - `M2.2` Crew app host on Cloudflare Pages, separate from the demo — blocked: Chase creates a Cloudflare account and Pages project, picks the crew-app hostname (Porkbun DNS) — done when the crew URL serves `backend: 'supabase'` and chaseholroyd.com/crew-clock/ still serves demo — branch `m2.2-crew-host`
-- `M2.3` Photos, alerts, Sheets (SETUP 2, 3, 4, 6, 7) — blocked: Chase's Backblaze bucket + keys, VAPID key, Google Sheet — done when a test punch with photo shows in the boss Map and the nightly Sheet row appears — branch `m2.3-services-live`
+- `M2.3` Photos and alerts (SETUP 2, 3, 4, 6) — blocked: Chase's Backblaze bucket + keys, VAPID key — done when a test punch with photo shows in the boss Map and the boss's phone gets the alert — branch `m2.3-services-live`
 - `M2.4` Retention jobs scheduled live (pg_cron for M1.4's function) — blocked on M2.1 — done when one scheduled run is logged and old test rows are gone — branch `m2.4-retention-live`
 - `M2.5` Install day: 5 phones, each worker agrees to location consent (SETUP 8) — blocked: Chase and his dad pick the day — done when 5 workers are signed in, 5 consent records exist, each did one clock-in/out — branch `m2.5-install-day`
 - `M2.6` Beta gate review after 2 weeks — todo — done when staff-pm writes the go/no-go with evidence (punch success rate, help requests, missed punches, consent coverage) — branch `m2.6-beta-gate`
@@ -68,6 +70,8 @@ _Done when the beta crew has used the real app for 2 weeks, every worker's conse
 - Chase's own MLS implementation: not on the critical path; same interface allows a later swap.
 - Pay-rate reports: payroll data raises the privacy bar; hours only for the beta.
 - Real-phone AI model download testing: belongs to the beta phones (M2.5), not the demo.
+- On-phone AI models (shelved by Chase 2026-11-23; `onPhoneAi` flag).
+- Google Sheets nightly export (shelved by Chase 2026-11-23; the Week view CSV covers it).
 - Continuous or background location tracking: against the consent promise; location only at the tap.
 - Background sync on iPhone: platform limit; the app already tells crew to open it on signal.
 - Multi-company / sign-up for other contractors: one crew first.

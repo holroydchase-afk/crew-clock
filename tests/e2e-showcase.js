@@ -14,7 +14,7 @@ const AXE = require.resolve('axe-core/axe.min.js', { paths: [path.join(__dirname
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
 function gpsAtJob() {
-  const at = () => ({ coords: { latitude: 38.454, longitude: -81.929, accuracy: 8 }, timestamp: Date.now() });
+  const at = () => /** @type {GeolocationPosition} */ ({ coords: { latitude: 38.454, longitude: -81.929, accuracy: 8 }, timestamp: Date.now() });
   navigator.geolocation.watchPosition = (ok) => { setTimeout(() => ok(at()), 0); return 1; };
   navigator.geolocation.clearWatch = () => {};
   navigator.geolocation.getCurrentPosition = (ok) => setTimeout(() => ok(at()), 0);
@@ -197,7 +197,7 @@ async function freshVisitor(browser, at) {
   // A visitor far from West Virginia; counts every location read.
   await page.addInitScript(() => {
     window.__reads = 0;
-    const far = () => ({ coords: { latitude: 40.71, longitude: -74.0, accuracy: 20 }, timestamp: Date.now() });
+    const far = () => /** @type {GeolocationPosition} */ ({ coords: { latitude: 40.71, longitude: -74.0, accuracy: 20 }, timestamp: Date.now() });
     navigator.geolocation.watchPosition = (ok) => { window.__reads++; setTimeout(() => ok(far()), 0); return 1; };
     navigator.geolocation.clearWatch = () => {};
     navigator.geolocation.getCurrentPosition = (ok) => { window.__reads++; setTimeout(() => ok(far()), 0); };

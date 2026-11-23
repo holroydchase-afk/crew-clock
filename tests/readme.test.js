@@ -26,8 +26,8 @@ test('every file the README links or shows exists', () => {
 
 test('the walkthrough names people in the demo crew, in the roles it gives them', () => {
   const ls = new Map();
-  const ctx = { Date, Math, JSON, Promise, setTimeout, console, navigator: { onLine: true },
-    localStorage: { getItem: (k) => (ls.has(k) ? ls.get(k) : null), setItem: (k, v) => ls.set(k, String(v)), removeItem: (k) => ls.delete(k) } };
+  const ctx = /** @type {TestSandbox} */ (/** @type {unknown} */ ({ Date, Math, JSON, Promise, setTimeout, console, navigator: { onLine: true },
+    localStorage: { getItem: (/** @type {string} */ k) => (ls.has(k) ? ls.get(k) : null), setItem: (/** @type {string} */ k, /** @type {string} */ v) => ls.set(k, String(v)), removeItem: (/** @type {string} */ k) => ls.delete(k) } }));
   ctx.self = ctx;
   vm.createContext(ctx);
   for (const f of ['js/report.js', 'js/geo.js', 'js/demo-backend.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx);
@@ -36,7 +36,7 @@ test('the walkthrough names people in the demo crew, in the roles it gives them'
   const names = [...walk.matchAll(/\*\*([A-Z][a-z]+ [A-Z]\.)\*\*/g)].map((m) => m[1]);
   assert.ok(names.length >= 3, `walkthrough names: ${names}`);
   return crew.handle('listCrew', {}).then((res) => {
-    const byName = Object.fromEntries((res.crew || res).map((c) => [c.name, c]));
+    const byName = Object.fromEntries((res.crew || res).map((/** @type {CrewMember} */ c) => [c.name, c]));
     for (const n of names) assert.ok(byName[n], `${n} is not in the demo crew`);
     assert.strictEqual(byName['Sam W.'].role, 'boss');
     assert.match(walk, /Sam W\.\*\* \(the boss\)/);

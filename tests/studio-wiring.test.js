@@ -5,14 +5,15 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const root = path.join(__dirname, '..');
+/** @param {string} p */
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 
 test('studio-wiring AC1 settings.json keeps SessionStart and logs agent runs on PreToolUse', () => {
   const s = JSON.parse(read('.claude/settings.json'));
   assert.ok(s.hooks.SessionStart, 'SessionStart hook kept');
-  const pre = (s.hooks.PreToolUse || []).find((h) => h.matcher === 'Agent|Task');
+  const pre = (s.hooks.PreToolUse || []).find((/** @type {{ matcher: string }} */ h) => h.matcher === 'Agent|Task');
   assert.ok(pre, "PreToolUse hook with matcher 'Agent|Task'");
-  const cmds = pre.hooks.map((h) => h.command || '').join('\n');
+  const cmds = pre.hooks.map((/** @type {{ command?: string }} */ h) => h.command || '').join('\n');
   assert.match(cmds, /scripts\/log-agent-run\.sh/);
 });
 

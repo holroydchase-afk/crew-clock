@@ -23,4 +23,7 @@ window.APP_CONFIG = {
 
   // How long to wait for GPS before offering a photo
   gpsTimeoutMs: 20000,
+
+  // On-phone AI models: shelved by Chase 2026-11-23 (no model download); true restores tiers 1 and 2
+  onPhoneAi: false,
 };

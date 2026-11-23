@@ -26,7 +26,7 @@ test('editing any field after signing is caught', async () => {
   for (const [k, v] of [['at', base.at - 3600000], ['lat', 38.5], ['jobId', 'j2'], ['type', 'out']]) {
     const forged = Object.assign({}, p, { [k]: v });
     const r = await Chain.verifyPunch(forged, jwk, null);
-    assert.strictEqual(r.ok, false, k);
+    assert.strictEqual(r.ok, false, String(k));
   }
   // re-hashing the forged punch doesn't help without the private key
   const forged = Object.assign({}, p, { at: base.at - 3600000 });

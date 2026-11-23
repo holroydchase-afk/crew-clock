@@ -1,0 +1,31 @@
+{
+  // TS-1 (issue #36): type-check the plain JS with tsc. No build step, nothing is emitted.
+  // js/ and the unit tests are strict. The browser click-throughs (tests/e2e*.js) are checked by
+  // tsconfig.e2e.json with lighter rules; npm run typecheck runs both.
+  "compilerOptions": {
+    "strict": true,
+    "checkJs": true,
+    "allowJs": true,
+    "noEmit": true,
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "es2022"],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "skipLibCheck": true
+  },
+  "include": ["js/*.js", "js/globals.d.ts", "tests/"],
+  "exclude": [
+    "js/vendor",
+    "vendor",
+    "messenger",
+    "supabase",
+    "node_modules",
+    "dist",
+    "tests/edge",
+    "tests/fixtures",
+    "tests/e2e*.js",
+    "tests/browser.js",
+    "tests/e2e.d.ts"
+  ]
+}

@@ -14,7 +14,7 @@ const cases = [];
 const t = (name, fn) => cases.push({ name, fn });
 
 function gpsAtJob() {
-  const at = () => ({ coords: { latitude: 38.454, longitude: -81.929, accuracy: 8 }, timestamp: Date.now() });
+  const at = () => /** @type {GeolocationPosition} */ ({ coords: { latitude: 38.454, longitude: -81.929, accuracy: 8 }, timestamp: Date.now() });
   navigator.geolocation.watchPosition = (ok) => { setTimeout(() => ok(at()), 0); return 1; };
   navigator.geolocation.clearWatch = () => {};
   navigator.geolocation.getCurrentPosition = (ok) => setTimeout(() => ok(at()), 0);
@@ -401,7 +401,7 @@ for (const vp of [{ width: 360, height: 740 }, PHONE]) {
         if (!m) { out.push(`no time range in "${el.textContent}"`); return; }
         // A range over the text nodes from the start of the line to the end of the time range
         const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-        let pos = 0; let n; let start = null; let end = null;
+        let pos = 0; let n; let start = /** @type {[Node, number]} */ (null); let end = /** @type {[Node, number]} */ (null);
         while ((n = walker.nextNode())) {
           const len = n.data.length;
           if (!start && m.index < pos + len) start = [n, m.index - pos];
@@ -646,7 +646,7 @@ t('UX-R23 390: the boss tab, the chat page heading and the worker\'s button use 
   const tab = await page.evaluate(() => {
     const s = document.querySelector('[data-action="boss-tab"][data-tab="chat"] span');
     const r = s.getBoundingClientRect();
-    return { word: s.innerText.trim(), lines: Math.round(r.height / parseFloat(getComputedStyle(s).lineHeight || 18)), clipped: s.scrollWidth > s.clientWidth + 1,
+    return { word: s.innerText.trim(), lines: Math.round(r.height / parseFloat(getComputedStyle(s).lineHeight || '18')), clipped: s.scrollWidth > s.clientWidth + 1,
       size: parseFloat(getComputedStyle(s).fontSize), btnClipped: s.closest('button').scrollWidth > s.closest('button').clientWidth + 1 };
   });
   const heading = (await page.locator('.boss-body h2').first().innerText()).trim();
@@ -715,7 +715,7 @@ for (const scheme of ['light', 'dark']) {
 }
 
 // ---------- UX-R43 / UX-R49: boss Today shows the whole first shift above the tab bar on a phone (360 and 390) ----------
-for (const [vp, rule] of [[PHONE, 'bottom'], [{ width: 360, height: 740 }, 'bottom']]) {
+for (const [vp, rule] of /** @type {[{ width: number, height: number }, string][]} */ ([[PHONE, 'bottom'], [{ width: 360, height: 740 }, 'bottom']])) {
   t(`UX-R43/R49 ${vp.width}x${vp.height} fresh demo, 1:30 PM: the first Today shift ${rule === 'bottom' ? 'is fully' : 'starts'} above the tab bar, and the demo banner is <= 96px`, async (browser) => {
     const page = await open(browser, vp);
     await boss(page, 'today');

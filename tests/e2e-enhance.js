@@ -16,7 +16,7 @@ const CONTEXT = { viewport: { width: 390, height: 844 }, serviceWorkers: 'block'
 // and lets a case move the page's clock forward (window.__skew, in ms) without fake timers.
 function watchPage() {
   window.__reads = 0;
-  const far = () => ({ coords: { latitude: 40.71, longitude: -74.0, accuracy: 20 }, timestamp: Date.now() });
+  const far = () => /** @type {GeolocationPosition} */ ({ coords: { latitude: 40.71, longitude: -74.0, accuracy: 20 }, timestamp: Date.now() });
   navigator.geolocation.watchPosition = (ok) => { window.__reads++; setTimeout(() => ok(far()), 0); return 1; };
   navigator.geolocation.clearWatch = () => {};
   navigator.geolocation.getCurrentPosition = (ok) => { window.__reads++; setTimeout(() => ok(far()), 0); };
@@ -558,7 +558,7 @@ t('UX-R50 at 7 PM the summary\'s hours equal the Week "All" cell for today', asy
 
 t('UX-R51 at 1:30 PM the summary says "Not in yet: Travis K.", not "Didn\'t clock in"; at 7 PM it says "Didn\'t clock in: Travis K."', async (browser) => {
   const errs = [];
-  for (const [hour, want, never] of [[13.5, /Not in yet: Travis K\./, /Didn't clock in/], [19, /Didn't clock in: Travis K\./, /Not in yet/]]) {
+  for (const [hour, want, never] of /** @type {[number, RegExp, RegExp][]} */ ([[13.5, /Not in yet: Travis K\./, /Didn't clock in/], [19, /Didn't clock in: Travis K\./, /Not in yet/]])) {
     const page = await open(browser, { hour });
     await bossToday(page);
     await verifiedCount(page);

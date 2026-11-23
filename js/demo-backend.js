@@ -7,17 +7,20 @@
 
   // The sample day: today, or yesterday before 9 AM (not enough of today yet). `done` means
   // everyone has clocked out: yesterday's day, or today's from 6 PM on (M1.10 EVENING).
+  /** @param {number} now */
   function sampleDay(now) {
     const day = root.Report.startOfDay(now);
     const early = now < day + 9 * H;
     return { day, base: early ? day - 24 * H : day, done: early || now >= day + 18 * H };
   }
 
+  /** @returns {DemoDb} */
   function seed() {
     const now = Date.now();
     const day = root.Report.startOfDay(now);
     // Made-up jobs, named by town only (no street). Pins are rounded to 3 decimals (about 100 m), so none marks any one house (SEP-6),
     // and spread out so the boss map stays readable on a phone (M1.6).
+    /** @type {Job[]} */
     const jobs = [
       { id: 'j1', name: 'Smith kitchen', address: 'Teays Valley, WV', lat: 38.454, lng: -81.929, radiusFt: 300, active: true },
       { id: 'j2', name: 'Miller roof', address: 'Cross Lanes, WV', lat: 38.420, lng: -81.791, radiusFt: 300, active: true },
@@ -38,7 +41,9 @@
     // list then shows it as "Yesterday (sample day)". From 6 PM the sample day is today, but
     // finished the same way, so an evening visitor doesn't see the crew on the clock at night.
     const { base, done } = sampleDay(now);
+    /** @param {number} h */
     const t = (h) => Math.min(base + h * H, now - 60000);
+    /** @type {Punch[]} */
     const punches = [
       mk('p1', 'c1', 'j1', 'in', t(6.9), 38.45405, -81.92895, 8),
       mk('p2', 'c2', 'j1', 'in', t(7.05), 38.45432, -81.92860, 15),
@@ -57,7 +62,7 @@
     // UX-R44: Cody M.'s phone had no signal at the Miller roof, so his 7:12 AM clock-in reached the
     // server at 7:58 AM and the boss's Today row says so. receivedAt is not part of the signed
     // record (js/chain.js), so it still verifies.
-    const cody = punches.find((p) => p.id === 'p3');
+    const cody = /** @type {Punch} */ (punches.find((p) => p.id === 'p3'));
     const sent = base + 7 * H + 58 * 60000;
     if (sent - cody.at > 5 * 60000 && sent < now) cody.receivedAt = sent;
     const earlier = earlierDays(base, jobs);
@@ -73,8 +78,11 @@
   // few days of work. Kept apart from the sample day's punches (db.earlier), and returned only in
   // the boss's team view. Daytime only; each day's GPS a little different, so no reading repeats.
   // Travis K. (c5) has none: he is the visitor's first worker (hint step 1) and starts with a clean slate.
+  /** @param {number} base @param {Job[]} jobs @returns {Punch[]} */
   function earlierDays(base, jobs) {
+    /** @type {Punch[]} */
     const out = [];
+    /** @type {[string, string, number, number][]} */
     const plan = [['c1', 'j1', 6.8, 15.3], ['c2', 'j1', 7.0, 15.5], ['c3', 'j2', 7.1, 15.2], ['c4', 'j3', 7.4, 14.4]];
     for (let k = 1; k <= 9; k++) {
       const d = new Date(base);
@@ -84,9 +92,12 @@
       if (dow === 0 || dow === 6) continue;
       plan.forEach(([crewId, jobId, inH, outH], i) => {
         if (crewId === 'c4' && k % 3 === 0) return; // Billy S. works part of the week
-        const job = jobs.find((j) => j.id === (crewId === 'c4' && k % 2 ? 'j4' : jobId));
+        const job = /** @type {Job & { lat: number, lng: number }} */ (jobs.find((j) => j.id === (crewId === 'c4' && k % 2 ? 'j4' : jobId)));
+        /** @param {number} n */
         const wiggle = (n) => (((k * 7 + i * 3 + n) % 9) + 1) * 0.00003;
+        /** @param {number} h */
         const at = (h) => day + Math.round(h * 10) * 360000; // whole tenths of an hour
+        /** @param {number} n @returns {[number | null, number | null, number | null]} */
         const gps = (n) => (crewId === 'c4' ? [null, null, null] : [job.lat + wiggle(n), job.lng - wiggle(n + 4), 8 + ((k + i + n) % 9)]);
         const shift = (k % 4) * 0.1;
         out.push(mk(`e${k}-${crewId}-in`, crewId, job.id, 'in', at(inH + shift), ...gps(0)));
@@ -100,12 +111,15 @@
   // M1.13 ENH-1: each sample worker's phone signs and chains their punches, like a real phone does
   // (js/device.js), with a key made here in this browser. The private half is never kept: only the
   // public key is stored, so the boss's screen can check every punch. No WebCrypto: left unsigned.
+  /** @param {DemoDb} db */
   async function signSeed(db) {
     const Chain = root.Chain;
     if (!Chain || !root.crypto || !root.crypto.subtle) return;
     try {
       const all = db.earlier.concat(db.punches);
+      /** @type {Record<string, Punch>} */
       const signed = {};
+      /** @type {DemoDb['devices']} */
       const devices = [];
       for (const c of db.crew) {
         const mine = all.filter((p) => p.crewId === c.id).sort((a, b) => a.at - b.at);
@@ -134,19 +148,27 @@
     { label: 'Cross Lanes, WV (sample)', lat: 38.420, lng: -81.791 },
   ];
 
+  /**
+   * @param {string} id @param {string} crewId @param {string} jobId @param {PunchType} type @param {number} at
+   * @param {number | null} lat @param {number | null} lng @param {number | null} accuracy @returns {Punch}
+   */
   function mk(id, crewId, jobId, type, at, lat, lng, accuracy) {
     return { id, crewId, byCrewId: crewId, jobId, type, at, lat, lng, accuracy };
   }
 
+  /** @returns {DemoDb | null} */
   function stored() {
+    /** @type {DemoDb | null} */
     let db = null;
-    try { db = JSON.parse(localStorage.getItem(KEY)); } catch (e) { /* private mode */ }
+    try { db = JSON.parse(/** @type {string} */ (localStorage.getItem(KEY))); } catch (e) { /* private mode */ }
     return db || root.__demoDb || null; // writes failed earlier in this tab (HRD-13)
   }
 
   // Signing takes a moment, so the store is written only once the sample is signed, and two
   // first requests share one seed.
+  /** @type {Promise<DemoDb> | null} */
   let seeding = null;
+  /** @returns {Promise<DemoDb>} */
   function load() {
     const db = stored();
     if (db) return Promise.resolve(db);
@@ -165,48 +187,60 @@
 
   // After "Reset sample data" the page reloads: a request still in flight must not write the visit back.
   let stopped = false;
+  /** @param {DemoDb} db */
   function save(db) {
     if (stopped) return;
     try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { root.__demoDb = db; }
   }
 
+  /** @param {DemoDb} db @param {Punch} p */
   function score(db, p) {
     const job = db.jobs.find((j) => j.id === p.jobId);
     const fix = p.lat == null ? null : { lat: p.lat, lng: p.lng, accuracy: p.accuracy };
     const r = root.Geo.checkFix(fix, job);
     p.status = r.status;
     p.distanceFt = r.distanceFt;
-    if (p.status === 'offsite' && fix) p.address = 'Near ' + fix.lat.toFixed(4) + ', ' + fix.lng.toFixed(4);
+    if (p.status === 'offsite' && fix) p.address = 'Near ' + fix.lat.toFixed(4) + ', ' + /** @type {number} */ (fix.lng).toFixed(4);
   }
 
+  /** @param {unknown} v */
   function cleanText(v) {
     // eslint-disable-next-line no-control-regex
     return String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '').trim();
   }
 
+  /** @param {DemoCrew} c @returns {CrewMember} */
   function publicCrew(c) { return { id: c.id, name: c.name, role: c.role, active: c.active }; }
+  /** @param {DemoDb} db */
   function activeJobs(db) { return db.jobs.filter((j) => j.active !== false); }
 
+  /** @param {DemoDb} db @param {Auth | null | undefined} auth @returns {DemoCrew} */
   function authed(db, auth) {
     const me = auth && db.crew.find((c) => c.id === auth.crewId && c.active !== false);
-    if (!me || String(me.pin) !== String(auth.pin)) throw new Error('Wrong PIN');
+    if (!me || !auth || String(me.pin) !== String(auth.pin)) throw new Error('Wrong PIN');
     return me;
   }
 
   // The newest consent record per worker (withdrawal is a newer record, never an edit).
+  /** @param {DemoDb} db */
   function latestConsents(db) {
+    /** @type {Record<string, DemoConsent>} */
     const out = {};
     (db.consents || []).forEach((c) => { if (!out[c.crewId] || c.at >= out[c.crewId].at) out[c.crewId] = c; });
     return out;
   }
+  /** @param {DemoConsent | undefined} c */
   const consentView = (c) => (c ? { id: c.id, crewId: c.crewId, action: c.action, textVersion: c.textVersion, at: c.at } : null);
 
+  /** @param {Punch} p */
   function stripPunch(p) {
     const out = Object.assign({}, p);
     delete out.photo;
     return out;
   }
 
+  /** @typedef {(db: DemoDb, req: Row, me?: DemoCrew) => ApiResult} DemoAction */
+  /** @type {Record<string, DemoAction>} */
   const actions = {
     listCrew(db) {
       return { crew: db.crew.filter((c) => c.active !== false).map(publicCrew) };
@@ -240,8 +274,11 @@
       // and nobody else's punch for them. Same rules and words as core.ts ingestPunch.
       const off = req.auth && db.crew.find((c) => c.id === req.auth.crewId && c.active === false);
       const me = off && String(off.pin) === String(req.auth.pin) ? off : authed(db, req.auth);
+      /** @type {string[]} */
       const accepted = [];
+      /** @type {string[]} */
       const rejected = [];
+      /** @type {{ id: string, reason: string }[]} */
       const reasons = []; // same words as the real server (supabase/functions/_shared/core.ts)
       // This browser's phone key, first time it is seen (the real app registers it at sign-in)
       const dev = req.device;
@@ -249,6 +286,7 @@
       if (dev && dev.deviceId && dev.publicKey && !db.devices.some((d) => d.id === dev.deviceId)) {
         db.devices.push({ id: String(dev.deviceId), crewId: me.id, publicKey: dev.publicKey });
       }
+      /** @param {string} id @param {string} reason */
       const refuse = (id, reason) => { rejected.push(id); reasons.push({ id, reason }); };
       for (const item of req.items || []) {
         if (me.active === false && item.kind !== 'punch') { refuse(item.id, 'Turned off'); continue; }
@@ -263,6 +301,7 @@
             continue;
           }
           if (!db.punches.some((p) => p.id === item.id)) {
+            /** @type {Punch} */
             const p = {
               id: item.id, crewId: item.crewId, byCrewId: me.id, jobId: item.jobId, type: item.type,
               at: item.at, lat: item.lat, lng: item.lng, accuracy: item.accuracy, voidsId: item.voidsId || null,
@@ -356,11 +395,12 @@
     },
   };
 
+  /** @param {string} action @param {Row} [req] @returns {Promise<ApiResult>} */
   function handle(action, req) {
     return new Promise((resolve, reject) => {
       setTimeout(() => {
         if ((root.navigator && root.navigator.onLine === false) || isOffline()) {
-          const off = new Error('No signal');
+          const off = /** @type {AppError} */ (new Error('No signal'));
           off.offline = true;
           return reject(off);
         }
@@ -371,7 +411,7 @@
             resolve(Object.assign({ ok: true }, res));
           });
         }).catch((e) => {
-          const err = new Error(e.message);
+          const err = /** @type {AppError} */ (new Error(e.message));
           err.server = true;
           reject(err);
         });
@@ -384,7 +424,7 @@
   function forgetCrewApp() {
     try {
       ['cc.sbSession', 'cc.orgCode'].forEach((k) => localStorage.removeItem(k));
-      const auth = JSON.parse(localStorage.getItem('cc.auth'));
+      const auth = JSON.parse(/** @type {string} */ (localStorage.getItem('cc.auth')));
       if (auth && !(stored() || seed()).crew.some((c) => c.id === auth.crewId)) {
         ['auth', 'me', 'last', 'team', 'jobs', 'crew', 'crewNames', 'locPrimed'].forEach((k) => localStorage.removeItem('cc.' + k));
       }
@@ -398,6 +438,7 @@
   function isOffline() {
     try { return localStorage.getItem(OFFLINE_KEY) === 'true'; } catch (e) { return offlineMem; }
   }
+  /** @param {boolean} on */
   function setOffline(on) {
     offlineMem = !!on;
     try { if (on) localStorage.setItem(OFFLINE_KEY, 'true'); else localStorage.removeItem(OFFLINE_KEY); } catch (e) { /* kept in memory */ }
@@ -406,6 +447,7 @@
   // ENH-1 "Try tampering": move Jake R.'s sample clock-in 30 minutes earlier in the stored records,
   // the way someone editing the database would, keeping its old hash and signature. Undo puts it back.
   // id: the punch to change (the boss screen passes one from the day it shows); by default Jake's.
+  /** @param {string} [id] */
   function tamper(id) {
     const db = stored();
     if (!db) return null;
@@ -423,8 +465,9 @@
   function untamper() {
     const db = stored();
     if (!db || !db.tampered) return;
-    const p = db.punches.find((x) => x.id === db.tampered.id);
-    if (p) p.at = db.tampered.at;
+    const was = db.tampered;
+    const p = db.punches.find((x) => x.id === was.id);
+    if (p) p.at = was.at;
     delete db.tampered;
     save(db);
   }

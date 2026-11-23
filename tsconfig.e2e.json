@@ -1,0 +1,9 @@
+{
+  // TS-1: the browser click-throughs (tests/e2e*.js). They drive a page through Playwright, so most
+  // values cross into the browser untyped: checked for real mistakes (unknown names and properties,
+  // wrong calls) without strict's implicit-any and null rules. js/ stays strict in tsconfig.json.
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "strict": false },
+  "include": ["js/globals.d.ts", "tests/e2e.d.ts", "tests/e2e*.js", "tests/browser.js"],
+  "exclude": ["node_modules"]
+}

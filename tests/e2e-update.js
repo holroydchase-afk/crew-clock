@@ -53,7 +53,7 @@ async function boss(page) {
 }
 
 (async () => {
-  await new Promise((ok) => server.listen(PORT, ok));
+  await /** @type {Promise<void>} */ (new Promise((ok) => server.listen(PORT, ok)));
   const browser = await launch();
   let failed = false;
   try {

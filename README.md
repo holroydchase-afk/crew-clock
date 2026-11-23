@@ -74,7 +74,9 @@ over) and a link back to chaseholroyd.com.
 - **The demo is not the crew app.** The public demo is its own build with no server address in it,
   so a visitor can never reach real crew data.
 
-The full privacy contract is in [docs/PRIVACY.md](docs/PRIVACY.md).
+The full privacy contract is in [docs/PRIVACY.md](docs/PRIVACY.md). How it is built, the decisions and
+their costs, and where it is weak: [docs/DESIGN.md](docs/DESIGN.md). One real failure and its fix:
+[the stale service worker post-mortem](docs/postmortems/2026-10-28-stale-service-worker.md).
 
 ## What the demo shows, and what only the crew app does
 
@@ -91,8 +93,8 @@ The full privacy contract is in [docs/PRIVACY.md](docs/PRIVACY.md).
 | Plain-words day summary | Yes | Yes |
 | Encrypted crew chat (MLS) | Yes, between demo people in one browser | Yes, the server sees only ciphertext |
 | Push alerts to the boss's phone | No | Yes |
-| Daily and weekly Google Sheets reports | No (the button says so) | Yes |
-| On-phone AI photo labels and written summary | No (they download a model) | On phones that can run it |
+| Daily and weekly Google Sheets reports | No (the button says so) | No: shelved; the Week view CSV covers it |
+| On-phone AI photo labels and written summary | No | No: on-phone AI models are shelved (off, no model download) |
 
 The crew app is not live yet. Its server setup is waiting on accounts (see [HANDOFF.md](HANDOFF.md)).
 
@@ -119,8 +121,8 @@ Where things stand and what's next: [HANDOFF.md](HANDOFF.md). Milestones: [PLAN.
 | Photos | Backblaze B2, private bucket, presigned upload and view links |
 | Alerts | Web push (VAPID) |
 | Chat crypto | [ts-mls](https://github.com/LukaJCB/ts-mls), suite X25519 / AES-128-GCM / Ed25519 |
-| On-phone AI | Plain-JS image checks; Transformers.js models on capable phones (crew app only) |
-| Reports | Apps Script in a Google Sheet pulls a read-only export nightly |
+| On-phone AI | Plain-JS image checks (dark or blurry photo); on-phone AI models are shelved (config `onPhoneAi`, off) |
+| Reports | Week view CSV download; the Google Sheets nightly export is shelved |
 
 No paid services, no analytics, no tracking scripts.
 
@@ -150,7 +152,7 @@ CI runs all of them on every pull request.
 | `js/ai.js` | On-phone AI tiers |
 | `supabase/migrations/` | Schema, security rules, schedules |
 | `supabase/functions/` | Edge Functions: `pin-login`, `crew-list`, `sync`, `photo-upload`, `photo-url`, `geocode`, `digest`, `report-export` |
-| `backend/sheets-export.gs` | Google Sheets reports |
+| `backend/sheets-export.gs` | Google Sheets reports (shelved, kept for later) |
 | `scripts/build-site.mjs`, `.github/workflows/pages.yml` | Static site build; Pages deploys the demo-only build after CI passes (`_headers` is for the crew app on Cloudflare) |
 | `backend/Code.gs` | The original all-in-Google-Sheets backend, kept for history; the crew app uses Supabase only |
 

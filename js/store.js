@@ -3,10 +3,14 @@
 (function (root) {
   const DB_NAME = 'crewclock';
   const OUTBOX = 'outbox';
+  /** @type {Promise<IDBDatabase | null> | null} */
   let dbPromise = null;
+  /** @type {Record<string, unknown>} */
   const memory = {}; // fallback when IndexedDB is unavailable (private mode)
+  /** @type {boolean | null} */
   let volatile = null; // true once a storage write has failed: nothing here outlives the tab
 
+  /** @returns {Promise<IDBDatabase | null>} */
   function openDb() {
     if (dbPromise) return dbPromise;
     dbPromise = new Promise((resolve) => {
@@ -29,6 +33,11 @@
     return dbPromise;
   }
 
+  /**
+   * @param {IDBTransactionMode} mode
+   * @param {(store: IDBObjectStore | null) => any} fn  an IDBRequest (resolved to its result) or a plain value
+   * @returns {Promise<any>}
+   */
   function tx(mode, fn) {
     return openDb().then((db) => new Promise((resolve, reject) => {
       if (!db) return resolve(fn(null));
@@ -42,6 +51,7 @@
     }));
   }
 
+  /** @type {StoreApi['outbox']} */
   const outbox = {
     add(item) {
       item.queuedAt = item.queuedAt || Date.now();
@@ -61,6 +71,7 @@
     },
   };
 
+  /** @type {StoreApi['local']} */
   const local = {
     get(key, fallback) {
       try {
@@ -103,7 +114,7 @@
         volatile = true;
       }
     }
-    return volatile;
+    return /** @type {boolean} */ (volatile);
   }
 
   root.Store = { outbox, local, uid, isVolatile };
