@@ -13,7 +13,7 @@ blockers: []
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-11-22 (DS-1 restyle, PR #42, merged with main; wired to studio-agents, issue #43)
+Updated: 2026-11-23 (demo hints, SPEC-DEMO-HINTS, in progress; DS-1 restyle, PR #42, merged with main; wired to studio-agents, issue #43)
 
 ## What it is
 
@@ -394,6 +394,20 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
   offers "Clock out"); its assertions are unchanged.
 ## In progress
 
+- Demo hints (2026-11-23, Chase's ask), `docs/product/SPEC-DEMO-HINTS.md`, on `claude/project-thread-wc5ywq`,
+  not committed yet. Done: the demo's names screen is the crew app's ("Who are you?", Travis K. first);
+  the pitch, proof list, "Try it", "Start here", "Clock in as a worker", "Or pick someone else",
+  "Demo: turn on No signal" and the verify explainer are gone with their CSS; the checkbox reads
+  "Pretend I'm at the job". One accent `.hint-dot` (CSS pulse, static under reduced motion) walks
+  steps 1-7 (Travis K., Clock in, Not you?, Sam W., Today, Try tampering, No signal); progress in
+  `localStorage` `crewclock.hints`, cleared by Reset; demo build only (`demoControls()` guard). The
+  boss body is now a `<main>` landmark (HINT-9 reloads wait for `#app main`). README walkthrough
+  and alt text follow the new first screen; `docs/screenshots/demo-signin.png` is now stale.
+  Next, for qa-tdd (tests not edited by engineer): HINT-6 is red (its loop gives up after 500 ms on a
+  screen with no dot, and the demo's pretend-GPS "locating" screen lasts 900 ms); UX-R25
+  (e2e-polish, the Start-here avatar) and UX-R32/R35 (e2e-enhance, the removed verify explainer)
+  still assert UI the spec removes and need rewriting like UX-R1/R17. Then qa-tdd 3x, ux-reviewer (HINT-14), privacy-security, PR.
+
 - DS-1 studio design system restyle (2026-11-21, Chase), PR on `claude/project-thread-wc5ywq`. Spec
   `docs/design/CRW-RESTYLE.md`; source `docs/design/STUDIO-CORE.md` + `tokens.json` (copied from hearth).
   Paper theme (light, dark, high contrast light and dark), Atkinson Hyperlegible Next bundled in
@@ -488,6 +502,10 @@ file's "In progress" section above is stale (everything in it is merged) and goe
 `M2.1` still waits on Chase's Supabase project (Blockers 1).
 
 ## Decisions to review
+
+- **Demo hints have no word label (Chase, 2026-11-23, SPEC-DEMO-HINTS):** the pulsing dot carries no
+  text, a deliberate demo-only exception to principle 3 ("Words, not puzzles"). Every dotted target
+  already has its own words, and screen readers hear "Suggested next step". Not in the crew app.
 
 - **DS-10 exception to principle 6 (Chase, 2026-11-21, UX-R61): text links are ink, not accent.**
   "Not you?", "Stop using my location", "Wrong job? Fix it", "Sign out" and "Back" are `--ink`,
@@ -733,6 +751,11 @@ Waiting on Chase, in order (each unblocks an M2 task; nothing in M1 needs these)
    P2 on M1.6, 2026-10-24). Needed before the portfolio link (M1.8).
 
 ## Portfolio / public presence
+
+- 2026-11-23 (demo hints, in progress): the demo drops its pitch and "Demo:" explainers and opens on
+  the crew app's own "Who are you?" screen; a single pulsing dot leads a visitor through clock-in,
+  the boss map, the tamper check and No signal. README walkthrough updated; the sign-in screenshot
+  is stale until retaken. Live demo unchanged until merge.
 
 - 2026-11-21: the demo restyled to the studio design system (Paper theme, Atkinson Hyperlegible
   Next, bigger text, sentence-case "Clock in"). Live demo not loaded from the sandbox.

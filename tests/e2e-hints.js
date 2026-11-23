@@ -266,8 +266,17 @@ t('HINT-6 390x844: tapping only dotted targets 1..7 in order (plus a job, Done a
     if (await page.locator('.boss').count()) passed.add('boss screen');
     if (await page.locator('[data-verify-line].bad').count()) passed.add('tamper result');
   };
+  // Something to act on: a dot, a job choice, the done screen, or No signal on. The demo's
+  // pretend-GPS "Finding you" screen is a real ~900 ms pause with none of these, so wait it out.
+  const actionable = () => page.waitForFunction(() => {
+    const vis = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+    return [...document.querySelectorAll('.hint-dot')].some(vis) || !!document.querySelector('.job-btn, .big-check')
+      || !!document.querySelector('[role="switch"][aria-checked="true"]');
+  }, null, { timeout: 5000 }).then(() => true, () => false);
   for (let i = 0; i < 25; i++) {
-    await settle(page, 500);
+    await settle(page, 300);
+    await actionable();
+    await settle(page, 200);
     await note();
     if (await noSignal(page).count() && (await noSignal(page).getAttribute('aria-checked')) === 'true') break;
     const dot = page.locator('.hint-dot').filter({ visible: true });

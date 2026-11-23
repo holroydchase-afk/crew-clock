@@ -691,22 +691,24 @@ t('UX-R24 390 Today: the hours ("4.0 h") never sit alone on a line starting with
   return page;
 });
 
-// ---------- UX-R25: Start-here avatar contrast ----------
+// ---------- UX-R25: Travis K.'s avatar contrast on the names screen ----------
+// Retargeted for SPEC-DEMO-HINTS: the "Start here" card is gone; Travis K. is now a plain name button (with the hint dot).
 for (const scheme of ['light', 'dark']) {
-  t(`UX-R25 ${scheme}: the Start-here card's avatar initials have at least 4.5:1 contrast`, async (browser) => {
+  t(`UX-R25 ${scheme}: Travis K.'s name-button avatar initials (the first name, the old Start-here entry) have at least 4.5:1 contrast`, async (browser) => {
     const page = await open(browser, PHONE, 13.5, scheme);
     const r = await page.evaluate(() => {
       const parse = (c) => { const m = c.match(/rgba?\(([^)]+)\)/); const p = m[1].split(/[ ,/]+/).filter(Boolean).map(Number); return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }; };
       const over = (top, under) => ({ r: top.r * top.a + under.r * (1 - top.a), g: top.g * top.a + under.g * (1 - top.a), b: top.b * top.a + under.b * (1 - top.a), a: 1 });
       const bgOf = (el) => { const stack = []; for (let e = el; e; e = e.parentElement) stack.push(parse(getComputedStyle(e).backgroundColor)); let c = { r: 255, g: 255, b: 255, a: 1 }; for (const x of stack.reverse()) c = over(x, c); return c; };
       const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b); };
-      const av = document.querySelector('.start-btn .avatar');
+      const btn = [...document.querySelectorAll('.name-btn')].find((b) => /Travis K\./.test(b.innerText));
+      const av = btn && btn.querySelector('.avatar');
       if (!av) return null;
       const bg = bgOf(av); const fg = over(parse(getComputedStyle(av).color), bg);
       const [hi, lo] = [lum(fg), lum(bg)].sort((a, b) => b - a);
       return { ratio: (hi + 0.05) / (lo + 0.05), fg: getComputedStyle(av).color, bg: getComputedStyle(av).backgroundColor };
     });
-    if (!r) throw new Error('no Start-here avatar');
+    if (!r) throw new Error('no avatar on Travis K.\'s name button');
     if (r.ratio < 4.5) throw new Error(`initials ${r.fg} on ${r.bg}: ${r.ratio.toFixed(2)}:1`);
     return page;
   });

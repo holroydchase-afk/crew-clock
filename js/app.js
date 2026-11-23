@@ -591,6 +591,63 @@
   // crew app, nor a crew build that fell back to demo (same guard as fakeGps, M1.13).
   function demoControls() { return Api.isDemo && cfg.backend === 'demo' && !!self.DemoBackend && !!DemoBackend.setOffline; }
 
+  // ---------- Demo hints (docs/product/SPEC-DEMO-HINTS.md) ----------
+  // One small accent dot on the next thing to tap, in place of words. Public demo build only (the
+  // demoControls() guard): the crew app never draws a dot or touches this key (HINT-7).
+  const HINTS_KEY = 'crewclock.hints'; // finished steps; not a cc. key, so Reset clears it by name
+  function hintsDone() {
+    try { const v = JSON.parse(localStorage.getItem(HINTS_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+  }
+  function finishHint(step) {
+    if (!demoControls()) return;
+    const done = hintsDone();
+    if (done.includes(step)) return;
+    try { localStorage.setItem(HINTS_KEY, JSON.stringify(done.concat(step))); } catch (e) { /* private mode */ }
+  }
+  // Each step: where its target is right now (null when not on screen) and what must be done first.
+  const HINT_STEPS = [
+    { step: 1, find: () => state.screen === 'names' && $app.querySelector(`.name-btn[data-id="${DEMO_START}"]`) },
+    { step: 2, find: () => state.screen === 'home' && $app.querySelector('.punch[data-type="in"]') },
+    { step: 3, after: [2], find: () => state.screen === 'home' && $app.querySelector('.home-head [data-action="sign-out"]') },
+    { step: 4, after: [2], find: () => {
+      const boss = state.screen === 'names' && (state.names || []).find((c) => c.role === 'boss');
+      return boss && $app.querySelector(`.name-btn[data-id="${boss.id}"]`);
+    } },
+    { step: 5, find: () => state.screen === 'boss' && $app.querySelector('[data-action="boss-tab"][data-tab="today"]:not(.on)') },
+    { step: 6, find: () => state.screen === 'boss' && $app.querySelector('[data-action="demo-tamper"]') },
+    { step: 7, after: [1, 2, 3, 4, 5, 6], find: () => $app.querySelector('.demo-banner [data-action="demo-offline"][aria-checked="false"]') },
+  ];
+  function applyHints() {
+    $app.querySelectorAll('.hint-dot').forEach((d) => d.remove());
+    $app.querySelectorAll('[data-hint]').forEach((t) => { t.removeAttribute('data-hint'); t.removeAttribute('aria-describedby'); });
+    if (!demoControls()) return;
+    // Already on Today: the step that points there is done
+    if (state.screen === 'boss' && state.bossTab === 'today') finishHint(5);
+    const done = hintsDone();
+    for (const h of HINT_STEPS) {
+      if (done.includes(h.step) || (h.after || []).some((n) => !done.includes(n))) continue;
+      const target = h.find();
+      if (!target) continue;
+      let nudge = document.getElementById('hint-nudge');
+      if (!nudge) {
+        nudge = document.createElement('span');
+        nudge.id = 'hint-nudge';
+        nudge.className = 'visually-hidden';
+        nudge.textContent = 'Suggested next step';
+        document.body.appendChild(nudge);
+      }
+      target.dataset.hint = String(h.step);
+      target.setAttribute('aria-describedby', 'hint-nudge');
+      target.insertAdjacentHTML('beforeend', '<span class="hint-dot" aria-hidden="true"></span>');
+      return; // at most one dot
+    }
+  }
+  // A tap on the dotted target finishes its step (before the tap's own action redraws the screen)
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest && e.target.closest('[data-hint]');
+    if (t && demoControls()) finishHint(Number(t.dataset.hint));
+  }, true);
+
   screens.names = () => {
     loadNames().then((list) => {
       // Redraw only when the list changed: a redraw under a finger swallows the tap
@@ -612,37 +669,15 @@
     const list = state.names;
     const loading = list === undefined ? '<p class="muted center">Loading…</p>'
       : !list ? '<p class="notice">No signal. The first time you sign in, you need signal. Try near the road or in town.</p>' : '';
-    if (!demoNoPin()) {
-      return `<main class="screen">
+    // The public demo is the crew app's own screen; its first worker leads the grid, where hint
+    // step 1 sits (SPEC-DEMO-HINTS, HINT-11).
+    const start = demoNoPin() && list ? list.find((c) => c.id === DEMO_START) : null;
+    const names = start ? [start].concat(list.filter((c) => c !== start)) : list;
+    return `<main class="screen${demoNoPin() ? ' signin' : ''}">
         <div class="brand">${Icons.job}<span>Crew Clock</span></div>
         <h1>Who are you?</h1>
         <p class="privacy">${Icons.pin}<span>This app only checks where you are when you tap <b>Clock in</b> or <b>Clock out</b>. It does not follow you.</span></p>
-        ${loading || `<div class="name-grid">${list.map(nameBtn).join('')}</div>`}
-      </main>`;
-    }
-    // The public demo: the pitch, then one obvious way in (UX-R1); side by side on a laptop (UX-R17).
-    const start = list && list.find((c) => c.id === DEMO_START);
-    const others = list ? list.filter((c) => c !== start) : [];
-    return `<main class="screen signin">
-        <section class="pitch">
-          <div class="brand">${Icons.job}<span>Crew Clock</span></div>
-          <h1 class="pitch-title">A GPS time clock for a small construction crew</h1>
-          <ul class="proof">
-            <li>${Icons.check}<span>Three taps to clock in, even with no signal</span></li>
-            <li>${Icons.check}<span>Checks location only at the tap. It never follows you.</span></li>
-            <li>${Icons.check}<span>The boss sees who is at which job on a map</span></li>
-          </ul>
-        </section>
-        <section class="signin-pick" aria-labelledby="pick-title">
-          <h2 id="pick-title">Try it</h2>
-          ${loading || `${start ? `<button class="name-btn start-btn" data-action="pick-name" data-id="${esc(start.id)}">
-            <span class="avatar">${esc(initials(start.name))}</span>
-            <span class="grow"><span class="start-name">${esc(start.name)}</span><span class="start-sub">Clock in as a worker</span></span>
-            <span class="name-role start">Start here</span>
-          </button>` : ''}
-          <p class="muted small pick-note">Or pick someone else. Pick the boss to see the team map.</p>
-          <div class="name-grid">${others.map(nameBtn).join('')}</div>`}
-        </section>
+        ${loading || `<div class="name-grid">${names.map(nameBtn).join('')}</div>`}
       </main>`;
   }
 
@@ -704,7 +739,7 @@
       ? `<button class="punch out" data-action="punch" data-type="out">${Icons.out}<span>Clock out</span></button>`
       : `<button class="punch in" data-action="punch" data-type="in">${Icons.in}<span>Clock in</span></button>`;
     const fake = Api.isDemo && hasConsent(state.me.id)
-      ? `<label class="demo-toggle"><input type="checkbox" data-action="demo-fake" ${fakeGps() ? 'checked' : ''}> Demo: pretend I'm at the job</label>`
+      ? `<label class="demo-toggle"><input type="checkbox" data-action="demo-fake" ${fakeGps() ? 'checked' : ''}> Pretend I'm at the job</label>`
       : '';
     return `<main class="screen home">
         <header class="home-head">
@@ -715,7 +750,6 @@
         ${state.jobs.some((j) => j.active !== false) ? '' : '<p class="notice">No jobs yet. Ask the boss to add the job.</p>'}
         ${big}
         <div class="sync-line" data-sync-line>${syncLineHtml()}</div>
-        ${demoControls() && !DemoBackend.isOffline() ? '<p class="muted small demo-hint">Demo: turn on No signal above, then clock in.</p>' : ''}
         ${isLead() ? `<button class="btn secondary" data-action="teammate">${Icons.teammate} Clock in or out a teammate</button>` : ''}
         ${state.me.role === 'foreman' ? `<button class="btn secondary" data-action="go" data-to="boss">${Icons.map} See the team map</button>` : ''}
         ${self.Messenger ? `<button class="btn secondary" data-action="go" data-to="chat-list">${Icons.chat} Messages <span class="badge" data-unread></span></button>` : ''}
@@ -868,7 +902,7 @@
             ${isBoss() ? '<button class="link" data-action="sign-out">Sign out</button>' : '<button class="link" data-action="go-home">Back</button>'}
           </div>
         </header>
-        <div class="boss-body tab-${tab}">${body}</div>
+        <main class="boss-body tab-${tab}">${body}</main>
         <nav class="tabbar" aria-label="Boss views">${tabs.map(([k, label, ic]) => `
           <button class="${k === tab ? 'on' : ''}" data-action="boss-tab" data-tab="${k}"${k === tab ? ' aria-current="page"' : ''}>${ic}<span>${label}</span></button>`).join('')}
         </nav>
@@ -1065,7 +1099,7 @@
       line = `<div class="verify bad" data-verify-line role="alert">${Icons.alert}<span>${esc(c.name)}'s ${KIND[p.type] || 'punch'} was changed to ${time(p.at)} after their phone signed it.${bad.length > 1 ? ` ${bad.length - 1} more changed.` : ''}
         <button class="link verify-show" data-action="show-flagged" data-id="${esc(p.id)}">Show me</button></span></div>`;
     } else {
-      // Plain words (UX-R32); "signed and chained" is in the demo hint under the list
+      // Plain words (UX-R32)
       const words = unchecked ? `${ok} of ${dayPunches.length} punches match what the phones sent. ${unchecked} not signed (older phone).`
         : ok === 1 ? '1 punch matches what the phone sent.' : `all ${ok} punches match what the phones sent.`;
       // The demo's "Try tampering" is a text button in the same card, not a row of its own (UX-R43)
@@ -1079,13 +1113,6 @@
       ? `<div class="verify-demo"><button class="btn secondary sm" data-action="demo-untamper">Undo the change</button></div>` : '';
     return line + undo;
   }
-  // How the check works, for the demo: under the people list, so the list comes first on a phone (UX-R43)
-  function verifyHintHtml(dayPunches) {
-    const res = teamKeys() && dayPunches.length && verifyResults();
-    if (!res || !demoControls() || DemoBackend.isTampered() || !dayPunches.some((p) => res[p.id] === 'ok')) return '';
-    return `<p class="muted small verify-demo verify-hint">Each punch is signed on the phone and chained to the one before. Demo: "Try tampering" changes one saved time, like someone editing the records.</p>`;
-  }
-
   // ---------- ENH-3: the week view and its CSV ----------
   function shownWeek() {
     const ws = Report.weekStart(bossDay().today0);
@@ -1207,7 +1234,6 @@
         <div>${notIn.map((c) => `<span class="pill">${esc(c.name)}</span>`).join('')}</div></div>` : ''}
       <div class="list">${rows || '<p class="muted">No one has clocked in today.</p>'}</div>
       ${small ? summary : ''}
-      ${verifyHintHtml(dayPunches)}
       <div id="push-slot"></div>
       <div class="actions">${isBoss() ? `<button class="btn secondary" data-action="send-report">${Icons.send} Send today's report now</button>` : ''}${sheet}</div>
     </div>`;
@@ -1383,6 +1409,7 @@
     $app.classList.toggle('fit', state.screen === 'chat-thread');
     const body = keep && $app.querySelector('.boss-body');
     if (body) body.scrollTop = keep;
+    applyHints();
     bossScroll = { tab, want: keep, got: body ? body.scrollTop : 0 };
   }
 
@@ -1493,12 +1520,13 @@
       DemoBackend.setOffline(on);
       document.querySelectorAll('[data-action="demo-offline"]').forEach((x) => x.setAttribute('aria-checked', String(on)));
       if (on) updateSyncLine(); else syncNow();
-      if (state.screen === 'home') render(); // the "try No signal" hint shows only while it is off (UX-R34)
+      applyHints(); // hint step 7 sits on this switch only while it is off (UX-R34)
     },
     // Demo only (M1.4): forget this visit and start again from the sample crew.
     'demo-reset': () => {
       if (!Api.isDemo || !confirm('Start over with the sample crew? Everything you did in this demo is cleared.')) return;
       try { Object.keys(localStorage).filter((k) => k.startsWith('cc.')).forEach((k) => localStorage.removeItem(k)); } catch (e) { /* private mode */ }
+      try { localStorage.removeItem(HINTS_KEY); } catch (e) { /* private mode */ } // outside the cc. keys (SPEC-DEMO-HINTS)
       if (window.DemoBackend) window.DemoBackend.reset();
       if (window.Messenger && window.Messenger.stop) window.Messenger.stop();
       // Wait for the deletes: reloading first can leave the visitor's unsent punches in the outbox,

@@ -12,7 +12,7 @@ taps, even with no signal.
 laptop. No sign-up. It runs on a made-up crew, and everything you do stays in your browser.
 
 <p>
-  <img src="docs/screenshots/demo-signin.png" width="260" alt="The demo's first screen: what Crew Clock is, and a name marked Start here">
+  <img src="docs/screenshots/demo-signin.png" width="260" alt="The demo's first screen: the crew app's Who are you? list of names, with a small dot on Travis K., the first name">
   <img src="docs/screenshots/demo-home.png" width="260" alt="A crew member's Home screen with one big Clock In button">
   <img src="docs/screenshots/demo-today.png" width="260" alt="The boss's Today list: who is on the clock, where, and who isn't in yet">
 </p>
@@ -29,9 +29,9 @@ data.
 
 ## What to try in 90 seconds
 
-1. On the first screen, tap **Travis K.** (Clock in as a worker, marked **Start here**). The demo
-   starts with "pretend I'm at the job" on, so it never asks for your real location. Uncheck it
-   on Home to try your own GPS.
+1. On the first screen ("Who are you?"), tap **Travis K.**, the first name. A small pulsing dot
+   marks the next thing to tap all the way through the demo. The demo starts with "Pretend I'm
+   at the job" on, so it never asks for your real location. Uncheck it on Home to try your own GPS.
 2. Turn on **No signal** in the demo banner, then tap **Clock In** and pick a job. The phone says
    "Saved on your phone" and Home shows "1 waiting to send". Turn No signal off and it sends.
 3. Tap **Messages**, then **Smith kitchen crew**: a sample crew chat, encrypted with MLS like any

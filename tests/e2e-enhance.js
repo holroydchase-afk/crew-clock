@@ -403,7 +403,7 @@ t('UX-R31b a redraw of the boss\'s Today (like the check finishing) keeps where 
   return page;
 });
 
-t('UX-R32/R35 with a single punch the verify line and the summary use the singular', async (browser) => {
+t('UX-R32/R35 with a single punch the verify line and the summary use the singular, and Try tampering (with its hint dot) sits in the verify card', async (browser) => {
   const page = await open(browser, { hour: 13.5 });
   await editDb(page, (db) => { db.punches = db.punches.filter((p) => p.crewId === 'c2' && p.type === 'in'); });
   await bossToday(page);
@@ -412,8 +412,14 @@ t('UX-R32/R35 with a single punch the verify line and the summary use the singul
   if (!/1 punch matches what the phone sent/.test(await text(page.locator('[data-verify-line]')))) throw new Error('not singular');
   const summary = await text(page.locator('.summary'));
   if (!/1 of 1 shift was/.test(summary)) throw new Error(`summary: ${summary}`);
-  const hint = await text(page.locator('.verify-demo'));
-  if (!/signed on the phone and chained/.test(hint)) throw new Error(`the demo hint does not say how: ${hint}`);
+  // Rewritten for SPEC-DEMO-HINTS (I10): the explainer paragraph is gone; the verify card's
+  // "Try tampering" carries the hint dot (step 6) instead.
+  const tamper = page.getByRole('button', { name: 'Try tampering' });
+  if (await tamper.count() !== 1) throw new Error('expected one "Try tampering" button with the verify line');
+  if (!(await tamper.evaluate((el) => !!el.closest('.verify') && el.getAttribute('data-hint') === '6' && !!el.querySelector('.hint-dot')))) {
+    throw new Error('"Try tampering" is not in the verify card carrying the step 6 hint dot');
+  }
+  if (await page.getByText(/signed on the phone and chained|Each punch is signed/).count()) throw new Error('the removed explainer paragraph is back');
   return page;
 });
 
