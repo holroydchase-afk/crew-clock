@@ -68,7 +68,8 @@ before picking a version or calling a build ready.
   opened an older deploy kept showing it. The service worker filled its new cache through the
   browser's HTTP cache (Pages: max-age=600), so a new version could hold old files. Rule: install
   uses `cache: 'reload'`, refresh uses `cache: 'no-cache'`, the version hash includes `sw.js`;
-  `tests/e2e-update.js` checks a phone on the old deploy reaches the new one by the second reopen.
+  `tests/e2e-update.js` checks a phone on the old deploy reaches the new one by the second reopen. Full post-mortem:
+  `docs/postmortems/2026-10-28-stale-service-worker.md`.
 - **2026-10-28 Reset could bring a punch back.** "Reset sample data" deleted IndexedDB without
   waiting and reloaded, so an unsent punch could survive and sync back; CI caught it, local runs
   did not. Rule: reset waits for the deletes and the store closes on `versionchange`. A race fixed
