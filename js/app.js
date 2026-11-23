@@ -616,7 +616,7 @@
       return `<main class="screen">
         <div class="brand">${Icons.job}<span>Crew Clock</span></div>
         <h1>Who are you?</h1>
-        <p class="privacy">${Icons.pin}<span>This app only checks where you are when you tap <b>Clock In</b> or <b>Clock Out</b>. It does not follow you.</span></p>
+        <p class="privacy">${Icons.pin}<span>This app only checks where you are when you tap <b>Clock in</b> or <b>Clock out</b>. It does not follow you.</span></p>
         ${loading || `<div class="name-grid">${list.map(nameBtn).join('')}</div>`}
       </main>`;
     }
@@ -695,14 +695,14 @@
     const job = onClock ? jobById(state.last.jobId) : null;
     const status = onClock
       ? `<div class="status-card on"><span class="status-dot"></span><div>
-          <div class="status-title">You are ON the clock</div>
+          <div class="status-title">You are on the clock</div>
           <div class="status-sub">${esc(job ? job.name : 'Job')} · since ${time(state.last.at)}</div></div></div>`
       : `<div class="status-card off"><span class="status-dot"></span><div>
-          <div class="status-title">You are OFF the clock</div>
+          <div class="status-title">You are off the clock</div>
           <div class="status-sub">${state.last ? `Last clocked out ${dayLabel(state.last.at).toLowerCase()} at ${time(state.last.at)}` : 'Tap the green button when you get to the job'}</div></div></div>`;
     const big = onClock
-      ? `<button class="punch out" data-action="punch" data-type="out">${Icons.out}<span>CLOCK OUT</span></button>`
-      : `<button class="punch in" data-action="punch" data-type="in">${Icons.in}<span>CLOCK IN</span></button>`;
+      ? `<button class="punch out" data-action="punch" data-type="out">${Icons.out}<span>Clock out</span></button>`
+      : `<button class="punch in" data-action="punch" data-type="in">${Icons.in}<span>Clock in</span></button>`;
     const fake = Api.isDemo && hasConsent(state.me.id)
       ? `<label class="demo-toggle"><input type="checkbox" data-action="demo-fake" ${fakeGps() ? 'checked' : ''}> Demo: pretend I'm at the job</label>`
       : '';
@@ -836,7 +836,7 @@
       <p>${chip(f.check.status, !!f.photo)}${f.check.distanceFt != null && f.check.status !== 'onsite' ? ` <span class="muted">${Geo.formatDistance(f.check.distanceFt)} from the job</span>` : ''}</p>
       ${s && f.check.status === 'offsite' ? '<p class="muted">The boss will see where you were.</p>' : ''}
       <div class="done-sync" data-done-sync>${doneSyncHtml()}</div>
-      <button class="btn primary xl" data-action="go-home">OK</button>
+      <button class="btn secondary xl" data-action="go-home">Done</button>
       ${canFix ? `<button class="link" id="fix-btn" data-action="fix-job">Wrong job? Fix it</button>` : ''}
     </main>`;
   };
@@ -911,7 +911,7 @@
     const pts = [];
     const jobs = (state.team && state.team.jobs) || state.jobs;
     jobs.filter((j) => j.active !== false && j.lat != null).forEach((j) => {
-      L.circle([j.lat, j.lng], { radius: Geo.toMeters(j.radiusFt || 300), color: '#2563eb', weight: 2, fillOpacity: 0.08 }).addTo(leafletMap);
+      L.circle([j.lat, j.lng], { radius: Geo.toMeters(j.radiusFt || 300), color: '#AD371D', weight: 2, fillOpacity: 0.08 }).addTo(leafletMap);
       L.marker([j.lat, j.lng], { icon: jobIcon(), title: j.name, alt: j.name }).addTo(leafletMap).bindPopup(`<b>${esc(j.name)}</b><br>${esc(j.address || '')}`);
       pts.push([j.lat, j.lng]);
     });
@@ -940,11 +940,11 @@
       const status = sh ? sh.status : p.status;
       const s = STATUS[status] || STATUS.nogps;
       const out = p.type === 'out';
-      const shift = row ? (row.indexOf(c.id) - (row.length - 1) / 2) * 46 : 0;
+      const shift = row ? (row.indexOf(c.id) - (row.length - 1) / 2) * 52 : 0;
       const icon = L.divIcon({
         className: '',
         html: `<div class="crew-dot ${s.cls} ${stale ? 'stale' : ''} ${out ? 'is-out' : ''}">${esc(initials(c.name))}</div>`,
-        iconSize: [40, 40], iconAnchor: [20 - shift, row ? 66 : 20], popupAnchor: [shift, row ? -64 : -18],
+        iconSize: [48, 48], iconAnchor: [24 - shift, row ? 76 : 24], popupAnchor: [shift, row ? -74 : -22],
       });
       const label = `${c.name}, ${s.word}${out ? ', clocked out' : ''}`;
       L.marker(ll, { icon, zIndexOffset: out ? 500 : 1000, title: label, alt: label }).addTo(leafletMap).bindPopup(punchPopup(c, p, job, status));
@@ -970,8 +970,8 @@
   }
 
   function jobIcon() {
-    // 44px to tap (UX-R13); the blue tile inside stays small enough not to hide the dots.
-    return L.divIcon({ className: '', html: `<div class="job-pin"><span>${Icons.job}</span></div>`, iconSize: [44, 44], iconAnchor: [22, 22] });
+    // 48px to tap (DS-8); the accent tile inside stays small enough not to hide the dots.
+    return L.divIcon({ className: '', html: `<div class="job-pin"><span>${Icons.job}</span></div>`, iconSize: [48, 48], iconAnchor: [24, 24] });
   }
 
   function addBaseLayers(map) {
@@ -1296,7 +1296,7 @@
       if (!marker) {
         marker = L.marker([lat, lng], { draggable: true }).addTo(jobFormMap);
         marker.on('dragend', () => { const p = marker.getLatLng(); place(p.lat, p.lng); });
-        circle = L.circle([lat, lng], { radius: Geo.toMeters(j.radiusFt || 300), color: '#2563eb', weight: 2, fillOpacity: 0.1 }).addTo(jobFormMap);
+        circle = L.circle([lat, lng], { radius: Geo.toMeters(j.radiusFt || 300), color: '#AD371D', weight: 2, fillOpacity: 0.1 }).addTo(jobFormMap);
       } else {
         marker.setLatLng([lat, lng]);
         circle.setLatLng([lat, lng]);

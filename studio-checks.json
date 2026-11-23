@@ -1,4 +1,5 @@
 {
+  "agents": { "verify": "npm test", "runs": 3 },
   "logs": {
     "roots": ["js", "supabase/functions", "sw.js", "config.js"],
     "banned": [],

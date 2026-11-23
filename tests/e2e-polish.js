@@ -526,7 +526,7 @@ async function inThenOut(page) {
   await page.waitForSelector('.big-check, .job-btn', { timeout: 15000 });
   if (!(await page.locator('.big-check').count())) await page.locator('.job-btn').first().click();
   await page.waitForSelector('.big-check', { timeout: 15000 });
-  await page.getByRole('button', { name: 'OK', exact: true }).click();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.waitForSelector('.punch.out');
   await page.click('.punch.out');
   await page.waitForSelector('.big-check', { timeout: 15000 });

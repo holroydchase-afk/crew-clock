@@ -26,3 +26,9 @@ jobs:
           fi
           echo "::error::This PR changes files but not HANDOFF.md. Update it (done, in progress, exact next step, decisions, blockers), or add [skip handoff] to the title if the change doesn't move the work."
           exit 1
+      - name: HANDOFF.md status header
+        # Warns, never fails (CON-16): the Studio Console reads this header. Set the optional
+        # STUDIO_GOALS repo variable (comma list of pm-tools goals.json ids) to check the goal too.
+        env:
+          GOALS: ${{ vars.STUDIO_GOALS }}
+        run: if [ -f scripts/check-handoff-status.sh ]; then bash scripts/check-handoff-status.sh HANDOFF.md; else echo "no scripts/check-handoff-status.sh (install it with studio-agents scripts/install-rules.sh)"; fi

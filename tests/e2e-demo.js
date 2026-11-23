@@ -91,7 +91,7 @@ async function everyScreen(page, check) {
   await check(page, 'punch (pick a job)');
   await page.click('.job-btn[data-id="j1"]');
   await page.waitForSelector('.big-check');
-  await page.getByRole('button', { name: 'OK', exact: true }).click();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.waitForSelector('.punch.out');
   await signOut(page, 'Not you?');
   await signIn(page, 'Sam W.');
@@ -173,7 +173,7 @@ t('SEP-2 (PSR-1) the demo never offers the on-phone AI buttons, which would load
   await page.waitForSelector('.job-btn');
   await page.click('.job-btn[data-id="j1"]');
   await page.waitForSelector('.big-check');
-  await page.getByRole('button', { name: 'OK', exact: true }).click();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.waitForSelector('.punch.out');
   await signOut(page, 'Not you?');
   await signIn(page, 'Sam W.');
@@ -219,7 +219,7 @@ t('M1.1 (CI flake) "Not you?" while a sync is still running never signs the next
   await page.waitForSelector('.job-btn');
   await page.click('.job-btn[data-id="j1"]');
   await page.waitForSelector('.big-check');
-  await page.getByRole('button', { name: 'OK', exact: true }).click();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.waitForSelector('.punch.out');
   await signOut(page, 'Not you?'); // Travis's sync is still waiting on the slow backend
   await signIn(page, 'Sam W.');
@@ -370,7 +370,7 @@ t('RST-1 "Reset sample data" on the demo puts the sample crew back and forgets w
   await page.waitForSelector('.job-btn');
   await page.click('.job-btn[data-id="j1"]');
   await page.waitForSelector('.big-check');
-  await page.getByRole('button', { name: 'OK', exact: true }).click();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.waitForSelector('.punch.out');
   await page.evaluate(() => localStorage.setItem('cc.bossTab', JSON.stringify('jobs')));
   // Reachable from any screen: it sits in the demo banner
