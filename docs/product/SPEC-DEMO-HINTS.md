@@ -64,12 +64,16 @@ bring back one line of words under the banner. Don't bring the pitch back.
   whose text is exactly "Suggested next step".
 - **Memory:** finished steps live in `localStorage` key `crewclock.hints`. It does not start with `cc.`, so the
   demo's Reset must clear it by name.
-- **The ring (UX-R70/R71, QA-R1 design call):** `.hint-dot` is at least 16x16 px with a `--bg` fill, a 2px solid
-  `--accent` border, an inner accent dot of at least 6px (for example `::after`), and a 2px outer stroke in `--ink`
-  (`box-shadow: 0 0 0 2px var(--ink)`, no blur: a stroke, not a shadow). On every step, light and dark, the edge,
-  the fill or the stroke reaches 3:1 against the colour behind it. On boxed targets (name button, Clock in) the
-  whole ring, stroke included, sits inside the target's border box.
-- **Clear of words (UX-R72/R73):** the dot, its stroke and its pulse ring (wherever it shows at 0.2 opacity or
+- **The ring (UX-R70/R71, QA-R1 and QA-R2 design calls):** the markup is
+  `<span class="hint-dot" aria-hidden="true"><span class="hint-ring"></span></span>`. `.hint-dot` is the round outer
+  circle whose `border: 2px solid var(--ink)` is the separating stroke (no outline and no box-shadow, so DS-5 and
+  DS-9 hold). `.hint-ring`, inside that stroke, is at least 16x16 px with a `--bg` fill, a 2px solid `--accent`
+  border and an inner accent dot of at least 6px (`.hint-ring::after`). The pulse stays on `.hint-dot::before`.
+  On every step, light and dark, the ink stroke, the accent edge or the `--bg` fill reaches 3:1 against the
+  colour behind it. On boxed targets (name button, Clock in) the whole `.hint-dot`, stroke included, sits inside
+  the target's border box. Static design rules: corners `50%` or `var(--radius-pill)`; any padding or margin on
+  the grid (0, 4, 8, 12, 16, 24, 32 px), so place the ring and the inner dot with `top`/`left`/`inset`.
+- **Clear of words (UX-R72/R73):** the dot, its stroke, `.hint-ring` and its pulse ring (wherever it shows at 0.2 opacity or
   more) overlap no visible word on screen, at 390x844 and 1280x800, light and dark.
 
 ## 3. Acceptance criteria (QA writes these red first)

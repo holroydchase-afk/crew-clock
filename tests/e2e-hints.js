@@ -410,21 +410,29 @@ function motionOf() {
       bg: cs.backgroundColor, opacity: Number(cs.opacity), display: cs.display, visibility: cs.visibility };
   };
   const r = d.getBoundingClientRect();
-  return { self: part(null), before: part('::before'), after: part('::after'), box: { w: r.width, h: r.height } };
+  // The span structure (QA-R2): the ring may be a .hint-ring child with its own pseudo-elements
+  const ring = d.querySelector('.hint-ring');
+  const ringPart = (pseudo) => { const cs = getComputedStyle(ring, pseudo); return { anim: cs.animationName, dur: cs.transitionDuration, border: parseFloat(cs.borderTopWidth) || 0,
+    w: ring.getBoundingClientRect().width, opacity: Number(cs.opacity), visibility: cs.visibility, display: cs.display }; };
+  return { self: part(null), before: part('::before'), after: part('::after'), box: { w: r.width, h: r.height },
+    ring: ring && { self: ringPart(null), before: ringPart('::before'), after: ringPart('::after') } };
 }
 // A ring: a pseudo-element drawn with a border, shadow, outline or fill, or the dot's own shadow/outline
 const hasRing = (m) => {
   const shown = (p) => p.content !== 'none' && p.content !== 'normal' && p.display !== 'none' && p.visibility !== 'hidden' && p.opacity > 0;
   const drawn = (p) => p.border > 0 || (p.shadow && p.shadow !== 'none') || p.outline > 0 || !/rgba\(0, 0, 0, 0\)|transparent/.test(p.bg);
   return [m.before, m.after].some((p) => shown(p) && (p.w > 0 || p.h > 0) && drawn(p))
-    || (m.self.shadow && m.self.shadow !== 'none') || m.self.outline > 0;
+    || (m.self.shadow && m.self.shadow !== 'none') || m.self.outline > 0
+    || !!(m.ring && m.ring.self.border > 0 && m.ring.self.w > 0 && m.ring.self.opacity > 0 && m.ring.self.visibility !== 'hidden' && m.ring.self.display !== 'none');
 };
 t('HINT-8 under prefers-reduced-motion: reduce the dot and its ring have no animation or transition, and the ring is still drawn; without it, the ring pulses', async (browser) => {
   const errs = [];
   const still = await open(browser, { reducedMotion: 'reduce' });
   const m = await still.evaluate(motionOf);
   if (!m) throw new Error('reduce: no .hint-dot on the fresh names screen');
-  for (const [k, p] of Object.entries({ dot: m.self, '::before': m.before, '::after': m.after })) {
+  const parts = { dot: m.self, '::before': m.before, '::after': m.after };
+  if (m.ring) Object.assign(parts, { '.hint-ring': m.ring.self, '.hint-ring::before': m.ring.before, '.hint-ring::after': m.ring.after });
+  for (const [k, p] of Object.entries(parts)) {
     if (p.anim !== 'none') errs.push(`reduce: ${k} animation-name ${p.anim}`);
     if (p.dur.split(',').some((x) => parseFloat(x) > 0)) errs.push(`reduce: ${k} transition-duration ${p.dur}`);
   }
@@ -433,7 +441,7 @@ t('HINT-8 under prefers-reduced-motion: reduce the dot and its ring have no anim
   const moving = await open(browser, { reducedMotion: 'no-preference' });
   const n = await moving.evaluate(motionOf);
   if (!n) errs.push('no-preference: no .hint-dot on the fresh names screen');
-  else if ([n.self, n.before, n.after].every((p) => p.anim === 'none')) errs.push('no-preference: nothing on the dot pulses (animation-name none on the dot and both pseudo-elements)');
+  else if ([n.self, n.before, n.after].concat(n.ring ? [n.ring.self, n.ring.before, n.ring.after] : []).every((p) => p.anim === 'none')) errs.push('no-preference: nothing on the dot pulses (animation-name none on the dot and both pseudo-elements)');
   if (errs.length) throw new Error(errs.join('; '));
   return moving;
 });
@@ -663,44 +671,56 @@ function ringOf(step) {
   }
   let behind = [255, 255, 255, 1];
   for (const l of layers.reverse()) behind = [0, 1, 2].map((i) => l.c[i] * l.c[3] + behind[i] * (1 - l.c[3])).concat(1);
-  // Computed box-shadow layers: [{ colour, x, y, blur, spread, inset }]
-  const shadows = (v) => (v === 'none' ? [] : v.split(/,(?![^(]*\))/).map((x) => {
-    const colour = (x.match(/(rgba?|color|oklch|oklab|lab|lch|hsla?)\([^)]*\)/) || ['transparent'])[0];
-    const n = x.replace(colour, '').match(/-?[\d.]+px/g) || [];
-    const [ox, oy, blur, spread] = n.map(parseFloat).concat([0, 0, 0, 0]);
-    return { colour, x: ox, y: oy, blur, spread, inset: /inset/.test(x) };
-  }));
   const bg = varColour('--bg');
   const accent = varColour('--accent');
   const ink = varColour('--ink');
+  // QA-R2 design call: <span class="hint-dot"><span class="hint-ring"></span></span>. The outer
+  // .hint-dot carries the --ink stroke as its border; .hint-ring inside has the --bg fill, the
+  // --accent edge and the inner accent dot (::after). No outline, no box-shadow (DS-5, DS-9).
+  const ring = dot.querySelector(':scope > .hint-ring');
   const cs = getComputedStyle(dot);
-  // The separating stroke (QA-R1 design call): box-shadow 0 0 0 2px var(--ink), no blur
-  const stroke = shadows(cs.boxShadow).find((x) => !x.inset && x.x === 0 && x.y === 0 && x.blur === 0 && x.spread >= 2 && same(rgba(x.colour), ink));
   const r = dot.getBoundingClientRect();
   const tr = target.getBoundingClientRect();
-  const sides = ['Top', 'Right', 'Bottom', 'Left'].map((s) => ({ s, w: parseFloat(cs[`border${s}Width`]), style: cs[`border${s}Style`], c: rgba(cs[`border${s}Color`]) }));
-  const pseudo = ['::before', '::after'].map((p) => {
-    const ps = getComputedStyle(dot, p);
-    return { p, content: ps.content, w: parseFloat(ps.width) || 0, h: parseFloat(ps.height) || 0, bg: rgba(ps.backgroundColor),
-      shown: ps.content !== 'none' && ps.content !== 'normal' && ps.display !== 'none' && ps.visibility !== 'hidden' && Number(ps.opacity) > 0.9 };
-  });
-  return {
-    w: r.width, h: r.height, fill: hex(rgba(cs.backgroundColor)), fillIsBg: same(rgba(cs.backgroundColor), bg), bg: hex(bg), accent: hex(accent),
-    borderBad: sides.filter((x) => Math.abs(x.w - 2) > 0.1 || x.style !== 'solid' || !same(x.c, accent)).map((x) => `${x.s} ${x.w}px ${x.style} ${hex(x.c)}`),
-    inner: pseudo.find((x) => x.shown && x.w >= 6 && x.h >= 6 && same(x.bg, accent)) ? null
-      : pseudo.map((x) => `${x.p} content ${x.content} ${x.w}x${x.h} bg ${hex(x.bg)}${x.shown ? '' : ' (not shown)'}`).join('; '),
+  const sidesOf = (st, want) => ['Top', 'Right', 'Bottom', 'Left'].map((x) => ({ x, w: parseFloat(st[`border${x}Width`]), style: st[`border${x}Style`], c: rgba(st[`border${x}Color`]) }))
+    .filter((b) => Math.abs(b.w - 2) > 0.1 || b.style !== 'solid' || !same(b.c, want)).map((b) => `${b.x} ${b.w}px ${b.style} ${hex(b.c)}`);
+  const round = (el, rc) => { const st = getComputedStyle(el); return ['TopLeft', 'TopRight', 'BottomLeft', 'BottomRight'].every((k) => {
+    const v = st[`border${k}Radius`]; return /%/.test(v) ? parseFloat(v) >= 50 : parseFloat(v) >= Math.min(rc.width, rc.height) / 2 - 0.5; }); };
+  const out = {
+    w: r.width, h: r.height, bg: hex(bg), accent: hex(accent), ink: hex(ink),
+    strokeBad: sidesOf(cs, ink), dotRound: round(dot, r),
+    extras: [cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0 ? `outline ${cs.outlineWidth} ${cs.outlineStyle}` : null, cs.boxShadow !== 'none' ? `box-shadow ${cs.boxShadow}` : null].filter(Boolean),
     behind: hex(behind), behindFrom: layers.map((l) => `${l.el.tagName.toLowerCase()}${l.el.className ? '.' + String(l.el.className).trim().split(/\s+/).join('.') : ''}`).join(' over '),
-    accentVsBehind: ratio(accent, behind), bgVsBehind: ratio(bg, behind), ink: hex(ink), inkVsBehind: ratio(ink, behind),
-    stroke: !!stroke, shadow: cs.boxShadow,
+    accentVsBehind: ratio(accent, behind), bgVsBehind: ratio(bg, behind), inkVsBehind: ratio(ink, behind),
     boxed: target.matches('.name-btn, .punch'),
-    inside: ((o) => r.left - o >= tr.left - 0.5 && r.right + o <= tr.right + 0.5 && r.top - o >= tr.top - 0.5 && r.bottom + o <= tr.bottom + 0.5)(stroke ? stroke.spread : 0),
+    inside: r.left >= tr.left - 0.5 && r.right <= tr.right + 0.5 && r.top >= tr.top - 0.5 && r.bottom <= tr.bottom + 0.5,
     rect: `x ${r.left.toFixed(1)}..${r.right.toFixed(1)} y ${r.top.toFixed(1)}..${r.bottom.toFixed(1)}`,
     trect: `x ${tr.left.toFixed(1)}..${tr.right.toFixed(1)} y ${tr.top.toFixed(1)}..${tr.bottom.toFixed(1)}`,
+    ring: null,
   };
+  if (ring) {
+    const rs = getComputedStyle(ring);
+    const rr = ring.getBoundingClientRect();
+    const pb = { l: r.left + parseFloat(cs.borderLeftWidth), r: r.right - parseFloat(cs.borderRightWidth), t: r.top + parseFloat(cs.borderTopWidth), b: r.bottom - parseFloat(cs.borderBottomWidth) };
+    const pseudo = ['::before', '::after'].map((p) => {
+      const ps = getComputedStyle(ring, p);
+      return { p, content: ps.content, w: parseFloat(ps.width) || 0, h: parseFloat(ps.height) || 0, bg: rgba(ps.backgroundColor),
+        shown: ps.content !== 'none' && ps.content !== 'normal' && ps.display !== 'none' && ps.visibility !== 'hidden' && Number(ps.opacity) > 0.9 };
+    });
+    out.ring = {
+      w: rr.width, h: rr.height, fill: hex(rgba(rs.backgroundColor)), fillIsBg: same(rgba(rs.backgroundColor), bg),
+      edgeBad: sidesOf(rs, accent), round: round(ring, rr),
+      // The ring sits inside the stroke: within .hint-dot's padding box
+      withinStroke: rr.left >= pb.l - 0.5 && rr.right <= pb.r + 0.5 && rr.top >= pb.t - 0.5 && rr.bottom <= pb.b + 0.5,
+      rect: `x ${rr.left.toFixed(1)}..${rr.right.toFixed(1)} y ${rr.top.toFixed(1)}..${rr.bottom.toFixed(1)}`,
+      inner: pseudo.find((x) => x.shown && x.w >= 6 && x.h >= 6 && same(x.bg, accent)) ? null
+        : pseudo.map((x) => `${x.p} content ${x.content} ${x.w}x${x.h} bg ${hex(x.bg)}${x.shown ? '' : ' (not shown)'}`).join('; '),
+    };
+  }
+  return out;
 }
 for (const scheme of ['light', 'dark']) {
   for (const vp of [PHONE, LAPTOP]) {
-    t(`UX-R70/R71 ${vp.width}x${vp.height} ${scheme}: on all 7 steps the hint is a 16px+ ring (fill --bg, 2px solid --accent border, inner accent dot 6px+, outer 2px --ink stroke with no blur), with edge, fill or stroke 3:1 against what is behind it, and inside boxed targets`, async (browser) => {
+    t(`UX-R70/R71 ${vp.width}x${vp.height} ${scheme}: on all 7 steps .hint-dot is a round 2px solid --ink stroke (no outline or shadow) around a 16px+ .hint-ring (fill --bg, 2px solid --accent edge, inner accent dot 6px+), with stroke, edge or fill 3:1 against what is behind it, and inside boxed targets`, async (browser) => {
       // Reduced motion so the inner dot and ring are measured still, not mid-pulse
       const page = await open(browser, { viewport: vp, colorScheme: scheme, reducedMotion: 'reduce' });
       const errs = [];
@@ -708,16 +728,29 @@ for (const scheme of ['light', 'dark']) {
         await settle(page);
         const m = await page.evaluate(ringOf, step);
         if (m.missing) { errs.push(`${where}: ${m.missing}`); return; }
-        if (m.w < 16 || m.h < 16) errs.push(`${where}: dot is ${m.w}x${m.h}, want 16x16+`);
-        if (!m.fillIsBg) errs.push(`${where}: dot fill ${m.fill}, want --bg ${m.bg}`);
-        if (m.borderBad.length) errs.push(`${where}: border ${m.borderBad.join(', ')}, want 2px solid --accent ${m.accent}`);
-        if (m.inner) errs.push(`${where}: no inner accent dot 6px+ (${m.inner})`);
-        if (!m.stroke) errs.push(`${where}: no outer --ink stroke ${m.ink} (want box-shadow 0 0 0 2px var(--ink), no blur; see ${m.shadow})`);
-        const inkOk = m.stroke && m.inkVsBehind >= 3;
-        if (m.accentVsBehind < 3 && m.bgVsBehind < 3 && !inkOk) {
-          errs.push(`${where}: behind the dot is ${m.behind} (${m.behindFrom}); accent ${m.accent} ${m.accentVsBehind.toFixed(2)}:1, --bg ${m.bg} ${m.bgVsBehind.toFixed(2)}:1, --ink stroke ${m.stroke ? m.inkVsBehind.toFixed(2) + ':1' : 'missing'}, want one 3:1+`);
+        // The stroke: .hint-dot's own border, 2px solid --ink, round, nothing else drawn around it
+        if (m.strokeBad.length) errs.push(`${where}: .hint-dot border ${m.strokeBad.join(', ')}, want 2px solid --ink ${m.ink}`);
+        if (m.extras.length) errs.push(`${where}: .hint-dot has ${m.extras.join(' and ')}; the stroke is its border (DS-5, DS-9)`);
+        if (!m.dotRound) errs.push(`${where}: .hint-dot is not round`);
+        if (!m.ring) errs.push(`${where}: no .hint-ring inside .hint-dot`);
+        else {
+          const g = m.ring;
+          if (g.w < 16 || g.h < 16) errs.push(`${where}: .hint-ring is ${g.w}x${g.h}, want 16x16+`);
+          if (m.w < g.w + 4 - 0.5 || m.h < g.h + 4 - 0.5) errs.push(`${where}: .hint-dot is ${m.w}x${m.h}, want the ring (${g.w}x${g.h}) plus a 2px stroke each side`);
+          if (!g.withinStroke) errs.push(`${where}: .hint-ring ${g.rect} is not inside the stroke of .hint-dot ${m.rect}`);
+          if (!g.fillIsBg) errs.push(`${where}: .hint-ring fill ${g.fill}, want --bg ${m.bg}`);
+          if (g.edgeBad.length) errs.push(`${where}: .hint-ring border ${g.edgeBad.join(', ')}, want 2px solid --accent ${m.accent}`);
+          if (!g.round) errs.push(`${where}: .hint-ring is not round`);
+          if (g.inner) errs.push(`${where}: no inner accent dot 6px+ on .hint-ring (${g.inner})`);
         }
-        if (m.boxed && !m.inside) errs.push(`${where}: dot ${m.rect} (with its outer stroke) sticks out of the target ${m.trect}`);
+        const inkOk = !m.strokeBad.length && m.inkVsBehind >= 3;
+        const accentOk = m.ring && !m.ring.edgeBad.length && m.accentVsBehind >= 3;
+        const bgOk = m.ring && m.ring.fillIsBg && m.bgVsBehind >= 3;
+        if (!inkOk && !accentOk && !bgOk) {
+          const say = (ok, v) => (ok ? `${v.toFixed(2)}:1` : 'missing');
+          errs.push(`${where}: behind the dot is ${m.behind} (${m.behindFrom}); --ink stroke ${say(!m.strokeBad.length, m.inkVsBehind)}, accent edge ${say(m.ring && !m.ring.edgeBad.length, m.accentVsBehind)}, --bg fill ${say(m.ring && m.ring.fillIsBg, m.bgVsBehind)}, want one 3:1+`);
+        }
+        if (m.boxed && !m.inside) errs.push(`${where}: .hint-dot ${m.rect} (stroke included) sticks out of the target ${m.trect}`);
       });
       if (errs.length) throw new Error(errs.join(' | '));
       return page;
@@ -726,8 +759,8 @@ for (const scheme of ['light', 'dark']) {
 }
 
 // In the page: every visible word on screen (Range.getClientRects per word, every text node in the
-// body, not only the target's) whose box overlaps what the dot paints: its own box, plus each shown
-// ::before/::after (the pulse ring), sampled at 10 points of its animation and counted where its
+// body, not only the target's) whose box overlaps what the hint paints: .hint-dot (stroke included),
+// .hint-ring, any outline or shadow, and each shown ::before/::after (the pulse ring), sampled at 10 points of its animation and counted where its
 // opacity is 0.2 or more.
 function wordsUnderDot(step) {
   const target = document.querySelector(`[data-hint="${step}"]`);
@@ -742,23 +775,30 @@ function wordsUnderDot(step) {
     const [ox, oy, blur, spread] = n.map(parseFloat).concat([0, 0, 0, 0]);
     return { colour, x: ox, y: oy, blur, spread, inset: /inset/.test(x) };
   }));
-  const grow = Math.max(0, ...shadows(dcs.boxShadow).filter((x) => !x.inset).map((x) => x.spread + x.blur + Math.max(Math.abs(x.x), Math.abs(x.y))));
+  // Paint outside the box: the outline (width + offset) and any outer box-shadow
+  const outlineGrow = dcs.outlineStyle !== 'none' ? Math.max(0, (parseFloat(dcs.outlineWidth) || 0) + (parseFloat(dcs.outlineOffset) || 0)) : 0;
+  const grow = Math.max(outlineGrow, ...shadows(dcs.boxShadow).filter((x) => !x.inset).map((x) => x.spread + x.blur + Math.max(Math.abs(x.x), Math.abs(x.y))));
   const parts = [{ part: 'dot', l: dr.left - grow, r: dr.right + grow, t: dr.top - grow, b: dr.bottom + grow }];
-  const pseudoBox = (p) => {
-    const ps = getComputedStyle(dot, p);
+  const pseudoBox = (el, p) => {
+    const ps = getComputedStyle(el, p);
+    const er = el.getBoundingClientRect();
+    const ecs = getComputedStyle(el);
     if (ps.content === 'none' || ps.content === 'normal' || ps.display === 'none' || ps.visibility === 'hidden' || Number(ps.opacity) < 0.2) return null;
     const w = parseFloat(ps.width) + parseFloat(ps.borderLeftWidth) + parseFloat(ps.borderRightWidth) + parseFloat(ps.paddingLeft) + parseFloat(ps.paddingRight);
     const h = parseFloat(ps.height) + parseFloat(ps.borderTopWidth) + parseFloat(ps.borderBottomWidth) + parseFloat(ps.paddingTop) + parseFloat(ps.paddingBottom);
     if (!(w > 0 && h > 0)) return null;
-    const x = dr.left + parseFloat(dcs.borderLeftWidth) + (parseFloat(ps.left) || 0);
-    const y = dr.top + parseFloat(dcs.borderTopWidth) + (parseFloat(ps.top) || 0);
+    const x = er.left + parseFloat(ecs.borderLeftWidth) + (parseFloat(ps.left) || 0);
+    const y = er.top + parseFloat(ecs.borderTopWidth) + (parseFloat(ps.top) || 0);
     const [ox, oy] = ps.transformOrigin.split(' ').map(parseFloat);
     const m = ps.transform === 'none' ? new DOMMatrix() : new DOMMatrix(ps.transform);
     const pts = [[0, 0], [w, 0], [0, h], [w, h]].map(([a, c]) => { const q = new DOMPoint(a - ox, c - oy).matrixTransform(m); return [x + ox + q.x, y + oy + q.y]; });
-    return { part: p, l: Math.min(...pts.map((q) => q[0])), r: Math.max(...pts.map((q) => q[0])), t: Math.min(...pts.map((q) => q[1])), b: Math.max(...pts.map((q) => q[1])) };
+    return { part: `${el === dot ? '' : '.hint-ring'}${p}`, l: Math.min(...pts.map((q) => q[0])), r: Math.max(...pts.map((q) => q[0])), t: Math.min(...pts.map((q) => q[1])), b: Math.max(...pts.map((q) => q[1])) };
   };
   const anims = dot.getAnimations({ subtree: true });
-  const sample = () => { for (const p of ['::before', '::after']) { const bx = pseudoBox(p); if (bx) parts.push(bx); } };
+  // Everything the hint draws: .hint-dot (its border is the stroke), any child (.hint-ring) and their pseudo-elements
+  const els = [dot, ...dot.querySelectorAll('*')];
+  for (const el of els.slice(1)) { const q = el.getBoundingClientRect(); if (q.width && q.height) parts.push({ part: el.className || el.tagName, l: q.left, r: q.right, t: q.top, b: q.bottom }); }
+  const sample = () => { for (const el of els) for (const p of ['::before', '::after']) { const bx = pseudoBox(el, p); if (bx) parts.push(bx); } };
   if (!anims.length) sample();
   else {
     const was = anims.map((a) => a.currentTime);
