@@ -10,6 +10,7 @@ Plain-JS PWA, no build step except `scripts/build-site.mjs` (copies the app to `
 
 ## M0: Studio setup
 - `M0.1` Studio setup: CLAUDE.md, PLAN.md, agents, handoff-check, dependabot, LICENSE, README CI badge, Pages waits for CI and builds forced demo, HANDOFF sections — done (merged 2026-10-23, #4) — done when the PR is merged with CI green and a Pages build with repo variables set still ships `backend: 'demo'` — branch `claude/project-thread-rewwa2` (named by the session)
+- `M0.2` Studio standard: issue #46 self-check paragraph in CLAUDE.md, `docs/product/NOTES.md` (decisions, lessons, accounts, claims), `docs/architecture/README.md` (data map), studio agents, design rules and tools re-synced, agents-check on the template's stricter skip rule (intakes #39, #40, #46) — done (2026-11-23) — done when `tests/studio-standard.test.js` SS-1..SS-15 are green and the PR is merged with CI green — branch `claude/project-thread-4p3a4i`
 
 ## M1: Recruiter-demoable v1
 _Done when the recruiter-ready bar (pm-tools ONBOARDING section 5) passes and `docs/reviews/<date>-recruiter-ready.md` says go. Every M1 task is buildable with no accounts from Chase._

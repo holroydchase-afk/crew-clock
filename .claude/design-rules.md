@@ -45,6 +45,7 @@ Seeded on 2026-10-28 from what already works in Build Slate and chaseholroyd.com
 - P1. A 72-character reading column, 17px body text at line height 1.6.
 - P2. A sticky slim header, a skip link, and a visible focus outline.
 - P3. Colors are tokens on `:root`, redefined for dark mode, so both themes look intended.
+- P4. Text contrast is at least 4.5:1 in both themes, checked on the real colors, not by eye.
 
 ### CLI output (ccwatts)
 - C1. The answer first on one line, then the detail; every number with its range and unit.

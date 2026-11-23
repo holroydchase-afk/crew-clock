@@ -3,8 +3,8 @@
 stage: building
 goal: portfolio
 milestone: CRW-M2
-now: design doc and stale service worker post-mortem (portfolio review item 2, PR #44); TS-2 (.ts rename + esbuild, issue #36 PR 2) after #47
-next: metrics and beta scorecard (portfolio review item 3), then the reliability pass (item 5)
+now: studio standard PR #50 for intakes #39 #40 #46 (#44 and #47 merged)
+next: Supabase pre-connect grants (intake #35), TS-2 (issue #36 PR 2), demo bar (#38) after #48; then metrics and beta scorecard (portfolio review item 3)
 waiting_on_chase:
   - Supabase project, SETUP steps 1.1 to 1.4 (unblocks M2.1)
 blockers: []
@@ -12,7 +12,7 @@ blockers: []
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-11-23 (M1.17 design doc and post-mortem, merged with main after #42, #43 and #47)
+Updated: 2026-11-23 (studio standard, intakes #39, #40 and #46; merged with main after #44 and #47)
 
 ## What it is
 
@@ -25,6 +25,15 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
 
+- Studio standard (2026-11-23, intakes #39, #40 and #46). Re-synced the studio agents
+  (`qa-tdd`, `staff-pm`, `ux-reviewer`) and `.claude/design-rules.md`; synced
+  `scripts/check-findings.mjs`, `scripts/ux-rules.mjs` and the other studio tools into `scripts/`
+  (with `docs/references/ux/`), leaving this repo's existing scripts as they were. `agents-check.yml`
+  takes the template's stricter skip rule. New `docs/product/NOTES.md` (decisions `CRW-DEC-n`,
+  lessons, accounts, marketing claims register) and `docs/architecture/README.md` (the data map,
+  with PRIVACY as the contract), both linked from CLAUDE.md's "Read first". CLAUDE.md gets the #46
+  self-check paragraph after the Studio standard line; hard rules unchanged. PLAN `M0.2`. Tests:
+  `tests/studio-standard.test.js` (SS-1..SS-15, qa-tdd red first). Docs and CI only; no demo change.
 - `M1.17` design doc and post-mortem (2026-11-22, second item of the portfolio review; M1.16
   merged as #41 on Chase's "merge"). `docs/DESIGN.md`: constraints, goals and non-goals, a component
   diagram, the life of one punch step by step, eight decisions with the option rejected and the cost

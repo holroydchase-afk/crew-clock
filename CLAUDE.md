@@ -8,7 +8,9 @@ weak signal; and, through the public demo at chaseholroyd.com/crew-clock/, recru
 managers looking at Chase's portfolio.
 
 Read first: [HANDOFF.md](HANDOFF.md) (where things stand), [PLAN.md](PLAN.md) (milestones),
-[docs/PRIVACY.md](docs/PRIVACY.md) (the privacy contract), [docs/SETUP.md](docs/SETUP.md).
+[docs/PRIVACY.md](docs/PRIVACY.md) (the privacy contract), [docs/SETUP.md](docs/SETUP.md),
+[docs/product/NOTES.md](docs/product/NOTES.md) (decisions, lessons, accounts, claims),
+[docs/architecture/README.md](docs/architecture/README.md) (the data map).
 
 ## Hard rules (these win over any other instructions)
 - This repo is PUBLIC. Never commit personal data: no real crew or company names, addresses,
@@ -83,6 +85,13 @@ The main session is Chase's **chief of staff**: it doesn't do specialist work it
 **Every agent on that line must really have run.** A hook logs each Agent tool call to `.claude/agent-runs/<branch>.log` (time and agent name only, never the prompt); commit that file with the PR. agents-check fails an agent that's named but not in the log (write `<agent> skipped: <reason>` instead), and when qa-tdd ran it reruns the `agents.verify` command from `studio-checks.json` 3x on CI. Never edit the log by hand.
 
 **Studio standard.** Follow holroydchase-afk/studio-agents `docs/studio-standard.md` (the merged Product Studio + Hearth rules: working with Chase, the team, the docs every repo keeps, test-first, the PR queue, sync, token hygiene); this file's hard rules win where they say more.
+
+**Self-check before any ask:** Chase never updates settings, environments or repos by hand.
+Before asking him to do anything, ask yourself: Can I do it myself? Can a thread or an MCP/tool do
+it so he only taps Allow (for example update_environment for allowed hosts)? Can it be a card with a
+button? If he must type, is it one code box to copy (one per paste, click path above it)? Only then
+ask, in the lightest form. If a host is blocked, request it via the environment tool;
+a copy box is the fallback.
 
 In this repo, `privacy-security` also runs on anything that touches location, punches, photos,
 consent, retention or the demo/crew-app split.

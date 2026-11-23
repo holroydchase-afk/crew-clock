@@ -29,16 +29,20 @@ jobs:
             echo "::error::Add an 'Agents:' line to the PR body naming who ran and the verdict, e.g. 'Agents: staff-pm scoped M1.2; qa-tdd red then green, 3x; ux-reviewer no P0/P1'. See the Studio agents section of CLAUDE.md."
             exit 1
           fi
-          code=$(git diff --name-only "$BASE...$HEAD" | grep -vE '(\.md$|^docs/|^LICENSE)' || true)
+          code=$(git diff --no-renames --name-only "$BASE...$HEAD" | grep -vE '(\.md$|^docs/|^LICENSE)' || true)
           if [ -n "$code" ] && ! printf '%s' "$line" | grep -qi 'qa-tdd'; then
             echo "::error::This PR changes code or config, so the Agents: line must name qa-tdd (failing test first, all suites 3x) or say 'qa-tdd skipped: <reason>'. Changed: $(echo $code | head -c 300)"
             exit 1
           fi
-          # qa-tdd runs as the failing-tests step on every code PR; "skipped" is only for docs-only or config-only changes.
-          # Every "qa-tdd skipped" clause must be exactly "qa-tdd skipped: docs only" or "config only" (nothing around it).
-          bad=$(printf '%s' "$line" | grep -oiE 'qa-tdd skipped[^;.]*' | grep -viE '^qa-tdd skipped: *(docs|config) only *$' || true)
+          # qa-tdd runs as the failing-tests step on every code PR; "skipped" is only for a diff that really is docs-only or config-only.
+          # Every "qa-tdd skipped" clause must be exactly "qa-tdd skipped: docs only" or "config only" (nothing around it),
+          # and it must be true: this PR already has non-doc files here, so "docs only" is never true, and
+          # "config only" is true only when every non-doc file is config data (json, yaml, toml, log files).
+          real=$(printf '%s\n' "$code" | grep -vE '\.(json|ya?ml|toml|log)$' || true)
+          bad=$(printf '%s' "$line" | grep -oiE 'qa-tdd skipped[^;.]*' | grep -viE '^qa-tdd skipped: *config only *$' || true)
+          if [ -n "$code" ] && [ -n "$real" ] && printf '%s' "$line" | grep -qi 'qa-tdd skipped'; then bad="config only needs a config-only diff"; fi
           if [ -n "$code" ] && [ -n "$bad" ]; then
-            echo "::error::qa-tdd cannot be skipped on a code PR. Run it (in a cloud thread: bash scripts/agent-prompt.sh qa-tdd \"<task>\" as general-purpose, which logs itself), or write 'qa-tdd skipped: docs only' / 'config only' if that is true."
+            echo "::error::qa-tdd cannot be skipped on this PR: its diff is not docs-only (or not config-only). Run it (in a cloud thread: bash scripts/agent-prompt.sh qa-tdd \"<task>\" as general-purpose, which logs itself). Skip only with 'qa-tdd skipped: docs only' when every changed file is docs, or 'qa-tdd skipped: config only' when every non-doc file is config. Non-doc files: $(echo $code | head -c 300)"
             exit 1
           fi
           echo "ok: $line"
