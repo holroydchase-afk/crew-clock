@@ -49,6 +49,7 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
   ci.yml top-level `permissions: contents: read`; PS-SHELF-1/2 PRIVACY marks the Sheet export shelved
   and says leave `REPORT_TOKEN` unset. Reviewed by architect (ARCH-1..3) and privacy-security
   (PS-SHELF-1..3). Tests: `tests/typecheck.test.js`, `tests/shelf-docs.test.js` (qa-tdd red first).
+  First CI run: tsc could not find the sandbox-only Playwright path in `tests/browser.js` (CI has no `/opt/node22`); the path is now a variable so tsc skips it. Runtime unchanged.
 
 - Wired to studio-agents (2026-11-22, issue #43). Re-synced `.claude/agents/` (adds
   `release-captain` and `story-keeper`, refreshes `qa-tdd`, `ux-reviewer`, `privacy-security`) and
