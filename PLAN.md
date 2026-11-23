@@ -53,7 +53,7 @@ _Done when the beta crew has used the real app for 2 weeks, every worker's conse
 
 - `M2.1` Supabase project live (SETUP 1.1-1.4, migrations incl. consent and retention) — blocked: Chase creates the Supabase project and pastes URL + anon key (about 25 min) — done when CI's e2e-supabase passes against it — branch `m2.1-supabase-live`
 - `M2.2` Crew app host on Cloudflare Pages, separate from the demo — blocked: Chase creates a Cloudflare account and Pages project, picks the crew-app hostname (Porkbun DNS) — done when the crew URL serves `backend: 'supabase'` and chaseholroyd.com/crew-clock/ still serves demo — branch `m2.2-crew-host`
-- `M2.3` Photos, alerts, Sheets (SETUP 2, 3, 4, 6, 7) — blocked: Chase's Backblaze bucket + keys, VAPID key, Google Sheet — done when a test punch with photo shows in the boss Map and the nightly Sheet row appears — branch `m2.3-services-live`
+- `M2.3` Photos and alerts (SETUP 2, 3, 4, 6) — blocked: Chase's Backblaze bucket + keys, VAPID key — done when a test punch with photo shows in the boss Map and the boss's phone gets the alert — branch `m2.3-services-live`
 - `M2.4` Retention jobs scheduled live (pg_cron for M1.4's function) — blocked on M2.1 — done when one scheduled run is logged and old test rows are gone — branch `m2.4-retention-live`
 - `M2.5` Install day: 5 phones, each worker agrees to location consent (SETUP 8) — blocked: Chase and his dad pick the day — done when 5 workers are signed in, 5 consent records exist, each did one clock-in/out — branch `m2.5-install-day`
 - `M2.6` Beta gate review after 2 weeks — todo — done when staff-pm writes the go/no-go with evidence (punch success rate, help requests, missed punches, consent coverage) — branch `m2.6-beta-gate`
@@ -68,6 +68,8 @@ _Done when the beta crew has used the real app for 2 weeks, every worker's conse
 - Chase's own MLS implementation: not on the critical path; same interface allows a later swap.
 - Pay-rate reports: payroll data raises the privacy bar; hours only for the beta.
 - Real-phone AI model download testing: belongs to the beta phones (M2.5), not the demo.
+- On-phone AI models (shelved by Chase 2026-11-23; `onPhoneAi` flag).
+- Google Sheets nightly export (shelved by Chase 2026-11-23; the Week view CSV covers it).
 - Continuous or background location tracking: against the consent promise; location only at the tap.
 - Background sync on iPhone: platform limit; the app already tells crew to open it on signal.
 - Multi-company / sign-up for other contractors: one crew first.

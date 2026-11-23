@@ -16,7 +16,7 @@ function gpsCounter(pos) {
   // The demo starts with "pretend I'm at the job" on (M1.6); these tests drive the real GPS path.
   try { localStorage.setItem('cc.demoFake', 'false'); } catch (e) { /* ok */ }
   window.__gpsReads = 0;
-  const at = () => ({ coords: { latitude: pos.lat, longitude: pos.lng, accuracy: pos.acc }, timestamp: Date.now() });
+  const at = () => /** @type {GeolocationPosition} */ ({ coords: { latitude: pos.lat, longitude: pos.lng, accuracy: pos.acc }, timestamp: Date.now() });
   navigator.geolocation.watchPosition = (ok) => { window.__gpsReads++; setTimeout(() => ok(at()), 0); return 1; };
   navigator.geolocation.clearWatch = () => {};
   navigator.geolocation.getCurrentPosition = (ok) => { window.__gpsReads++; setTimeout(() => ok(at()), 0); };

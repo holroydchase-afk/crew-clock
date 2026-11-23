@@ -16,10 +16,10 @@ const H = 3600000;
 
 function loadDemo() {
   const ls = new Map();
-  const ctx = {
+  const ctx = /** @type {TestSandbox} */ (/** @type {unknown} */ ({
     Date, Math, JSON, Promise, setTimeout, console, navigator: { onLine: true },
-    localStorage: { getItem: (k) => (ls.has(k) ? ls.get(k) : null), setItem: (k, v) => ls.set(k, String(v)), removeItem: (k) => ls.delete(k) },
-  };
+    localStorage: { getItem: (/** @type {string} */ k) => (ls.has(k) ? ls.get(k) : null), setItem: (/** @type {string} */ k, /** @type {string} */ v) => ls.set(k, String(v)), removeItem: (/** @type {string} */ k) => ls.delete(k) },
+  }));
   ctx.self = ctx;
   vm.createContext(ctx);
   for (const f of ['js/report.js', 'js/geo.js', 'js/demo-backend.js']) {
@@ -27,6 +27,7 @@ function loadDemo() {
   }
   const db = () => JSON.parse(ls.get([...ls.keys()].find((k) => k.startsWith('cc.demo.db'))));
   // JSON round trip: arrays made inside the vm sandbox fail deepStrictEqual across realms.
+  /** @param {string} action @param {Row} req @returns {Promise<ApiResult>} */
   const call = (action, req) => ctx.DemoBackend.handle(action, req).then((r) => JSON.parse(JSON.stringify(r)), (e) => ({ thrown: e.message }));
   return { ctx, db, call };
 }
@@ -42,7 +43,7 @@ test('PS-4 demo: a clock-out made before the boss turned the worker off still sy
   const out = { kind: 'punch', id: 'p-ps4-out', crewId: 'c2', byCrewId: 'c2', jobId: 'j1', type: 'out', at: now - 10 * 60000, lat: null, lng: null, accuracy: null };
   const r = await call('sync', { auth: jake, items: [out] });
   assert.ok(r.accepted && r.accepted.includes('p-ps4-out'), `the late clock-out was not accepted: ${JSON.stringify(r)}`);
-  assert.ok(db().punches.some((p) => p.id === 'p-ps4-out'), 'the late clock-out was dropped from the store');
+  assert.ok(db().punches.some((/** @type {Punch} */ p) => p.id === 'p-ps4-out'), 'the late clock-out was dropped from the store');
 });
 
 test('PS-4 demo (guard): a turned-off worker still cannot sign in', async () => {
@@ -52,13 +53,18 @@ test('PS-4 demo (guard): a turned-off worker still cannot sign in', async () => 
   const r = await call('demoLogin', { crewId: 'c2' });
   assert.ok(r.thrown, `a turned-off worker signed in: ${JSON.stringify(r).slice(0, 120)}`);
   const list = await call('listCrew', {});
-  assert.ok(!list.crew.some((c) => c.id === 'c2'), 'a turned-off worker is still on the sign-in list');
+  assert.ok(!list.crew.some((/** @type {CrewMember} */ c) => c.id === 'c2'), 'a turned-off worker is still on the sign-in list');
 });
 
 // ---------- PS-M112-1: a turned-off worker's punches are kept only up to 15 minutes after ----------
 
+/**
+ * @param {(action: string, req: Row) => Promise<ApiResult>} call @param {Auth} boss
+ * @param {string} id @param {string} name @param {string} role
+ */
 const turnOff = (call, boss, id, name, role) =>
   call('sync', { auth: boss, items: [{ kind: 'crew', id: 'e-off-' + id, data: { id, name, role, active: false } }] });
+/** @param {Record<string, unknown>} o */
 const late = (o) => Object.assign({ kind: 'punch', id: 'p-x', crewId: 'c2', byCrewId: 'c2', jobId: 'j1', type: 'in', at: Date.now(), lat: null, lng: null, accuracy: null }, o);
 
 test('PS-M112-1 demo: a turned-off worker\'s own punch made more than 15 min after is refused "Turned off", not stored', async () => {
@@ -68,7 +74,7 @@ test('PS-M112-1 demo: a turned-off worker\'s own punch made more than 15 min aft
   await turnOff(call, boss, 'c2', 'Jake R.', 'crew');
   const r = await call('sync', { auth: jake, items: [late({ id: 'p-late', at: Date.now() + 20 * 60000 })] });
   assert.deepStrictEqual(r.reasons, [{ id: 'p-late', reason: 'Turned off' }], JSON.stringify(r));
-  assert.ok(!db().punches.some((p) => p.id === 'p-late'), 'the late punch was stored');
+  assert.ok(!db().punches.some((/** @type {Punch} */ p) => p.id === 'p-late'), 'the late punch was stored');
 });
 
 test('PS-M112-1 demo: a foreman\'s punch for a turned-off teammate is refused "Turned off"', async () => {
@@ -78,7 +84,7 @@ test('PS-M112-1 demo: a foreman\'s punch for a turned-off teammate is refused "T
   await turnOff(call, boss, 'c2', 'Jake R.', 'crew');
   const r = await call('sync', { auth: ray, items: [late({ id: 'p-mate', byCrewId: 'c1', type: 'out', at: Date.now() - 10 * 60000 })] });
   assert.deepStrictEqual(r.reasons, [{ id: 'p-mate', reason: 'Turned off' }], JSON.stringify(r));
-  assert.ok(!db().punches.some((p) => p.id === 'p-mate'));
+  assert.ok(!db().punches.some((/** @type {Punch} */ p) => p.id === 'p-mate'));
 });
 
 test('PS-M112-1 demo: a turned-off foreman cannot clock in an active teammate', async () => {
@@ -88,7 +94,7 @@ test('PS-M112-1 demo: a turned-off foreman cannot clock in an active teammate', 
   await turnOff(call, boss, 'c1', 'Ray T.', 'foreman');
   const r = await call('sync', { auth: ray, items: [late({ id: 'p-for-cody', crewId: 'c3', byCrewId: 'c1', at: Date.now() - 10 * 60000 })] });
   assert.deepStrictEqual(r.reasons, [{ id: 'p-for-cody', reason: 'Turned off' }], JSON.stringify(r));
-  assert.ok(!db().punches.some((p) => p.id === 'p-for-cody'));
+  assert.ok(!db().punches.some((/** @type {Punch} */ p) => p.id === 'p-for-cody'));
 });
 
 test('PS-M112-1 the phone drops a "Turned off" refusal like other permission refusals (no stub kept)', () => {

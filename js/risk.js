@@ -4,6 +4,7 @@
   const Geo = root.Geo || (typeof require !== 'undefined' ? require('./geo.js') : null);
   const MIN = 60000;
 
+  /** @type {Record<string, { level: 'high' | 'low', words: string }>} */
   const RULES = {
     impossible_travel: { level: 'high', words: 'Moved faster than a truck can drive since the last punch' },
     shared_phone: { level: 'high', words: "Clocked in on someone else's phone" },
@@ -20,6 +21,7 @@
     odd_hours: { level: 'low', words: 'Punch between 10 PM and 4 AM' },
   };
 
+  /** @param {number} ms @param {string} timeZone */
   function hourIn(ms, timeZone) {
     try {
       return Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone }).format(new Date(ms)));
@@ -30,9 +32,17 @@
 
   // p: the new punch. ctx: { crewHistory: earlier punches by this person,
   // deviceHistory: earlier punches from this phone, receivedAt, chain, timeZone }
+  /**
+   * @typedef {{ code: string, level: 'high' | 'low' }} RiskFlag
+   * @param {PunchFields} p
+   * @param {{ crewHistory?: PunchFields[], deviceHistory?: PunchFields[], receivedAt?: number, chain?: string, timeZone?: string }} [ctx]
+   * @returns {RiskFlag[]}
+   */
   function assess(p, ctx) {
     const c = ctx || {};
+    /** @type {RiskFlag[]} */
     const flags = [];
+    /** @param {string} code */
     const add = (code) => flags.push({ code, level: RULES[code].level });
     if (p.type === 'void') return flags;
 
@@ -40,7 +50,7 @@
       .sort((a, b) => b.at - a.at);
     if (p.lat != null && prior[0]) {
       const prev = prior[0];
-      const meters = Geo.distanceM(prev.lat, prev.lng, p.lat, p.lng);
+      const meters = Geo.distanceM(Number(prev.lat), Number(prev.lng), p.lat, Number(p.lng));
       const secs = Math.max(1, (p.at - prev.at) / 1000);
       if (meters > 1000 && meters / secs > 40) add('impossible_travel');
     }
@@ -72,11 +82,13 @@
     return flags;
   }
 
+  /** @param {{ level: string }[] | null | undefined} flags */
   function topLevel(flags) {
     if (!flags || !flags.length) return null;
     return flags.some((f) => f.level === 'high') ? 'high' : 'low';
   }
 
+  /** @param {{ code: string }} flag */
   function describe(flag) { return (RULES[flag.code] || {}).words || flag.code; }
 
   const api = { RULES, assess, topLevel, describe };

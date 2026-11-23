@@ -5,6 +5,7 @@ const Geo = require('../js/geo.js');
 const Report = require('../js/report.js');
 
 const job = { lat: 38.4537, lng: -81.9290, radiusFt: 300 };
+/** @param {number} ft */
 const offsetNorth = (ft) => job.lat + Geo.toMeters(ft) / 111320;
 
 test('distance: 300 ft north is about 300 ft', () => {
@@ -23,7 +24,7 @@ test('benefit of the doubt: 380 ft away with 30 m accuracy counts as on site', (
 test('near: parked down the road', () => {
   const r = Geo.checkFix({ lat: offsetNorth(700), lng: job.lng, accuracy: 10 }, job);
   assert.strictEqual(r.status, 'near');
-  assert.ok(Math.abs(r.distanceFt - 700) < 3);
+  assert.ok(Math.abs(/** @type {number} */ (r.distanceFt) - 700) < 3);
 });
 
 test('off site beyond 3x the fence', () => {
@@ -53,26 +54,30 @@ test('formatDistance', () => {
 });
 
 test('bestFix keeps the most accurate reading and stops early', async () => {
+  /** @type {((pos: GeoReading) => void) | undefined} */
   let cb;
+  /** @type {GeoSource} */
   const fake = {
     watchPosition(ok) { cb = ok; return 1; },
     clearWatch() {},
   };
   const p = Geo.bestFix(fake, { timeoutMs: 1000, goodEnoughM: 20 });
-  cb({ coords: { latitude: 1, longitude: 1, accuracy: 80 }, timestamp: 1 });
-  cb({ coords: { latitude: 2, longitude: 2, accuracy: 15 }, timestamp: 2 });
-  const fix = await p;
+  /** @type {(pos: GeoReading) => void} */ (cb)({ coords: { latitude: 1, longitude: 1, accuracy: 80 }, timestamp: 1 });
+  /** @type {(pos: GeoReading) => void} */ (cb)({ coords: { latitude: 2, longitude: 2, accuracy: 15 }, timestamp: 2 });
+  const fix = /** @type {Fix} */ (await p);
   assert.strictEqual(fix.accuracy, 15);
   assert.strictEqual(fix.lat, 2);
 });
 
 test('bestFix resolves null when GPS never answers', async () => {
+  /** @type {GeoSource} */
   const fake = { watchPosition() { return 1; }, clearWatch() {} };
   assert.strictEqual(await Geo.bestFix(fake, { timeoutMs: 50 }), null);
 });
 
 test('bestFix stops watching the moment its signal aborts (PRIVACY L2)', async () => {
   let cleared = 0;
+  /** @type {GeoSource} */
   const fake = { watchPosition() { return 7; }, clearWatch(id) { if (id === 7) cleared++; } };
   const ac = new AbortController();
   const p = Geo.bestFix(fake, { timeoutMs: 60000, signal: ac.signal });
@@ -82,25 +87,30 @@ test('bestFix stops watching the moment its signal aborts (PRIVACY L2)', async (
 });
 
 test('bestFix throws away a reading it was stopped before finishing (PRIVACY L2)', async () => {
+  /** @type {((pos: GeoReading) => void) | undefined} */
   let cb;
+  /** @type {GeoSource} */
   const fake = { watchPosition(ok) { cb = ok; return 1; }, clearWatch() {} };
   const ac = new AbortController();
   const p = Geo.bestFix(fake, { timeoutMs: 60000, goodEnoughM: 20, signal: ac.signal });
-  cb({ coords: { latitude: 1, longitude: 1, accuracy: 120 }, timestamp: 1 });
+  /** @type {(pos: GeoReading) => void} */ (cb)({ coords: { latitude: 1, longitude: 1, accuracy: 120 }, timestamp: 1 });
   ac.abort();
   assert.strictEqual(await p, null);
 });
 
 test('bestFix asks for a rough reading when told to', () => {
+  /** @type {PositionOptions | undefined} */
   let asked;
+  /** @type {GeoSource} */
   const fake = { watchPosition(ok, err, o) { asked = o; return 1; }, clearWatch() {} };
   Geo.bestFix(fake, { timeoutMs: 10, highAccuracy: false, maximumAgeMs: 120000 });
-  assert.strictEqual(asked.enableHighAccuracy, false);
-  assert.strictEqual(asked.maximumAge, 120000);
+  assert.strictEqual(/** @type {PositionOptions} */ (asked).enableHighAccuracy, false);
+  assert.strictEqual(/** @type {PositionOptions} */ (asked).maximumAge, 120000);
 });
 
 test('bestFix with an already aborted signal never starts a watch', async () => {
   let started = 0;
+  /** @type {GeoSource} */
   const fake = { watchPosition() { started++; return 1; }, clearWatch() {} };
   const ac = new AbortController();
   ac.abort();
@@ -154,13 +164,14 @@ test('server copy of the fence rule matches the app', () => {
   const fs = require('fs');
   const vm = require('vm');
   const src = fs.readFileSync(require('path').join(__dirname, '../backend/Code.gs'), 'utf8');
+  /** @type {{ checkFix?: typeof Geo.checkFix }} */
   const ctx = {};
   vm.createContext(ctx);
   vm.runInContext(src + '\nthis.checkFix = checkFix; this.pairShifts = pairShifts;', ctx);
   for (const ft of [50, 280, 380, 700, 1000, 5000]) {
     for (const acc of [5, 30, 120, 300]) {
       const fix = { lat: offsetNorth(ft), lng: job.lng, accuracy: acc };
-      assert.deepStrictEqual(JSON.parse(JSON.stringify(ctx.checkFix(fix, job))), Geo.checkFix(fix, job), `${ft}ft acc ${acc}`);
+      assert.deepStrictEqual(JSON.parse(JSON.stringify(/** @type {typeof Geo.checkFix} */ (ctx.checkFix)(fix, job))), Geo.checkFix(fix, job), `${ft}ft acc ${acc}`);
     }
   }
 });

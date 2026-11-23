@@ -1,5 +1,6 @@
 // Inline SVG icons (stroke style, inherit currentColor).
 (function (root) {
+  /** @param {string} d @param {string} [extra] */
   const p = (d, extra) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${extra || ''}>${d}</svg>`;
   root.Icons = {
     in: p('<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/>'),
