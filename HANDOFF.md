@@ -36,6 +36,15 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
   Week view CSV covers it. PLAN M2.3 is photos and alerts only, "Not now" lists it, SETUP step 7
   says skip, Blockers 3 no longer asks for a Sheet, README marks it shelved. No code removed;
   push text and Sheets never carried coordinates, so no privacy change.
+- TS-1 (2026-11-23, issue #36 PR 1): `npm run typecheck` runs `tsc` (TypeScript 7.0.2, exact pin,
+  plus `@types/node`, both devDependencies) over the plain JS with JSDoc types; still no build step.
+  `tsconfig.json` is strict over `js/*.js` and the unit tests; `tsconfig.e2e.json` (strict off) covers
+  the Playwright files. Shared types and globals in `js/globals.d.ts`, `tests/sandbox.d.ts`,
+  `tests/e2e.d.ts`. Errors 2690 before (js about 1150, tests about 1540), 0 after; no `@ts-nocheck`,
+  no `@ts-expect-error`. `any` only at boundaries (API result rows, Supabase REST, IndexedDB
+  promises, Leaflet `on`, the model pipeline output). Fixes are JSDoc and casts only, no runtime change; shared files
+  re-synced. CI installs dev tools (`npm install --no-package-lock`) and runs the type check.
+  `.gitattributes` marks `vendor/` and `js/vendor/` vendored. Tests: `tests/typecheck.test.js` (qa-tdd red first).
 
 - Wired to studio-agents (2026-11-22, issue #43). Re-synced `.claude/agents/` (adds
   `release-captain` and `story-keeper`, refreshes `qa-tdd`, `ux-reviewer`, `privacy-security`) and
@@ -501,6 +510,9 @@ file's "In progress" section above is stale (everything in it is merged) and goe
 
 ## Decisions to review
 
+- **TS-1 e2e on a lighter config** (2026-11-23): the Playwright files run code inside the page and are
+  checked with `strict: false` (`tsconfig.e2e.json`); everything else is strict. The root still has no
+  lockfile, so CI installs the two pinned dev tools with `--no-package-lock`.
 - **AI tier 0 kept (no download)** (2026-11-23): with on-phone AI shelved, the plain-JS photo
   too-dark/too-blurry check and the plain-words summary stay; only the model tiers (1 and 2) are off.
 

@@ -18,7 +18,7 @@ function gpsSpy(opts) {
   // answer 'rough': one reading good enough to count (on site, not weak) but not to stop the
   // watch early (the punch flow waits for 20 m), then nothing.
   const acc = opts.answer === 'rough' ? 40 : 8;
-  const at = () => ({ coords: { latitude: 38.454, longitude: -81.929, accuracy: acc }, timestamp: Date.now() });
+  const at = () => /** @type {GeolocationPosition} */ ({ coords: { latitude: 38.454, longitude: -81.929, accuracy: acc }, timestamp: Date.now() });
   navigator.geolocation.watchPosition = (ok) => {
     const id = window.__gps.next++;
     window.__gps.reads++;
@@ -29,13 +29,14 @@ function gpsSpy(opts) {
   navigator.geolocation.clearWatch = (id) => window.__gps.active.delete(id);
   navigator.geolocation.getCurrentPosition = (ok, err) => {
     window.__gps.reads++;
-    setTimeout(() => (opts.answer ? ok(at()) : err && err({ code: 3, message: 'timeout' })), 0);
+    setTimeout(() => (opts.answer ? ok(at()) : err && err(/** @type {GeolocationPositionError} */ ({ code: 3, message: 'timeout' }))), 0);
   };
 }
 const reads = (page) => page.evaluate(() => window.__gps.reads);
 const watching = (page) => page.evaluate(() => window.__gps.active.size);
 
 let lastPage = null;
+/** @param {any} browser @param {boolean | string} [answer] @param {{ width: number, height: number }} [viewport] @param {boolean} [primed] */
 async function open(browser, answer = true, viewport = { width: 390, height: 844 }, primed = answer !== true) {
   const ctx = await browser.newContext({ viewport, serviceWorkers: 'block' });
   const page = await ctx.newPage();

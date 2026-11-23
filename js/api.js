@@ -1,14 +1,16 @@
 // Picks the backend: Supabase (v2), the Google Apps Script MVP, or DemoBackend,
 // which keeps everything in this browser when nothing is configured.
 (function (root) {
+  /** @type {AppConfig} */
   const cfg = root.APP_CONFIG || {};
   const TIMEOUT_MS = 20000;
 
+  /** @param {string} action @param {Row} payload @returns {Promise<ApiResult>} */
   function remote(action, payload) {
     const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const timer = setTimeout(() => ctrl && ctrl.abort(), TIMEOUT_MS);
     // text/plain keeps this a "simple" request, so Apps Script needs no CORS preflight.
-    return fetch(cfg.backendUrl, {
+    return fetch(/** @type {string} */ (cfg.backendUrl), {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(Object.assign({ action }, payload)),
@@ -17,7 +19,7 @@
     }).then((r) => r.json()).then((res) => {
       clearTimeout(timer);
       if (!res || res.ok === false) {
-        const err = new Error((res && res.error) || 'Server error');
+        const err = /** @type {AppError} */ (new Error((res && res.error) || 'Server error'));
         err.server = true;
         throw err;
       }
@@ -35,6 +37,7 @@
   }
 
   const isDemo = !cfg.backendUrl;
+  /** @type {(action: string, payload: Row) => Promise<ApiResult>} */
   const call = isDemo ? (a, p) => root.DemoBackend.handle(a, p) : remote;
   // Only the real demo build forgets crew-app keys; a crew build missing its URL must not lose a session
   if (isDemo && cfg.backend === 'demo') root.DemoBackend.forgetCrewApp();

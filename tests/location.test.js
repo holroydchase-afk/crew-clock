@@ -11,6 +11,7 @@ const GEO = /\bgeolocation\b|watchPosition|getCurrentPosition/;
 // one gate every read goes through; the other four are the places allowed to call it.
 const ALLOWED_IN_APP = ['watchGps', 'sortJobsByDistance', 'locate', 'prime-location', 'job-here'];
 
+/** @param {string} dir @param {RegExp} ext @returns {string[]} */
 function files(dir, ext) {
   return fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true }).flatMap((d) => {
     const rel = path.join(dir, d.name);
@@ -18,6 +19,7 @@ function files(dir, ext) {
     return ext.test(d.name) ? [rel] : [];
   });
 }
+/** @param {string} dir */
 const jsFiles = (dir) => files(dir, /\.m?js$/);
 
 test('the service worker never touches location (L1)', () => {
@@ -38,6 +40,7 @@ test('js/geo.js reads location only through bestFix, which the caller passes geo
 
 test('every location read in js/app.js sits in an allowed place (L1)', () => {
   const lines = fs.readFileSync(path.join(ROOT, 'js/app.js'), 'utf8').split('\n');
+  /** @param {number} i */
   const owner = (i) => {
     for (let j = i; j >= 0; j--) {
       const m = lines[j].match(/^\s{2,4}(?:async )?function (\w+)|^\s{4}'([\w-]+)':/);
@@ -45,6 +48,7 @@ test('every location read in js/app.js sits in an allowed place (L1)', () => {
     }
     return '(top level)';
   };
+  /** @type {string[]} */
   const where = [];
   lines.forEach((l, i) => { if (GEO.test(l)) where.push(owner(i)); });
   assert.ok(where.length > 0);

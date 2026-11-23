@@ -29,7 +29,7 @@ const BOSS_TABS = ['map', 'today', 'jobs', 'crew', 'chat'];
 const ACRONYMS = new Set(['GPS', 'CSV', 'PIN', 'AM', 'PM', 'ID', 'OK', 'WV', 'PWA', 'MLS', 'US', 'SMS', 'PDF', 'URL', 'OSM', 'USGS', 'ES256']);
 
 function gpsAtJob() {
-  const at = () => ({ coords: { latitude: 38.454, longitude: -81.929, accuracy: 8 }, timestamp: Date.now() });
+  const at = () => /** @type {GeolocationPosition} */ ({ coords: { latitude: 38.454, longitude: -81.929, accuracy: 8 }, timestamp: Date.now() });
   navigator.geolocation.watchPosition = (ok) => { setTimeout(() => ok(at()), 0); return 1; };
   navigator.geolocation.clearWatch = () => {};
   navigator.geolocation.getCurrentPosition = (ok) => setTimeout(() => ok(at()), 0);
@@ -124,7 +124,7 @@ function audit({ checkTargets, acronyms }) {
         if (block.textContent.replace(/\s+/g, ' ').trim().length > el.textContent.trim().length + 3) continue;
       }
       const r = box.getBoundingClientRect();
-      if (r.width < 47.5 || r.height < 47.5) out.targets.push(`${label(el)} "${(el.getAttribute('aria-label') || el.textContent || el.value || '').replace(/\s+/g, ' ').trim().slice(0, 24)}" ${Math.round(r.width)}x${Math.round(r.height)}`);
+      if (r.width < 47.5 || r.height < 47.5) out.targets.push(`${label(el)} "${(el.getAttribute('aria-label') || el.textContent || /** @type {HTMLInputElement} */ (el).value || '').replace(/\s+/g, ' ').trim().slice(0, 24)}" ${Math.round(r.width)}x${Math.round(r.height)}`);
     }
   }
   return out;

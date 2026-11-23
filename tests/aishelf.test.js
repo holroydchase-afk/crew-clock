@@ -13,6 +13,7 @@ const AI = require('../js/ai.js');
 
 const ROOT = path.join(__dirname, '..');
 const script = path.join(ROOT, 'scripts', 'build-site.mjs');
+/** @param {string} file @returns {AppConfig} */
 const readCfg = (file) => new Function('window', `${fs.readFileSync(file, 'utf8')}; return window.APP_CONFIG;`)({});
 const BIG = { deviceMemory: 8, hardwareConcurrency: 8, gpu: {} };
 const MID = { deviceMemory: 4, hardwareConcurrency: 8 };
@@ -56,6 +57,7 @@ test('AISHELF-3 the app gates the summary button and photo labels on AI.modelTie
 });
 
 test('AISHELF-4 tier 0 still works with AI shelved: dark/blurry photo check and plain summary', () => {
+  /** @param {(x: number, y: number) => number} fn */
   const img = (fn) => { const d = new Uint8ClampedArray(64 * 64 * 4);
     for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) { const i = (y * 64 + x) * 4; d[i] = d[i + 1] = d[i + 2] = fn(x, y); d[i + 3] = 255; }
     return d; };

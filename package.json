@@ -11,6 +11,11 @@
     "test:e2e": "node tests/e2e.js && node tests/e2e-chat.js && node tests/e2e-supabase.js && node tests/e2e-harden.js && node tests/e2e-demo.js && node tests/e2e-consent.js && node tests/e2e-location.js && node tests/e2e-showcase.js && node tests/e2e-update.js && node tests/e2e-demo-chat.js && node tests/e2e-works.js && node tests/e2e-polish.js && node tests/e2e-harden2.js && node tests/e2e-enhance.js && node tests/e2e-design.js",
     "build:mls": "cd messenger && npm run build",
     "serve": "npx http-server -p 8123 -c-1 .",
-    "eval:geofence": "node evals/geofence/run.mjs"
+    "eval:geofence": "node evals/geofence/run.mjs",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.e2e.json"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "typescript": "7.0.2"
   }
 }

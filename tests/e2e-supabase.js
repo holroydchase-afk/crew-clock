@@ -21,7 +21,7 @@ const JOB = { id: '00000000-0000-4000-8000-0000000000c1', name: 'Smith kitchen',
     // GPS that never answers, like a phone deep in a hollow.
     navigator.geolocation.watchPosition = () => 1;
     navigator.geolocation.clearWatch = () => {};
-    navigator.geolocation.getCurrentPosition = (ok, err) => err && err({ code: 3 });
+    navigator.geolocation.getCurrentPosition = (ok, err) => err && err(/** @type {GeolocationPositionError} */ ({ code: 3 }));
   });
   await page.route('**/config.js', (r) => r.fulfill({ contentType: 'application/javascript', body:
     `window.APP_CONFIG = { backend: 'supabase', supabaseUrl: '${SB}', supabaseAnonKey: 'anon', orgCode: 'EXAMPLE1', gpsTimeoutMs: 1500 };` }));

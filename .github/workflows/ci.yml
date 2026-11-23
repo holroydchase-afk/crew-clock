@@ -38,6 +38,10 @@ jobs:
 
       - name: Unit tests
         run: npm test
+      - name: Install dev tools (TypeScript, no lockfile at the root)
+        run: npm install --no-package-lock
+      - name: Type check (tsc over the plain JS, no build step)
+        run: npm run typecheck
       - name: Agent roster matches CLAUDE.md
         run: bash scripts/check-agents.sh
       - name: Shared modules in sync

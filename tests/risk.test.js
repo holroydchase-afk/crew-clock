@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const Risk = require('../js/risk.js');
+/** @param {{ code: string }[]} f */
 const codes = (f) => f.map((x) => x.code).sort();
 const noon = Date.parse('2026-10-21T12:00:00-04:00');
 const base = { id: 'n', crewId: 'c1', byCrewId: 'c1', deviceId: 'd1', type: 'in', at: noon, lat: 38.4537, lng: -81.929, accuracy: 9 };

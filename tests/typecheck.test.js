@@ -7,13 +7,15 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
 const ROOT = path.join(__dirname, '..');
+/** @param {string} f */
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 // tsconfig allows comments and trailing commas; strip them outside strings only ("js/**/*.js" is not a comment)
+/** @param {string} src */
 function jsonc(src) {
   let out = '';
   for (let i = 0; i < src.length; i++) {
     const ch = src[i];
-    if (ch === '"') { const m = /^"(?:[^"\\]|\\.)*"/.exec(src.slice(i)); out += m[0]; i += m[0].length - 1; }
+    if (ch === '"') { const m = /** @type {RegExpExecArray} */ (/^"(?:[^"\\]|\\.)*"/.exec(src.slice(i))); out += m[0]; i += m[0].length - 1; }
     else if (ch === '/' && src[i + 1] === '/') { while (i < src.length && src[i] !== '\n') i++; out += '\n'; }
     else if (ch === '/' && src[i + 1] === '*') { i = src.indexOf('*/', i + 2) + 1; }
     else out += ch;
@@ -33,7 +35,7 @@ test('TS-1 tsconfig.json checks js/ and tests/, skips vendored and other-runtime
   const inc = (c.include || []).join(' ');
   assert.match(inc, /(^|\s)js\/(\*\*\/)?\*(\.js)?(\s|$)/, 'include covers js/*.js');
   assert.match(inc, /(^|\s)tests(\/|\s|$)/, 'include covers tests/');
-  const exc = (c.exclude || []).map((e) => e.replace(/\/(\*\*)?\/?$/, ''));
+  const exc = (c.exclude || []).map((/** @type {string} */ e) => e.replace(/\/(\*\*)?\/?$/, ''));
   for (const d of ['js/vendor', 'vendor', 'messenger', 'supabase']) assert.ok(exc.includes(d), `exclude ${d}`);
 });
 
