@@ -1,6 +1,7 @@
 // Demo hints (docs/product/SPEC-DEMO-HINTS.md): one pulsing dot on the next thing to tap, instead of
 // the pitch and the "Demo: ..." explainers. Browser cases HINT-1 and HINT-3..HINT-12, by criterion ID;
-// HINT-2 is static (tests/hints.test.js) and HINT-14 is a manual ux-reviewer pass.
+// HINT-2 is static (tests/hints.test.js) and HINT-14 is a manual ux-reviewer pass. UX-R70..R73
+// (ux-reviewer findings) check the dot reads as a "tap here" ring and covers no words.
 // Hooks (spec, "Hooks"): the dot is `.hint-dot` inside the target; the target has data-hint="1".."7"
 // and aria-describedby naming a visually hidden "Suggested next step"; progress is in localStorage
 // `crewclock.hints`. Against a demo build on :8123:
@@ -603,6 +604,217 @@ t('HINT-12 worker Home (Travis, with consent): the checkbox is named exactly "Pr
   if (!(await box.isChecked())) throw new Error('"Pretend I\'m at the job" starts unchecked');
   return page;
 });
+
+// ---------- UX-R70..R73: the dot reads as "tap here", not a status, and covers no words ----------
+// Walks the 7 steps (step 7 on the boss after tampering, then the names screen and worker Home) and
+// calls `check(step, where)` with the dot on screen at each.
+async function walkSteps(page, check) {
+  await check(1, 'names (Travis K.)');
+  await nameBtn(page, 'Travis K.').click();
+  await page.waitForSelector('.punch');
+  await settle(page);
+  await check(2, 'worker Home (Clock in)');
+  await page.locator('.punch').click();
+  await finishClockIn(page);
+  await check(3, 'worker Home (Not you?)');
+  await page.getByRole('button', { name: 'Not you?' }).click();
+  await page.waitForSelector('.name-btn');
+  await settle(page);
+  await check(4, 'names (Sam W.)');
+  await nameBtn(page, 'Sam W.').click();
+  await page.waitForSelector('.boss');
+  await settle(page, 500);
+  await check(5, 'boss Map (Today tab)');
+  await bossTab(page, 'today');
+  await waitTamper(page);
+  await check(6, 'boss Today (Try tampering)');
+  await toTamperResult(page);
+  await check(7, 'boss after tampering (No signal)');
+  await page.click('[data-action="sign-out"]');
+  await page.waitForSelector('.name-btn');
+  await settle(page);
+  await check(7, 'names (No signal)');
+  await nameBtn(page, 'Travis K.').click();
+  await page.waitForSelector('.punch');
+  await settle(page);
+  await check(7, 'worker Home (No signal)');
+}
+
+// In the page: the dot's paint against what sits behind it. Colours go through a canvas so any CSS
+// colour syntax comes back as sRGB bytes.
+function ringOf(step) {
+  const target = document.querySelector(`[data-hint="${step}"]`);
+  const dot = target && target.querySelector('.hint-dot');
+  if (!dot) return { missing: target ? `[data-hint="${step}"] has no .hint-dot` : `no [data-hint="${step}"]` };
+  const cv = document.createElement('canvas'); cv.width = cv.height = 1;
+  const cx = cv.getContext('2d', { willReadFrequently: true });
+  const rgba = (c) => { cx.clearRect(0, 0, 1, 1); cx.fillStyle = '#000'; cx.fillStyle = c; cx.fillRect(0, 0, 1, 1); const d = cx.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2], d[3] / 255]; };
+  const varColour = (name) => { const p = document.createElement('span'); p.style.color = `var(${name})`; dot.parentElement.appendChild(p); const c = getComputedStyle(p).color; p.remove(); return rgba(c); };
+  const same = (a, b) => a.every((x, i) => Math.abs(x - b[i]) <= (i === 3 ? 0.02 : 2));
+  const hex = (c) => '#' + c.slice(0, 3).map((x) => Math.round(x).toString(16).padStart(2, '0')).join('') + (c[3] < 1 ? `@${c[3].toFixed(2)}` : '');
+  const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+  const ratio = (a, b) => { const x = lum(a); const y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  // What is painted behind the dot: the target's background, composited over its ancestors'
+  const layers = [];
+  for (let e = dot.parentElement; e; e = e.parentElement) {
+    const c = rgba(getComputedStyle(e).backgroundColor);
+    if (c[3] > 0) layers.push({ c, el: e });
+    if (c[3] >= 1) break;
+  }
+  let behind = [255, 255, 255, 1];
+  for (const l of layers.reverse()) behind = [0, 1, 2].map((i) => l.c[i] * l.c[3] + behind[i] * (1 - l.c[3])).concat(1);
+  // Computed box-shadow layers: [{ colour, x, y, blur, spread, inset }]
+  const shadows = (v) => (v === 'none' ? [] : v.split(/,(?![^(]*\))/).map((x) => {
+    const colour = (x.match(/(rgba?|color|oklch|oklab|lab|lch|hsla?)\([^)]*\)/) || ['transparent'])[0];
+    const n = x.replace(colour, '').match(/-?[\d.]+px/g) || [];
+    const [ox, oy, blur, spread] = n.map(parseFloat).concat([0, 0, 0, 0]);
+    return { colour, x: ox, y: oy, blur, spread, inset: /inset/.test(x) };
+  }));
+  const bg = varColour('--bg');
+  const accent = varColour('--accent');
+  const ink = varColour('--ink');
+  const cs = getComputedStyle(dot);
+  // The separating stroke (QA-R1 design call): box-shadow 0 0 0 2px var(--ink), no blur
+  const stroke = shadows(cs.boxShadow).find((x) => !x.inset && x.x === 0 && x.y === 0 && x.blur === 0 && x.spread >= 2 && same(rgba(x.colour), ink));
+  const r = dot.getBoundingClientRect();
+  const tr = target.getBoundingClientRect();
+  const sides = ['Top', 'Right', 'Bottom', 'Left'].map((s) => ({ s, w: parseFloat(cs[`border${s}Width`]), style: cs[`border${s}Style`], c: rgba(cs[`border${s}Color`]) }));
+  const pseudo = ['::before', '::after'].map((p) => {
+    const ps = getComputedStyle(dot, p);
+    return { p, content: ps.content, w: parseFloat(ps.width) || 0, h: parseFloat(ps.height) || 0, bg: rgba(ps.backgroundColor),
+      shown: ps.content !== 'none' && ps.content !== 'normal' && ps.display !== 'none' && ps.visibility !== 'hidden' && Number(ps.opacity) > 0.9 };
+  });
+  return {
+    w: r.width, h: r.height, fill: hex(rgba(cs.backgroundColor)), fillIsBg: same(rgba(cs.backgroundColor), bg), bg: hex(bg), accent: hex(accent),
+    borderBad: sides.filter((x) => Math.abs(x.w - 2) > 0.1 || x.style !== 'solid' || !same(x.c, accent)).map((x) => `${x.s} ${x.w}px ${x.style} ${hex(x.c)}`),
+    inner: pseudo.find((x) => x.shown && x.w >= 6 && x.h >= 6 && same(x.bg, accent)) ? null
+      : pseudo.map((x) => `${x.p} content ${x.content} ${x.w}x${x.h} bg ${hex(x.bg)}${x.shown ? '' : ' (not shown)'}`).join('; '),
+    behind: hex(behind), behindFrom: layers.map((l) => `${l.el.tagName.toLowerCase()}${l.el.className ? '.' + String(l.el.className).trim().split(/\s+/).join('.') : ''}`).join(' over '),
+    accentVsBehind: ratio(accent, behind), bgVsBehind: ratio(bg, behind), ink: hex(ink), inkVsBehind: ratio(ink, behind),
+    stroke: !!stroke, shadow: cs.boxShadow,
+    boxed: target.matches('.name-btn, .punch'),
+    inside: ((o) => r.left - o >= tr.left - 0.5 && r.right + o <= tr.right + 0.5 && r.top - o >= tr.top - 0.5 && r.bottom + o <= tr.bottom + 0.5)(stroke ? stroke.spread : 0),
+    rect: `x ${r.left.toFixed(1)}..${r.right.toFixed(1)} y ${r.top.toFixed(1)}..${r.bottom.toFixed(1)}`,
+    trect: `x ${tr.left.toFixed(1)}..${tr.right.toFixed(1)} y ${tr.top.toFixed(1)}..${tr.bottom.toFixed(1)}`,
+  };
+}
+for (const scheme of ['light', 'dark']) {
+  for (const vp of [PHONE, LAPTOP]) {
+    t(`UX-R70/R71 ${vp.width}x${vp.height} ${scheme}: on all 7 steps the hint is a 16px+ ring (fill --bg, 2px solid --accent border, inner accent dot 6px+, outer 2px --ink stroke with no blur), with edge, fill or stroke 3:1 against what is behind it, and inside boxed targets`, async (browser) => {
+      // Reduced motion so the inner dot and ring are measured still, not mid-pulse
+      const page = await open(browser, { viewport: vp, colorScheme: scheme, reducedMotion: 'reduce' });
+      const errs = [];
+      await walkSteps(page, async (step, where) => {
+        await settle(page);
+        const m = await page.evaluate(ringOf, step);
+        if (m.missing) { errs.push(`${where}: ${m.missing}`); return; }
+        if (m.w < 16 || m.h < 16) errs.push(`${where}: dot is ${m.w}x${m.h}, want 16x16+`);
+        if (!m.fillIsBg) errs.push(`${where}: dot fill ${m.fill}, want --bg ${m.bg}`);
+        if (m.borderBad.length) errs.push(`${where}: border ${m.borderBad.join(', ')}, want 2px solid --accent ${m.accent}`);
+        if (m.inner) errs.push(`${where}: no inner accent dot 6px+ (${m.inner})`);
+        if (!m.stroke) errs.push(`${where}: no outer --ink stroke ${m.ink} (want box-shadow 0 0 0 2px var(--ink), no blur; see ${m.shadow})`);
+        const inkOk = m.stroke && m.inkVsBehind >= 3;
+        if (m.accentVsBehind < 3 && m.bgVsBehind < 3 && !inkOk) {
+          errs.push(`${where}: behind the dot is ${m.behind} (${m.behindFrom}); accent ${m.accent} ${m.accentVsBehind.toFixed(2)}:1, --bg ${m.bg} ${m.bgVsBehind.toFixed(2)}:1, --ink stroke ${m.stroke ? m.inkVsBehind.toFixed(2) + ':1' : 'missing'}, want one 3:1+`);
+        }
+        if (m.boxed && !m.inside) errs.push(`${where}: dot ${m.rect} (with its outer stroke) sticks out of the target ${m.trect}`);
+      });
+      if (errs.length) throw new Error(errs.join(' | '));
+      return page;
+    });
+  }
+}
+
+// In the page: every visible word on screen (Range.getClientRects per word, every text node in the
+// body, not only the target's) whose box overlaps what the dot paints: its own box, plus each shown
+// ::before/::after (the pulse ring), sampled at 10 points of its animation and counted where its
+// opacity is 0.2 or more.
+function wordsUnderDot(step) {
+  const target = document.querySelector(`[data-hint="${step}"]`);
+  const dot = target && target.querySelector('.hint-dot');
+  if (!dot) return { missing: target ? `[data-hint="${step}"] has no .hint-dot` : `no [data-hint="${step}"]` };
+  const dr = dot.getBoundingClientRect();
+  const dcs = getComputedStyle(dot);
+  // Computed box-shadow layers: [{ colour, x, y, blur, spread, inset }]
+  const shadows = (v) => (v === 'none' ? [] : v.split(/,(?![^(]*\))/).map((x) => {
+    const colour = (x.match(/(rgba?|color|oklch|oklab|lab|lch|hsla?)\([^)]*\)/) || ['transparent'])[0];
+    const n = x.replace(colour, '').match(/-?[\d.]+px/g) || [];
+    const [ox, oy, blur, spread] = n.map(parseFloat).concat([0, 0, 0, 0]);
+    return { colour, x: ox, y: oy, blur, spread, inset: /inset/.test(x) };
+  }));
+  const grow = Math.max(0, ...shadows(dcs.boxShadow).filter((x) => !x.inset).map((x) => x.spread + x.blur + Math.max(Math.abs(x.x), Math.abs(x.y))));
+  const parts = [{ part: 'dot', l: dr.left - grow, r: dr.right + grow, t: dr.top - grow, b: dr.bottom + grow }];
+  const pseudoBox = (p) => {
+    const ps = getComputedStyle(dot, p);
+    if (ps.content === 'none' || ps.content === 'normal' || ps.display === 'none' || ps.visibility === 'hidden' || Number(ps.opacity) < 0.2) return null;
+    const w = parseFloat(ps.width) + parseFloat(ps.borderLeftWidth) + parseFloat(ps.borderRightWidth) + parseFloat(ps.paddingLeft) + parseFloat(ps.paddingRight);
+    const h = parseFloat(ps.height) + parseFloat(ps.borderTopWidth) + parseFloat(ps.borderBottomWidth) + parseFloat(ps.paddingTop) + parseFloat(ps.paddingBottom);
+    if (!(w > 0 && h > 0)) return null;
+    const x = dr.left + parseFloat(dcs.borderLeftWidth) + (parseFloat(ps.left) || 0);
+    const y = dr.top + parseFloat(dcs.borderTopWidth) + (parseFloat(ps.top) || 0);
+    const [ox, oy] = ps.transformOrigin.split(' ').map(parseFloat);
+    const m = ps.transform === 'none' ? new DOMMatrix() : new DOMMatrix(ps.transform);
+    const pts = [[0, 0], [w, 0], [0, h], [w, h]].map(([a, c]) => { const q = new DOMPoint(a - ox, c - oy).matrixTransform(m); return [x + ox + q.x, y + oy + q.y]; });
+    return { part: p, l: Math.min(...pts.map((q) => q[0])), r: Math.max(...pts.map((q) => q[0])), t: Math.min(...pts.map((q) => q[1])), b: Math.max(...pts.map((q) => q[1])) };
+  };
+  const anims = dot.getAnimations({ subtree: true });
+  const sample = () => { for (const p of ['::before', '::after']) { const bx = pseudoBox(p); if (bx) parts.push(bx); } };
+  if (!anims.length) sample();
+  else {
+    const was = anims.map((a) => a.currentTime);
+    anims.forEach((a) => a.pause());
+    for (let i = 0; i < 10; i++) {
+      anims.forEach((a) => { const dur = Number(a.effect.getComputedTiming().duration) || 0; a.currentTime = (dur * i) / 10; });
+      sample();
+    }
+    anims.forEach((a, i) => { a.currentTime = was[i]; a.play(); });
+  }
+  const seen = (el) => {
+    for (let e = el; e && e !== document.documentElement; e = e.parentElement) {
+      const cs = getComputedStyle(e);
+      if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) return false;
+      if (/inset\(50%\)/.test(cs.clipPath) || /rect\(0/.test(cs.clip)) return false;
+    }
+    return true;
+  };
+  const hits = [];
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    if (!n.textContent.trim() || n.parentElement.closest('.hint-dot, script, style') || !seen(n.parentElement)) continue;
+    for (const m of n.textContent.matchAll(/\S+/g)) {
+      const rg = document.createRange();
+      rg.setStart(n, m.index); rg.setEnd(n, m.index + m[0].length);
+      for (const r of rg.getClientRects()) {
+        if (r.width <= 1 || r.height <= 1) continue;
+        for (const d of parts) {
+          const ox = Math.min(d.r, r.right) - Math.max(d.l, r.left);
+          const oy = Math.min(d.b, r.bottom) - Math.max(d.t, r.top);
+          if (ox > 0.5 && oy > 0.5) {
+            const hit = `"${m[0]}" under the ${d.part === 'dot' ? 'dot' : `dot's ${d.part}`}`;
+            if (!hits.includes(hit)) hits.push(hit);
+          }
+        }
+      }
+    }
+  }
+  return { hits, rect: `x ${dr.left.toFixed(1)}..${dr.right.toFixed(1)} y ${dr.top.toFixed(1)}..${dr.bottom.toFixed(1)}` };
+}
+for (const scheme of ['light', 'dark']) {
+  for (const vp of [PHONE, LAPTOP]) {
+    t(`UX-R72/R73 ${vp.width}x${vp.height} ${scheme}: on all 7 steps the dot (and its pulse ring) covers no visible word anywhere on screen`, async (browser) => {
+      const page = await open(browser, { viewport: vp, colorScheme: scheme });
+      const errs = [];
+      await walkSteps(page, async (step, where) => {
+        await settle(page);
+        const m = await page.evaluate(wordsUnderDot, step);
+        if (m.missing) errs.push(`${where}: ${m.missing}`);
+        else if (m.hits.length) errs.push(`${where}: dot ${m.rect} covers ${m.hits.join(', ')}`);
+      });
+      if (errs.length) throw new Error(errs.join(' | '));
+      return page;
+    });
+  }
+}
 
 (async () => {
   const only = process.argv[2];

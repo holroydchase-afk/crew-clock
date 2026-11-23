@@ -64,6 +64,13 @@ bring back one line of words under the banner. Don't bring the pitch back.
   whose text is exactly "Suggested next step".
 - **Memory:** finished steps live in `localStorage` key `crewclock.hints`. It does not start with `cc.`, so the
   demo's Reset must clear it by name.
+- **The ring (UX-R70/R71, QA-R1 design call):** `.hint-dot` is at least 16x16 px with a `--bg` fill, a 2px solid
+  `--accent` border, an inner accent dot of at least 6px (for example `::after`), and a 2px outer stroke in `--ink`
+  (`box-shadow: 0 0 0 2px var(--ink)`, no blur: a stroke, not a shadow). On every step, light and dark, the edge,
+  the fill or the stroke reaches 3:1 against the colour behind it. On boxed targets (name button, Clock in) the
+  whole ring, stroke included, sits inside the target's border box.
+- **Clear of words (UX-R72/R73):** the dot, its stroke and its pulse ring (wherever it shows at 0.2 opacity or
+  more) overlap no visible word on screen, at 390x844 and 1280x800, light and dark.
 
 ## 3. Acceptance criteria (QA writes these red first)
 - HINT-1 (auto, e2e): Given a fresh demo, when the names screen, worker home (Travis) and boss screen render, then none of these appear: "GPS time clock", "Try it", "Start here", "Clock in as a worker", "Or pick someone else", "Demo: turn on No signal", "Each punch is signed", "Demo: pretend".
