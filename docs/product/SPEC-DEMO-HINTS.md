@@ -1,0 +1,87 @@
+# SPEC: Demo hints (CRW, demo build only)
+
+Status: todo. Owner: staff-pm. Scope: the public `--demo` build. The crew app does not change.
+
+## The bet
+Chase: "We do not need the demo checks, descriptors, the gps time clock for.. text. ... nudge them
+vs literally saying 'try it on the screen' like pulsing dots they use all over the place."
+A recruiter shown the real app, with a single pulsing dot on the next thing to tap, gets further
+than one handed a pitch to read. The demo should look like the crew app plus the sample-data banner.
+**Signal:** a fresh visitor reaches the boss map and the tamper check by following the dots alone
+(e2e HINT-6). **Stop:** if the dot path can't be followed without words (UX review on a 390 px phone),
+bring back one line of words under the banner. Don't bring the pitch back.
+
+## 1. Inventory (js/app.js unless noted)
+| # | Text today | Call | Why |
+|---|---|---|---|
+| I1 | h1 "A GPS time clock for a small construction crew" (`.pitch-title`) | Remove | This is pitch copy and belongs on the portfolio page and README. Replace it with the crew app's h1 "Who are you?" so the screen keeps an h1 |
+| I2 | `.proof` list (3 check items) | Remove | These are marketing claims. The banner and the flow itself show them |
+| I3 | `.pitch` section and its side-by-side laptop layout | Remove | Nothing is left to sit beside the names. Delete the dead CSS |
+| I4 | h2 "Try it" (`#pick-title`) | Remove | This is the literal "try it" Chase cut. The section takes its label from the h1 |
+| I5 | "Start here" chip on Travis K. | Replace: hint | Hint step 1 |
+| I6 | "Clock in as a worker" (`.start-sub`) | Remove | Descriptor. Travis becomes a normal name button, first in the grid |
+| I7 | "Or pick someone else. Pick the boss to see the team map." (`.pick-note`) | Replace: hint | Hint step 4. The "Boss" and "Foreman" role words on the name buttons stay because they identify people |
+| I8 | "Demo: turn on No signal above, then clock in." (`.demo-hint`, home) | Replace: hint | Hint step 6 |
+| I9 | "Demo: pretend I'm at the job" checkbox label | Keep the control, drop "Demo: " | It stops the demo from reading the visitor's real location (privacy). It needs a label (principle 3). The banner already says this is the demo |
+| I10 | `.verify-hint` "Each punch is signed... Demo: 'Try tampering'..." (boss) | Remove | Explainer text. Hint step 5 points at the button instead |
+| I11 | Banner "Sample data, made-up crew, only in this browser" | Keep | Hard rule: demo data stays labeled (SEP-3/4) |
+| I12 | Banner controls "No signal" and "Reset sample data" | Keep | They are verbs on real controls, and Reset is the only way to start over |
+| I13 | "Try tampering" and "Undo the change" (boss verify card) | Keep | These are verb buttons. They are the feature, not a description of it |
+| I14 | "Yesterday (sample day)" heading (boss) | Keep | It labels the data and says which day the visitor is looking at |
+| I15 | demo-backend.js, done screen, boss screen otherwise | No change | No other explanatory text found. The sample address answers are data, not copy |
+
+## 2. The hint pattern ("hotspot")
+- **What it is:** a 12 px dot in the accent color with a ring that pulses (about 1.6 s, ease-out),
+  pinned to the top-right corner of the target. Principle 6: the accent means "tap here", so this
+  use is on-brand. Plain CSS and a few lines of JS. No library.
+- **Where:** `cfg.backend === 'demo'` only, using the same guard as `demoControls()`. Never in the crew app, and
+  never in a crew build that fell back to demo.
+- **Order:** each step has a screen, a target and a done-when. On any screen, show the earliest unfinished
+  step whose target is on that screen. Show at most one.
+  1. Names: Travis K. Done when tapped.
+  2. Worker home: Clock in. Done when tapped.
+  3. Worker home, once step 2 is done: "Not you?". Done when tapped.
+  4. Names, once step 2 is done: the boss (Sam W.). Done when tapped.
+  5. Boss: "Try tampering". Done when tapped.
+  6. Worker home, once step 5 is done: the "No signal" switch. Done when switched on.
+- **Memory:** finished steps live in `localStorage` key `crewclock.demoHints`. The demo's Reset clears it.
+- **Never in the way:** `pointer-events: none`. Placed in the target's own padding corner, clear of its
+  text box. The target keeps its size (at least 48 px) and its layout, with no extra wrapper in the tab order.
+- **Screen readers:** the dot is `aria-hidden`. The target gets `aria-describedby` pointing to a
+  visually hidden "Suggested next step", so assistive tech gets the same nudge.
+- **Reduced motion:** under `prefers-reduced-motion: reduce` the ring is static (no animation, no transition).
+- **No word label.** The dot carries no text. This is a deliberate exception to principle 3
+  ("Words, not puzzles"), limited to demo hints. It's a mild one because every target already has its own words.
+  Logged under "Decisions to review" for Chase.
+
+## 3. Acceptance criteria (QA writes these red first)
+- HINT-1 (auto, e2e): Given a fresh demo, when the names screen, worker home (Travis) and boss screen render, then none of these appear: "GPS time clock", "Try it", "Start here", "Clock in as a worker", "Or pick someone else", "Demo: turn on No signal", "Each punch is signed", "Demo: pretend".
+- HINT-2 (auto, static): Given js/app.js, then none of the strings in HINT-1 appear in it, and the `.pitch`, `.proof`, `.pick-note`, `.demo-hint` and `.verify-hint` classes are gone from js/ and css/.
+- HINT-3 (auto, e2e): Given a fresh demo, when each screen in the path renders, then exactly one `.hotspot` is visible, on the target for that step (1 Travis, 2 Clock in, 3 Not you?, 4 Sam W., 5 Try tampering, 6 No signal).
+- HINT-4 (auto, e2e): Given a hotspot on its target, when the visitor taps the target, then that hotspot is gone, the next step's hotspot shows where its target is, and a reload doesn't bring the finished one back.
+- HINT-5 (auto, e2e): Given some steps are finished, when the visitor taps Reset and confirms, then `crewclock.demoHints` is cleared and step 1 shows again.
+- HINT-6 (auto, e2e): Given a fresh 390x844 demo, when a script taps only hotspot targets, plus the flow's own Done (and a job choice if asked) and the tamper confirm if one exists, then it ends with "No signal" on, having passed through worker home, the done screen, the boss screen and the tamper result.
+- HINT-7 (auto, e2e): Given the supabase crew-app build (the e2e-enhance.js ENH-1d setup), when the names screen, worker home and boss screen render, then there is no `.hotspot`, no `aria-describedby` pointing at a hint, and `crewclock.demoHints` is never written.
+- HINT-8 (auto, e2e): Given `reducedMotion: 'reduce'`, when a hotspot shows, then its computed `animation-name` is `none` on it and its pseudo-elements, and the static ring is still visible.
+- HINT-9 (auto, e2e): Given a hotspot on its target, then the dot's box doesn't overlap the target's text box, the target is still at least 48x48 with the same size it had without the hint, and the dot has `pointer-events: none` and `aria-hidden="true"`.
+- HINT-10 (auto, e2e): Given a hotspot target, then it has `aria-describedby` pointing to a visually hidden "Suggested next step", and axe reports no new violations on any demo screen.
+- HINT-11 (auto, e2e): Given the demo names screen, then the h1 is "Who are you?", Travis K. is the first name button, and he is fully inside the first 390x844 and 1280x800 viewport.
+- HINT-12 (auto, e2e): Given worker home with consent, then the checkbox reads "Pretend I'm at the job" and is checked by default (M1.6). SEP-5, e2e-demo:318 and AC-R64 still pass.
+- HINT-13 (auto, all suites): LIVE-4 (banner at most 90 px), the axe and DS tests (e2e-design, theme.test.js) and SEP-3/4/5 all pass 3x with no edits.
+- HINT-14 (manual, ux-reviewer): on a 390 px phone and a laptop, light and dark, the dot reads as "tap here" and never as a status or error.
+
+**Tests these supersede.** These are requirement changes, not weakened tests. qa-tdd rewrites them to the new
+criteria in the same PR and names each rewrite in the PR body:
+UX-R1 (e2e-polish:65, "Start here" becomes HINT-11), UX-R17 (e2e-polish:84, the pitch is gone),
+SHOW-4 (e2e-showcase:268, becomes HINT-3 and HINT-11), and the e2e-polish:825 screenshot note.
+
+## 4. Open questions for Chase (we build the default)
+1. **The sign-in heading:** "Who are you?" (the crew app's) or no h1 at all? Default: "Who are you?". It's the
+   real app's words, it needs no pitch, and a screen needs an h1 for screen readers.
+2. **Rewriting UX-R1, UX-R17 and SHOW-4.** The hard rule bans weakening tests, and these assert the pitch you're
+   cutting. Default: rewrite them to HINT-3 and HINT-11 in the same PR, each named in the PR body for your review.
+
+## Not doing
+- Coach marks, tooltips, tours or a "skip tour" button. That's more words, which is the opposite of the ask.
+- Hints in the crew app for new crew. Not now: the crew app's audience is the real crew, who are shown in person.
+- Analytics on hint completion. The $0, no-tracking rule rules it out.
