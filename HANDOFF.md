@@ -3,17 +3,16 @@
 stage: building
 goal: portfolio
 milestone: CRW-M2
-now: design doc and stale service worker post-mortem (portfolio review item 2, PR #44)
+now: design doc and stale service worker post-mortem (portfolio review item 2, PR #44); TS-2 (.ts rename + esbuild, issue #36 PR 2) after #47
 next: metrics and beta scorecard (portfolio review item 3), then the reliability pass (item 5)
 waiting_on_chase:
   - Supabase project, SETUP steps 1.1 to 1.4 (unblocks M2.1)
-  - Shelve card answer (portfolio review item 4)
 blockers: []
 -->
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-11-23 (M1.17 design doc and post-mortem, merged with main after DS-1 restyle #42 and studio wiring #43)
+Updated: 2026-11-23 (M1.17 design doc and post-mortem, merged with main after #42, #43 and #47)
 
 ## What it is
 
@@ -36,6 +35,33 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
   "not recorded" (how many phones, when it was noticed, when the fix went live). Docs only, no code
   changed. Writing it turned up two things, both in Exact next step: the crew build can still be
   pointed at the Sheets backend, and `tests/e2e-update.js` still waits fixed times.
+
+- AI-SHELF (2026-11-23, Chase shelved on-phone AI; reversible). `config.js` `onPhoneAi: false`;
+  `scripts/build-site.mjs` forces it false in both builds (no env var turns it on).
+  `AI.modelTier(config, nav)` is 0 unless `onPhoneAi === true`; `AI.labelPhoto` / `AI.writeSummary`
+  reject before any import when it is off. `js/app.js` gates the summary button and photo labels on
+  `AI.modelTier(cfg)`. Tier 0 (dark/blurry photo check, plain summary) unchanged. README, PRIVACY
+  (Hugging Face: none) and PLAN "Not now" updated. Tests: `tests/aishelf.test.js` (qa-tdd red first).
+  No demo change (the demo never offered AI).
+- SHEETS-SHELF (2026-11-23, Chase, docs only): the Google Sheets nightly export is shelved; the
+  Week view CSV covers it. PLAN M2.3 is photos and alerts only, "Not now" lists it, SETUP step 7
+  says skip, Blockers 3 no longer asks for a Sheet, README marks it shelved. No code removed;
+  push text and Sheets never carried coordinates, so no privacy change.
+- TS-1 (2026-11-23, issue #36 PR 1): `npm run typecheck` runs `tsc` (TypeScript 7.0.2, exact pin,
+  plus `@types/node`, both devDependencies) over the plain JS with JSDoc types; still no build step.
+  `tsconfig.json` is strict over `js/*.js` and the unit tests; `tsconfig.e2e.json` (strict off) covers
+  the Playwright files. Shared types and globals in `js/globals.d.ts`, `tests/sandbox.d.ts`,
+  `tests/e2e.d.ts`. Errors 2690 before (js about 1150, tests about 1540), 0 after; no `@ts-nocheck`,
+  no `@ts-expect-error`. `any` only at boundaries (API result rows, Supabase REST, IndexedDB
+  promises, Leaflet `on`, the model pipeline output). Fixes are JSDoc and casts only, no runtime change; shared files
+  re-synced. CI installs dev tools (`npm ci`) and runs the type check.
+  `.gitattributes` marks `vendor/` and `js/vendor/` vendored. Tests: `tests/typecheck.test.js` (qa-tdd red first).
+  Review fixes: ARCH-1 root `package-lock.json`, CI `npm ci`, dependabot covers root npm; PS-SHELF-3
+  ci.yml top-level `permissions: contents: read`; PS-SHELF-1/2 PRIVACY marks the Sheet export shelved
+  and says leave `REPORT_TOKEN` unset. Reviewed by architect (ARCH-1..3) and privacy-security
+  (PS-SHELF-1..3). Tests: `tests/typecheck.test.js`, `tests/shelf-docs.test.js` (qa-tdd red first).
+  First CI run: tsc could not find the sandbox-only Playwright path in `tests/browser.js` (CI has no `/opt/node22`); the path is now a variable so tsc skips it. Runtime unchanged.
+  Second CI run: the MLS bundle check failed because esbuild picked up the new root `tsconfig.json` (strict) and added "use strict" to `js/vendor/crew-mls.js`; `messenger` now builds with `--tsconfig-raw={}`, so the bundle is byte-identical to main.
 
 - Wired to studio-agents (2026-11-22, issue #43). Re-synced `.claude/agents/` (adds
   `release-captain` and `story-keeper`, refreshes `qa-tdd`, `ux-reviewer`, `privacy-security`) and
@@ -492,8 +518,9 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
 From the 2026-11-18 portfolio review, in order: (3) `docs/METRICS.md`
 with targets and the M2.6 go/no-go bar, then issue #35; (5) the reliability pass, each with a failing
 test first: `Chain.verifyAll` flags a missing seq, retry backoff with jitter (PS-3),
-`navigator.storage.persist()`, the session-refresh race. Item 4 (shelve chat, on-phone AI, Sheets and
-push; delete `backend/Code.gs`; shrink this file) waits on Chase's answer to the shelve card. This
+`navigator.storage.persist()`, the session-refresh race. Item 4: Chase answered 2026-11-23: keep chat and push, shelve on-phone AI
+(AI-SHELF) and the Sheets export (docs only), continue TypeScript (TS-1). Deleting `backend/Code.gs`
+and shrinking this file are still open. This
 file's "In progress" section above is stale (everything in it is merged) and goes in that cleanup.
 `M2.1` still waits on Chase's Supabase project (Blockers 1).
 Found while writing `docs/DESIGN.md` (2026-11-22), each needs a failing test first: the hard rule
@@ -504,6 +531,12 @@ into a non-demo build; `docs/PRIVACY.md` S5 marks the refusal "to build"); and
 activate (it failed once in CI on timing).
 
 ## Decisions to review
+
+- **TS-1 e2e on a lighter config** (2026-11-23): the Playwright files run code inside the page and are
+  checked with `strict: false` (`tsconfig.e2e.json`); everything else is strict. The root still has no
+  lockfile, so CI installs the two pinned dev tools with `--no-package-lock`.
+- **AI tier 0 kept (no download)** (2026-11-23): with on-phone AI shelved, the plain-JS photo
+  too-dark/too-blurry check and the plain-words summary stay; only the model tiers (1 and 2) are off.
 
 - **DS-10 exception to principle 6 (Chase, 2026-11-21, UX-R61): text links are ink, not accent.**
   "Not you?", "Stop using my location", "Wrong job? Fix it", "Sign out" and "Back" are `--ink`,
@@ -738,7 +771,8 @@ Waiting on Chase, in order (each unblocks an M2 task; nothing in M1 needs these)
 
 1. Supabase project and SETUP steps 1.1 to 1.4 (about 25 minutes). Unblocks `M2.1`.
 2. Cloudflare Pages for the crew app, SETUP step 5 "Crew app" (about 10 minutes). Unblocks `M2.2`.
-3. Backblaze, secrets, alerts and Sheets, SETUP steps 2, 3, 4, 6 and 7 (about 40 minutes).
+3. Backblaze, secrets and alerts, SETUP steps 2, 3, 4 and 6 (about 30 minutes). Step 7 (Sheets) is
+   shelved; skip it.
 4. Install day on the crew's phones, SETUP step 8, after `M1.2` consent ships.
 5. Check West Virginia's record-keeping and employee-monitoring rules (docs/PRIVACY.md "Needs
    Chase") with whoever does the company's payroll. Only the hours row could change.

@@ -22,10 +22,16 @@ const TRIALS_ALL = 1500;   // runAll, determinism only
 const TRIALS_CELL = 5000;  // single cells with thresholds
 const ENV_NAMES = ['open_sky', 'tree_cover', 'hollow', 'overconfident', 'cell_only'];
 const POLICY_NAMES = ['strict', 'fair', 'capped'];
-const METRICS = ['onsiteWronglyFlagged', 'onsitePhotoAsked', 'onsiteClean',
+const METRICS = /** @type {const} */ (['onsiteWronglyFlagged', 'onsitePhotoAsked', 'onsiteClean',
   'offsitePassed15', 'offsitePassed3', 'offsitePassedMile',
-  'offsitePhoto15', 'offsitePhoto3', 'offsitePhotoMile'];
+  'offsitePhoto15', 'offsitePhoto3', 'offsitePhotoMile']);
+/** @typedef {{ env: string, radiusFt: number, policy: string } & Record<typeof METRICS[number], number>} EvalCell */
+/** @param {number} x */
 const pct = (x) => (x * 100).toFixed(2) + '%';
+/**
+ * @param {{ cells: EvalCell[] }} result
+ * @param {string} env @param {number} radiusFt @param {string} policy
+ */
 const findCell = (result, env, radiusFt, policy) =>
   result.cells.find((c) => c.env === env && c.radiusFt === radiusFt && c.policy === policy);
 
@@ -70,6 +76,7 @@ test('EVAL-1 determinism: runAll is the same for the same seed and differs for a
 
 test('EVAL-2 error model: the five environments carry the stated parameters and a plain-words label', async () => {
   const m = await load();
+  /** @type {Record<string, number[]>} */
   const want = {
     open_sky: [4, 12, 1], tree_cover: [15, 45, 1], hollow: [40, 120, 1],
     overconfident: [8, 20, 3], cell_only: [300, 1500, 1],
@@ -89,6 +96,7 @@ test('EVAL-2 error model: an honest phone is within its stated accuracy about 95
   assert.ok(Math.abs(m.sigmaFor(30, 3) - 90 / 2.4477) < 0.01);
 
   const N = 20000;
+  /** @param {string} envName @param {number} statedAccuracyM */
   const within = (envName, statedAccuracyM) => {
     const rng = m.mulberry32(SEED);
     const sigma = m.sigmaFor(statedAccuracyM, m.ENVIRONMENTS[envName].honesty);
@@ -100,7 +108,7 @@ test('EVAL-2 error model: an honest phone is within its stated accuracy about 95
     }
     return n / N;
   };
-  for (const [env, acc] of [['open_sky', 8], ['tree_cover', 30], ['hollow', 80], ['cell_only', 900]]) {
+  for (const [env, acc] of /** @type {[string, number][]} */ ([['open_sky', 8], ['tree_cover', 30], ['hollow', 80], ['cell_only', 900]])) {
     const f = within(env, acc);
     assert.ok(f >= 0.93 && f <= 0.97, `${env}: ${pct(f)} within stated accuracy, want 93 to 97%`);
   }
@@ -139,6 +147,7 @@ test('EVAL-3 the fair policy is the shipped Geo.fenceStatus, strict never says n
 
 test('EVAL-4 fairness threshold: at 300 ft the shipped rule wrongly flags at most 1% of on-site workers, and strict flags clearly more', async () => {
   const m = await load();
+  /** @param {string} env @param {string} policy */
   const cell = (env, policy) => m.runCell({ env, radiusFt: 300, policy, trials: TRIALS_CELL, seed: SEED });
   for (const env of ['open_sky', 'tree_cover', 'hollow']) {
     const fair = cell(env, 'fair');
@@ -169,6 +178,7 @@ test('EVAL-5 never a refusal: with no GPS lock the shipped rule asks for a photo
 
 test('EVAL-6 the known weakness is measured, not hidden: fair passes more people at 1.5x the radius in a hollow than strict', async () => {
   const m = await load();
+  /** @param {string} policy */
   const cell = (policy) => m.runCell({ env: 'hollow', radiusFt: 300, policy, trials: TRIALS_CELL, seed: SEED });
   const fair = cell('fair');
   const strict = cell('strict');

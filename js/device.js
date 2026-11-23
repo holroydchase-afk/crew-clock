@@ -3,8 +3,13 @@
 (function (root) {
   const DB = 'crewclock-keys';
   const STORE = 'device';
+  /** @type {DeviceRecord | null} */
   let cached = null;
 
+  /**
+   * @param {IDBTransactionMode} mode @param {(store: IDBObjectStore) => IDBRequest | void} fn
+   * @returns {Promise<any>} the request's result (a stored record, or nothing for a put)
+   */
   function idb(mode, fn) {
     return new Promise((resolve, reject) => {
       const req = indexedDB.open(DB, 1);
@@ -23,27 +28,33 @@
     return !!(root.crypto && root.crypto.subtle && root.indexedDB && root.Chain);
   }
 
+  /** @returns {Promise<DeviceRecord | null>} */
   async function get() {
     if (cached) return cached;
     if (!supported()) return null;
+    /** @type {DeviceRecord | null} */
     let d = await idb('readonly', (s) => s.get('me')).catch(() => null);
     if (!d) {
       const keys = await root.Chain.generateKey();
-      d = {
+      /** @type {DeviceRecord} */
+      const fresh = {
         id: root.Store.uid(),
         privateKey: keys.privateKey, // CryptoKey, stored as-is; IndexedDB keeps it non-extractable
         publicJwk: await root.Chain.exportPublic(keys.publicKey),
         seq: 0,
         hash: 'genesis',
       };
-      await idb('readwrite', (s) => s.put(d, 'me'));
+      d = fresh;
+      await idb('readwrite', (s) => s.put(fresh, 'me'));
     }
     cached = d;
     return d;
   }
 
   // Signs and advances the chain. Calls are serialized so two quick taps can't share a seq.
+  /** @type {Promise<unknown>} */
   let queue = Promise.resolve();
+  /** @type {DeviceApi['sign']} */
   function sign(punch) {
     const run = queue.then(async () => {
       const d = await get();
@@ -54,7 +65,7 @@
       d.seq = signed.seq;
       d.hash = signed.hash;
       await idb('readwrite', (s) => s.put(d, 'me'));
-      return signed;
+      return /** @type {typeof punch} */ (signed);
     });
     queue = run.catch(() => {});
     return run;

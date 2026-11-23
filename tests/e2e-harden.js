@@ -19,22 +19,22 @@ function gpsStub(cfg) {
   // The demo starts with "pretend I'm at the job" on (M1.6); these tests drive the real GPS path.
   try { localStorage.setItem('cc.demoFake', 'false'); } catch (e) { /* ok */ }
   const g = window.__gps = { mode: cfg.mode, pos: cfg.pos, watches: [] };
-  const at = (p) => ({ coords: { latitude: p.lat, longitude: p.lng, accuracy: p.acc }, timestamp: Date.now() });
+  const at = (p) => /** @type {GeolocationPosition} */ ({ coords: { latitude: p.lat, longitude: p.lng, accuracy: p.acc }, timestamp: Date.now() });
   let rough = 1000;
   navigator.geolocation.watchPosition = (ok, err, opts) => {
     if (opts && opts.enableHighAccuracy === false) {
-      setTimeout(() => (g.mode === 'auto' ? ok(at(g.pos)) : err && err({ code: 1 })), 0);
+      setTimeout(() => (g.mode === 'auto' ? ok(at(g.pos)) : err && err(/** @type {GeolocationPositionError} */ ({ code: 1 }))), 0);
       return ++rough;
     }
     const w = { ok, err, cleared: false };
     g.watches.push(w);
     if (g.mode === 'auto') setTimeout(() => !w.cleared && ok(at(g.pos)), 0);
-    if (g.mode === 'deny') setTimeout(() => !w.cleared && err && err({ code: 1 }), 0);
+    if (g.mode === 'deny') setTimeout(() => !w.cleared && err && err(/** @type {GeolocationPositionError} */ ({ code: 1 })), 0);
     return g.watches.length;
   };
   navigator.geolocation.clearWatch = (id) => { if (g.watches[id - 1]) g.watches[id - 1].cleared = true; };
   navigator.geolocation.getCurrentPosition = (ok, err) =>
-    setTimeout(() => (g.mode === 'auto' ? ok(at(g.pos)) : err && err({ code: 1 })), 0);
+    setTimeout(() => (g.mode === 'auto' ? ok(at(g.pos)) : err && err(/** @type {GeolocationPositionError} */ ({ code: 1 }))), 0);
   window.__fire = (i, p) => { const w = g.watches[i]; if (!w || w.cleared) return false; w.ok(at(p)); return true; };
 }
 
@@ -328,14 +328,14 @@ t('HRD-5 pick a photo, then tap "I can\'t take a picture": one punch', async (br
     const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
     const dt = new DataTransfer();
     dt.items.add(new File([bytes], 'site.jpg', { type: 'image/jpeg' }));
-    const input = document.querySelector('input[data-action="photo-file"]');
+    const input = /** @type {HTMLInputElement} */ (document.querySelector('input[data-action="photo-file"]'));
     input.files = dt.files;
     input.dispatchEvent(new Event('change', { bubbles: true }));
     document.querySelector('[data-action="no-photo"]').click();
   }, SITE_JPG);
   await page.waitForSelector('.big-check');
   // The photo is still being stamped; wait for it to finish (or be refused) before counting.
-  await page.waitForFunction(() => { const f = self.CrewClock.state.flow; return f && (f.photo || f.photoProblem || f.photoRefused); }, null, { timeout: 5000 }).catch(() => {});
+  await page.waitForFunction(() => { const f = /** @type {Flow & { photoRefused?: unknown }} */ (self.CrewClock.state.flow); return f && (f.photo || f.photoProblem || f.photoRefused); }, null, { timeout: 5000 }).catch(() => {});
   await quiet(page);
   const outs = (await punches(page)).filter((p) => p.type === 'out' && p.at >= start);
   if (outs.length !== 1) throw new Error(`saved ${outs.length} clock-outs`);
@@ -603,6 +603,7 @@ t('UX-4 pick-teammate: one button per row, at least 96x48, "Clock in" when off a
     text: r.innerText,
     buttons: [...r.querySelectorAll('button')].map((b) => { const x = b.getBoundingClientRect(); return { label: b.innerText.trim(), w: x.width, h: x.height }; }),
   })));
+  /** @type {Record<string, [string, RegExp]>} */
   const want = { 'Jake R.': ['Clock out', /On at Smith kitchen since \d/], 'Cody M.': ['Clock out', /On at Miller roof since \d/], 'Billy S.': ['Clock in', /\bOff\b/], 'Travis K.': ['Clock in', /\bOff\b/] };
   for (const [name, [label, line]] of Object.entries(want)) {
     const r = rows.find((x) => x.text.includes(name));

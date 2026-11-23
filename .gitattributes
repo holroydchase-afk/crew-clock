@@ -1,0 +1,4 @@
+# Vendored and generated code: kept out of GitHub's language stats and diffs.
+vendor/** linguist-vendored
+js/vendor/** linguist-vendored
+js/vendor/crew-mls.js linguist-generated

@@ -33,14 +33,14 @@ with a new name could hold old files. Install now bypasses that cache, and a tes
 ## Root cause
 
 The build stamps the service worker's `VERSION` with a hash of the app files, so every deploy gets
-a new cache name, `shell-<version>` (`scripts/build-site.mjs:83-86`, `sw.js:4-5`). On install the
+a new cache name, `shell-<version>` (`scripts/build-site.mjs:92-95`, `sw.js:4-5`). On install the
 worker filled that cache with `cache.addAll(SHELL_FILES)` (the removed line in `1122130`). Those
 requests use the browser's default cache mode, so they can be answered from the browser's own HTTP
 cache. GitHub Pages serves files with `Cache-Control: max-age=600`. A browser that had fetched the
 old files within the last 10 minutes therefore installed the new worker, created the new cache and
-filled it with the old files. On activate the worker deleted the previous cache (`sw.js:27-31`) and
+filled it with the old files. On activate the worker deleted the previous cache (`sw.js:30-34`) and
 then served the old files from the new one, because app files are answered from the cache first
-(`sw.js:61-72`).
+(`sw.js:64-75`).
 
 The background refresh, `fetch(req)`, also went through the HTTP cache. By reading the old code, a
 phone should have fetched new files on an open after those 10 minutes and shown them on the open
@@ -50,18 +50,18 @@ after that. That was not reproduced, so whether this path explains every affecte
 
 - No test deployed twice. Tests checked that the build stamps the worker (`tests/site.test.js:24`)
   and ran the app against one build served with caching off (`http-server -c-1`,
-  `.github/workflows/ci.yml:68`), which hides the HTTP cache.
+  `.github/workflows/ci.yml:75`), which hides the HTTP cache.
 - The deploy itself was green, and a fresh browser showed the new build.
 - Playwright turns the HTTP cache off when request routing is used (`tests/e2e-update.js:60`), so
   a test written the usual way would not have reproduced it.
 
 ## Fix (commit `1122130`)
 
-- Install fetches each file with `cache: 'reload'`, which skips the HTTP cache (`sw.js:21-25`).
+- Install fetches each file with `cache: 'reload'`, which skips the HTTP cache (`sw.js:24-28`).
 - The background refresh uses `cache: 'no-cache'`, which revalidates with the server, except for
-  page navigations, which are unchanged (`sw.js:65`).
+  page navigations, which are unchanged (`sw.js:68`).
 - The version hash includes `sw.js` itself, so a change to the worker alone gets a new cache name
-  (`scripts/build-site.mjs:83`).
+  (`scripts/build-site.mjs:92`).
 
 ## How it is guarded now
 
@@ -83,7 +83,7 @@ on the new build by the second open after a deploy.
 
 - The update test waits fixed times (2 s, then 1 s) for the new worker (`tests/e2e-update.js:70-73`)
   and has failed once on a slow CI runner. The planned change is to wait for the new worker to
-  activate. The file has not changed since the fix commit.
+  activate. Those waits have not changed since the fix commit.
 - The test runs in Chromium only (`tests/browser.js`). Safari on an iPhone is untested, and
   recovery of a phone that was actually stale was never confirmed on a real device.
 - The crew app will be on a different host. Its `_headers` file sets `no-cache` on `sw.js`,

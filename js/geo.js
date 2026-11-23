@@ -5,10 +5,13 @@
   const WEAK_ACCURACY_M = 152; // ~500 ft: worse than this, the fix says little
   const NEAR_FACTOR = 3;
 
+  /** @param {number} m */
   function toFeet(m) { return m * FT_PER_M; }
+  /** @param {number} ft */
   function toMeters(ft) { return ft / FT_PER_M; }
 
   // Great-circle distance in meters.
+  /** @param {number} lat1 @param {number} lng1 @param {number} lat2 @param {number} lng2 */
   function distanceM(lat1, lng1, lat2, lng2) {
     const R = 6371000;
     const rad = Math.PI / 180;
@@ -23,14 +26,16 @@
   // The worker gets the benefit of the phone's own stated error.
   // A number the phone could have sent: finite and not negative. Anything else (null, NaN, text,
   // a negative accuracy) counts as no reading, so the worker gets a photo, never "off site".
+  /** @param {unknown} v @returns {number | null} */
   function num(v) {
     if (typeof v === 'string' && v.trim() !== '') v = Number(v);
     return typeof v === 'number' && isFinite(v) ? v : null;
   }
 
-  function fenceStatus(distM, accuracyM, radiusM) {
-    distM = num(distM);
-    accuracyM = num(accuracyM);
+  /** @param {unknown} distRaw @param {unknown} accuracyRaw @param {number} radiusM @returns {FenceStatus} */
+  function fenceStatus(distRaw, accuracyRaw, radiusM) {
+    const distM = num(distRaw);
+    const accuracyM = num(accuracyRaw);
     if (distM == null || accuracyM == null || accuracyM < 0) return 'nogps';
     if (accuracyM > WEAK_ACCURACY_M) return 'weak';
     const closest = distM - accuracyM;
@@ -40,10 +45,15 @@
   }
 
   // Status for a fix against a job ({lat,lng,radiusFt}).
+  /**
+   * @param {{ lat?: unknown, lng?: unknown, accuracy?: unknown } | null | undefined} fix
+   * @param {{ lat?: unknown, lng?: unknown, radiusFt?: number } | null | undefined} job
+   * @returns {{ status: FenceStatus, distanceFt: number | null }}
+   */
   function checkFix(fix, job) {
     const lat = fix ? num(fix.lat) : null;
     const lng = fix ? num(fix.lng) : null;
-    if (lat == null || lng == null || Math.abs(lat) > 90 || Math.abs(lng) > 180 ||
+    if (!fix || lat == null || lng == null || Math.abs(lat) > 90 || Math.abs(lng) > 180 ||
         !job || num(job.lat) == null || num(job.lng) == null) {
       return { status: 'nogps', distanceFt: null };
     }
@@ -54,9 +64,11 @@
     };
   }
 
+  /** @param {string} status */
   function needsPhoto(status) { return status === 'nogps' || status === 'weak'; }
 
   // Plain-words distance for crew screens: "200 ft", "1.4 mi".
+  /** @param {number | null | undefined} ft */
   function formatDistance(ft) {
     if (ft == null) return '';
     if (ft < 1000) return Math.round(ft / 10) * 10 + ' ft';
@@ -68,11 +80,20 @@
   // stopping early once it is good enough. Resolves null if nothing came back.
   // opts.signal (an AbortSignal) stops the watch at once and resolves null: a stopped reading is
   // never used. highAccuracy: false and maximumAgeMs are for a rough reading.
+  /**
+   * @param {GeoSource | null | undefined} geolocation
+   * @param {{ timeoutMs?: number, goodEnoughM?: number, onUpdate?: ((fix: Fix) => void) | null,
+   *   signal?: AbortSignal | null, highAccuracy?: boolean, maximumAgeMs?: number }} [opts]
+   * @returns {Promise<Fix | null>}
+   */
   function bestFix(geolocation, opts) {
+    /** @type {{ timeoutMs: number, goodEnoughM: number, onUpdate: ((fix: Fix) => void) | null, signal: AbortSignal | null, highAccuracy: boolean, maximumAgeMs: number }} */
     const o = Object.assign({ timeoutMs: 20000, goodEnoughM: 20, onUpdate: null, signal: null, highAccuracy: true, maximumAgeMs: 0 }, opts);
     return new Promise((resolve) => {
       if (!geolocation || (o.signal && o.signal.aborted)) return resolve(null);
+      /** @type {Fix | null} */
       let best = null;
+      /** @type {number | null} */
       let watchId = null;
       let done = false;
       const finish = () => {
@@ -91,9 +112,10 @@
             accuracy: pos.coords.accuracy,
             at: pos.timestamp || Date.now(),
           };
-          if (!best || fix.accuracy < best.accuracy) best = fix;
-          if (o.onUpdate) o.onUpdate(best);
-          if (best.accuracy <= o.goodEnoughM) finish();
+          const top = !best || fix.accuracy < best.accuracy ? fix : best;
+          best = top;
+          if (o.onUpdate) o.onUpdate(top);
+          if (top.accuracy <= o.goodEnoughM) finish();
         }, (err) => {
           // Permission denied ends it now; other errors keep trying until timeout.
           if (err && err.code === 1) finish();

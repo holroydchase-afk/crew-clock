@@ -11,6 +11,7 @@ const ROOT = path.join(__dirname, '..');
 const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-show-'));
 execFileSync(process.execPath, [path.join(ROOT, 'scripts/build-site.mjs'), OUT, '--demo'], { cwd: ROOT, stdio: 'ignore' });
 
+/** @param {string} dir @returns {string[]} */
 function files(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((d) => {
     const p = path.join(dir, d.name);
@@ -20,6 +21,7 @@ function files(dir) {
 }
 
 test('no TODO, FIXME, "coming soon" or placeholder text in the shipped demo', () => {
+  /** @type {string[]} */
   const hits = [];
   for (const f of files(OUT)) {
     fs.readFileSync(f, 'utf8').split('\n').forEach((l, i) => {
@@ -31,11 +33,12 @@ test('no TODO, FIXME, "coming soon" or placeholder text in the shipped demo', ()
 
 test('every same-site link, script, stylesheet and icon in the demo exists', () => {
   const missing = [];
+  /** @param {string} f @param {string} src */
   const refs = (f, src) => [...src.matchAll(/(?:href|src)="([^"#?]+)/g)].map((m) => m[1])
     .filter((u) => !/^(https?:|mailto:|data:|\$\{|\/\/)/.test(u)).map((u) => [f, u]);
   const html = fs.readFileSync(path.join(OUT, 'index.html'), 'utf8');
   const manifest = JSON.parse(fs.readFileSync(path.join(OUT, 'manifest.webmanifest'), 'utf8'));
-  const all = [...refs('index.html', html), ...(manifest.icons || []).map((i) => ['manifest', i.src])];
+  const all = [...refs('index.html', html), ...(manifest.icons || []).map((/** @type {{ src: string }} */ i) => ['manifest', i.src])];
   for (const [from, u] of all) {
     if (!fs.existsSync(path.join(OUT, u.replace(/^\.?\//, '')))) missing.push(`${from} -> ${u}`);
   }
