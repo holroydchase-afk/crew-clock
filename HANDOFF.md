@@ -50,6 +50,7 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
   and says leave `REPORT_TOKEN` unset. Reviewed by architect (ARCH-1..3) and privacy-security
   (PS-SHELF-1..3). Tests: `tests/typecheck.test.js`, `tests/shelf-docs.test.js` (qa-tdd red first).
   First CI run: tsc could not find the sandbox-only Playwright path in `tests/browser.js` (CI has no `/opt/node22`); the path is now a variable so tsc skips it. Runtime unchanged.
+  Second CI run: the MLS bundle check failed because esbuild picked up the new root `tsconfig.json` (strict) and added "use strict" to `js/vendor/crew-mls.js`; `messenger` now builds with `--tsconfig-raw={}`, so the bundle is byte-identical to main.
 
 - Wired to studio-agents (2026-11-22, issue #43). Re-synced `.claude/agents/` (adds
   `release-captain` and `story-keeper`, refreshes `qa-tdd`, `ux-reviewer`, `privacy-security`) and
