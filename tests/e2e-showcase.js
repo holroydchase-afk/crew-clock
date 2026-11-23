@@ -265,14 +265,31 @@ fv('SHOW-5 with "pretend I\'m at the job" on (the demo default), a worker who sa
   return page;
 });
 
-fv('SHOW-4 the demo\'s first screen says what this is and what to try', async (browser) => {
+// Rewritten for SPEC-DEMO-HINTS (HINT-3, HINT-11): the first screen is the crew app's own, with one
+// hint dot on Travis K. instead of the pitch and "Start here".
+fv('SHOW-4 the demo\'s first screen is the crew app\'s "Who are you?", with the one hint dot on Travis K. (off the clock), the boss findable and No signal in reach', async (browser) => {
   const page = await freshVisitor(browser);
+  await page.waitForTimeout(250);
+  const errs = [];
+  const h1 = (await page.locator('h1').allInnerTexts()).map((x) => x.trim());
+  if (h1.length !== 1 || h1[0] !== 'Who are you?') errs.push(`h1s ${JSON.stringify(h1)}, want ["Who are you?"]`);
+  const dots = page.locator('.hint-dot').filter({ visible: true });
+  const n = await dots.count();
+  const on = n ? (await dots.first().locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " name-btn ")][1]').innerText().catch(() => '')) : '';
+  if (n !== 1 || !/Travis K\./.test(on)) errs.push(`want one hint dot, on Travis K.; see ${n}${on ? ` on ${JSON.stringify(on.replace(/\s+/g, ' ').trim())}` : ''}`);
+  const travis = await page.evaluate(() => {
+    const k = Object.keys(localStorage).find((x) => x.startsWith('cc.demo.db'));
+    const db = k && JSON.parse(localStorage.getItem(k));
+    const c = db && db.crew.find((x) => x.name === 'Travis K.');
+    const last = c && db.punches.filter((p) => p.crewId === c.id).sort((a, b) => a.at - b.at).pop();
+    return c ? { last: last ? last.type : null } : null;
+  });
+  if (!travis) errs.push('Travis K. is not in the sample crew');
+  else if (travis.last === 'in') errs.push('Travis K. is on the clock when the demo opens');
   const text = await page.locator('main').innerText();
-  const start = await page.locator('.name-btn', { hasText: 'Start here' }).innerText().catch(() => '');
-  if (!/Travis K\./.test(start)) throw new Error(`"Start here" is not on a crew member who is off the clock: ${JSON.stringify(start)}`);
-  for (const want of [/construction crew/i, /no signal/i, /Start here/, /boss/i]) {
-    if (!want.test(text)) throw new Error(`the sign-in screen does not mention ${want}: ${JSON.stringify(text.slice(0, 240))}`);
-  }
+  if (!/boss/i.test(text)) errs.push(`the names screen does not mark the boss: ${JSON.stringify(text.slice(0, 240))}`);
+  if (!(await page.getByRole('switch', { name: 'No signal' }).count())) errs.push('no "No signal" switch on the first screen');
+  if (errs.length) throw new Error(errs.join('; '));
   return page;
 });
 

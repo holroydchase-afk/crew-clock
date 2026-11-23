@@ -21,9 +21,9 @@ bring back one line of words under the banner. Don't bring the pitch back.
 | I5 | "Start here" chip on Travis K. | Replace: hint | Hint step 1 |
 | I6 | "Clock in as a worker" (`.start-sub`) | Remove | Descriptor. Travis becomes a normal name button, first in the grid |
 | I7 | "Or pick someone else. Pick the boss to see the team map." (`.pick-note`) | Replace: hint | Hint step 4. The "Boss" and "Foreman" role words on the name buttons stay because they identify people |
-| I8 | "Demo: turn on No signal above, then clock in." (`.demo-hint`, home) | Replace: hint | Hint step 6 |
+| I8 | "Demo: turn on No signal above, then clock in." (`.demo-hint`, home) | Replace: hint | Hint step 7 |
 | I9 | "Demo: pretend I'm at the job" checkbox label | Keep the control, drop "Demo: " | It stops the demo from reading the visitor's real location (privacy). It needs a label (principle 3). The banner already says this is the demo |
-| I10 | `.verify-hint` "Each punch is signed... Demo: 'Try tampering'..." (boss) | Remove | Explainer text. Hint step 5 points at the button instead |
+| I10 | `.verify-hint` "Each punch is signed... Demo: 'Try tampering'..." (boss) | Remove | Explainer text. Hint step 6 points at the button instead |
 | I11 | Banner "Sample data, made-up crew, only in this browser" | Keep | Hard rule: demo data stays labeled (SEP-3/4) |
 | I12 | Banner controls "No signal" and "Reset sample data" | Keep | They are verbs on real controls, and Reset is the only way to start over |
 | I13 | "Try tampering" and "Undo the change" (boss verify card) | Keep | These are verb buttons. They are the feature, not a description of it |
@@ -42,9 +42,11 @@ bring back one line of words under the banner. Don't bring the pitch back.
   2. Worker home: Clock in. Done when tapped.
   3. Worker home, once step 2 is done: "Not you?". Done when tapped.
   4. Names, once step 2 is done: the boss (Sam W.). Done when tapped.
-  5. Boss: "Try tampering". Done when tapped.
-  6. Worker home, once step 5 is done: the "No signal" switch. Done when switched on.
-- **Memory:** finished steps live in `localStorage` key `crewclock.demoHints`. The demo's Reset clears it.
+  5. Boss: the "Today" tab (the boss opens on Map, and "Try tampering" is on Today). Done when tapped.
+  6. Boss Today: "Try tampering". Done when tapped.
+  7. Any screen with the demo banner, once steps 1 to 6 are done: the "No signal" switch in the banner.
+     Done when switched on.
+- **Memory:** finished steps live in `localStorage` key `crewclock.hints`. The demo's Reset clears it by name (it is outside the `cc.` keys Reset sweeps).
 - **Never in the way:** `pointer-events: none`. Placed in the target's own padding corner, clear of its
   text box. The target keeps its size (at least 48 px) and its layout, with no extra wrapper in the tab order.
 - **Screen readers:** the dot is `aria-hidden`. The target gets `aria-describedby` pointing to a
@@ -54,17 +56,26 @@ bring back one line of words under the banner. Don't bring the pitch back.
   ("Words, not puzzles"), limited to demo hints. It's a mild one because every target already has its own words.
   Logged under "Decisions to review" for Chase.
 
+## Hooks (qa-tdd; the tests in tests/hints.test.js and tests/e2e-hints.js select by these)
+- **The dot:** one element with class `hint-dot` inside the target, `aria-hidden="true"`, not focusable.
+  It is the "hotspot" of section 2.
+- **The target:** carries `data-hint="<step>"`, the step number from section 2 (`"1"` Travis K. to `"7"` No signal).
+- **The screen-reader nudge:** the target's `aria-describedby` holds the id of a visually hidden element
+  whose text is exactly "Suggested next step".
+- **Memory:** finished steps live in `localStorage` key `crewclock.hints`. It does not start with `cc.`, so the
+  demo's Reset must clear it by name.
+
 ## 3. Acceptance criteria (QA writes these red first)
 - HINT-1 (auto, e2e): Given a fresh demo, when the names screen, worker home (Travis) and boss screen render, then none of these appear: "GPS time clock", "Try it", "Start here", "Clock in as a worker", "Or pick someone else", "Demo: turn on No signal", "Each punch is signed", "Demo: pretend".
 - HINT-2 (auto, static): Given js/app.js, then none of the strings in HINT-1 appear in it, and the `.pitch`, `.proof`, `.pick-note`, `.demo-hint` and `.verify-hint` classes are gone from js/ and css/.
-- HINT-3 (auto, e2e): Given a fresh demo, when each screen in the path renders, then exactly one `.hotspot` is visible, on the target for that step (1 Travis, 2 Clock in, 3 Not you?, 4 Sam W., 5 Try tampering, 6 No signal).
-- HINT-4 (auto, e2e): Given a hotspot on its target, when the visitor taps the target, then that hotspot is gone, the next step's hotspot shows where its target is, and a reload doesn't bring the finished one back.
-- HINT-5 (auto, e2e): Given some steps are finished, when the visitor taps Reset and confirms, then `crewclock.demoHints` is cleared and step 1 shows again.
-- HINT-6 (auto, e2e): Given a fresh 390x844 demo, when a script taps only hotspot targets, plus the flow's own Done (and a job choice if asked) and the tamper confirm if one exists, then it ends with "No signal" on, having passed through worker home, the done screen, the boss screen and the tamper result.
-- HINT-7 (auto, e2e): Given the supabase crew-app build (the e2e-enhance.js ENH-1d setup), when the names screen, worker home and boss screen render, then there is no `.hotspot`, no `aria-describedby` pointing at a hint, and `crewclock.demoHints` is never written.
-- HINT-8 (auto, e2e): Given `reducedMotion: 'reduce'`, when a hotspot shows, then its computed `animation-name` is `none` on it and its pseudo-elements, and the static ring is still visible.
-- HINT-9 (auto, e2e): Given a hotspot on its target, then the dot's box doesn't overlap the target's text box, the target is still at least 48x48 with the same size it had without the hint, and the dot has `pointer-events: none` and `aria-hidden="true"`.
-- HINT-10 (auto, e2e): Given a hotspot target, then it has `aria-describedby` pointing to a visually hidden "Suggested next step", and axe reports no new violations on any demo screen.
+- HINT-3 (auto, e2e): Given a fresh demo, when each screen in the path renders, then exactly one `.hint-dot` is visible, on the target for that step (1 Travis, 2 Clock in, 3 Not you?, 4 Sam W., 5 the boss Today tab, 6 Try tampering, 7 No signal).
+- HINT-4 (auto, e2e): Given a dot on its target, when the visitor taps the target, then that dot is gone, the next step's dot shows where its target is, and a reload doesn't bring the finished one back.
+- HINT-5 (auto, e2e): Given some steps are finished, when the visitor taps Reset and confirms, then `crewclock.hints` is cleared and step 1 shows again.
+- HINT-6 (auto, e2e): Given a fresh 390x844 demo, when a script taps only dotted targets (1 Travis, 2 Clock in, 3 Not you?, 4 Sam W., 5 Today, 6 Try tampering, 7 No signal), plus the flow's own Done (and a job choice if asked) and the tamper confirm if one exists, then it ends with "No signal" on, having passed through worker home, the done screen, the boss screen and the tamper result.
+- HINT-7 (auto, e2e): Given the supabase crew-app build (the e2e-enhance.js ENH-1d setup), when the names screen, worker home and boss screen render, then there is no `.hint-dot` or `[data-hint]`, no `aria-describedby` pointing at a hint, and `crewclock.hints` is never written.
+- HINT-8 (auto, e2e): Given `reducedMotion: 'reduce'`, when a dot shows, then its computed `animation-name` is `none` on it and its pseudo-elements, and the static ring is still visible.
+- HINT-9 (auto, e2e): Given a dot on its target, then the dot's box doesn't overlap the target's text box, the target is still at least 48x48 with the same size it had without the hint, and the dot has `pointer-events: none` and `aria-hidden="true"`.
+- HINT-10 (auto, e2e): Given a dotted target, then it has `aria-describedby` pointing to a visually hidden "Suggested next step", and axe reports no new violations on any demo screen.
 - HINT-11 (auto, e2e): Given the demo names screen, then the h1 is "Who are you?", Travis K. is the first name button, and he is fully inside the first 390x844 and 1280x800 viewport.
 - HINT-12 (auto, e2e): Given worker home with consent, then the checkbox reads "Pretend I'm at the job" and is checked by default (M1.6). SEP-5, e2e-demo:318 and AC-R64 still pass.
 - HINT-13 (auto, all suites): LIVE-4 (banner at most 90 px), the axe and DS tests (e2e-design, theme.test.js) and SEP-3/4/5 all pass 3x with no edits.
@@ -73,7 +84,8 @@ bring back one line of words under the banner. Don't bring the pitch back.
 **Tests these supersede.** These are requirement changes, not weakened tests. qa-tdd rewrites them to the new
 criteria in the same PR and names each rewrite in the PR body:
 UX-R1 (e2e-polish:65, "Start here" becomes HINT-11), UX-R17 (e2e-polish:84, the pitch is gone),
-SHOW-4 (e2e-showcase:268, becomes HINT-3 and HINT-11), and the e2e-polish:825 screenshot note.
+SHOW-4 (e2e-showcase:268, becomes HINT-3 and HINT-11), UX-R34 (e2e-enhance:442, the "Demo: turn on No signal"
+line becomes the step 7 dot; QA-R1, chief of staff's call), and the e2e-polish:825 screenshot note.
 
 ## 4. Open questions for Chase (we build the default)
 1. **The sign-in heading:** "Who are you?" (the crew app's) or no h1 at all? Default: "Who are you?". It's the

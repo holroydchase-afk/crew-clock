@@ -60,48 +60,58 @@ async function crewMarkers(page) {
 }
 const box = (page, sel) => page.locator(sel).first().boundingBox();
 
-// ---------- UX-R1: "Start here" in the first viewport ----------
+// ---------- UX-R1: one obvious way in, on the first screen ----------
+// Rewritten for SPEC-DEMO-HINTS (HINT-3, HINT-11): the "Start here" chip became the hint dot.
 for (const vp of [PHONE, LAPTOP]) {
-  t(`UX-R1 ${vp.width}x${vp.height}: the "Start here" entry (Travis K.) is fully on the first screen, no scrolling`, async (browser) => {
+  t(`UX-R1 ${vp.width}x${vp.height}: the one way in (Travis K., the first name, carrying the only hint dot) is fully on the first screen, no scrolling`, async (browser) => {
     const page = await open(browser, vp);
     await page.waitForTimeout(300);
     const r = await page.evaluate(() => {
-      const cands = [...document.querySelectorAll('button, a')].filter((b) =>
-        /start here/i.test(b.innerText) && /travis/i.test(b.innerText) || /try it as a worker/i.test(b.innerText));
-      const b = cands[0];
+      const b = document.querySelector('.name-btn');
       if (!b) return null;
       const rc = b.getBoundingClientRect();
-      return { top: rc.top + scrollY, bottom: rc.bottom + scrollY, left: rc.left, right: rc.right, text: b.innerText.replace(/\s+/g, ' ') };
+      const dots = [...document.querySelectorAll('.hint-dot')].filter((d) => d.getBoundingClientRect().width > 0);
+      return { top: rc.top + scrollY, bottom: rc.bottom + scrollY, left: rc.left, right: rc.right, text: b.innerText.replace(/\s+/g, ' '),
+        dots: dots.length, dotInFirst: dots.length === 1 && b.contains(dots[0]) };
     });
-    if (!r) throw new Error('no "Start here" (Travis K.) button or "Try it as a worker" button found');
+    if (!r) throw new Error('no name buttons on the first screen');
+    const errs = [];
+    if (!/Travis K\./.test(r.text)) errs.push(`the first name is "${r.text}", not Travis K.`);
+    if (!r.dotInFirst) errs.push(`want one hint dot, on Travis K.; see ${r.dots} dot(s)${r.dots === 1 ? ' elsewhere' : ''}`);
     if (r.top < 0 || r.bottom > vp.height || r.left < 0 || r.right > vp.width) {
-      throw new Error(`"${r.text}" spans y ${Math.round(r.top)}..${Math.round(r.bottom)}; the first screen ends at ${vp.height}`);
+      errs.push(`"${r.text}" spans y ${Math.round(r.top)}..${Math.round(r.bottom)}; the first screen ends at ${vp.height}`);
     }
+    if (errs.length) throw new Error(errs.join('; '));
     return page;
   });
 }
 
-// ---------- UX-R17: laptop sign-in is pitch + app side by side ----------
-t('UX-R17 1280x800: sign-in shows the pitch and the names side by side, content at least 900px wide', async (browser) => {
+// ---------- UX-R17: the laptop sign-in fits ----------
+// Rewritten for SPEC-DEMO-HINTS (I1-I3): the pitch is gone, so there is nothing to sit beside the names.
+t('UX-R17 1280x800: sign-in has no pitch, and the "Who are you?" heading and every name fit on the first screen with no sideways scroll', async (browser) => {
   const page = await open(browser, LAPTOP);
   await page.waitForTimeout(300);
   const r = await page.evaluate(() => {
-    const pitch = [...document.querySelectorAll('#app *')].find((el) => el.children.length && /GPS time clock/i.test(el.innerText)
-      && ![...el.children].some((k) => /GPS time clock/i.test(k.innerText) && k.children.length));
-    const grid = document.querySelector('.name-grid');
-    if (!pitch || !grid) return null;
-    const a = pitch.getBoundingClientRect(); const b = grid.getBoundingClientRect();
-    return { a: { l: a.left, r: a.right, t: a.top, b: a.bottom }, b: { l: b.left, r: b.right, t: b.top, b: b.bottom } };
+    const h1 = document.querySelector('h1');
+    const hb = h1 && h1.getBoundingClientRect();
+    return {
+      pitch: !!document.querySelector('.pitch, .proof') || /GPS time clock/i.test(document.body.innerText),
+      h1: h1 ? h1.innerText.trim() : null, h1Box: hb && { t: hb.top + scrollY, b: hb.bottom + scrollY },
+      off: [...document.querySelectorAll('.name-btn')].map((b) => ({ n: b.innerText.replace(/\s+/g, ' ').trim(), r: b.getBoundingClientRect() }))
+        .filter((x) => x.r.top + scrollY < 0 || x.r.bottom + scrollY > innerHeight || x.r.left < 0 || x.r.right > innerWidth)
+        .map((x) => `${x.n} y ${Math.round(x.r.top + scrollY)}..${Math.round(x.r.bottom + scrollY)}`),
+      names: document.querySelectorAll('.name-btn').length,
+      sideways: document.documentElement.scrollWidth - innerWidth,
+    };
   });
-  if (!r) throw new Error('pitch box or names grid missing');
-  const { a, b } = r;
-  const sideBySide = (a.r <= b.l + 1 || b.r <= a.l + 1) && a.t < b.b && b.t < a.b;
-  const width = Math.max(a.r, b.r) - Math.min(a.l, b.l);
-  const visible = a.t < 800 && b.t < 800;
-  if (!sideBySide || width < 900 || !visible) {
-    throw new Error(`pitch x ${Math.round(a.l)}..${Math.round(a.r)} y ${Math.round(a.t)}..${Math.round(a.b)}; names x ${Math.round(b.l)}..${Math.round(b.r)} y ${Math.round(b.t)}..${Math.round(b.b)}; `
-      + `side by side ${sideBySide}, content width ${Math.round(width)} (want >= 900), both start on screen ${visible}`);
-  }
+  const errs = [];
+  if (r.pitch) errs.push('the pitch (.pitch / .proof / "GPS time clock") is still on the sign-in');
+  if (r.h1 !== 'Who are you?') errs.push(`h1 is ${JSON.stringify(r.h1)}, want "Who are you?"`);
+  else if (r.h1Box.t < 0 || r.h1Box.b > 800) errs.push(`the h1 spans y ${Math.round(r.h1Box.t)}..${Math.round(r.h1Box.b)}, off the first screen`);
+  if (!r.names) errs.push('no name buttons');
+  if (r.off.length) errs.push(`names off the first 1280x800 screen: ${r.off.join(', ')}`);
+  if (r.sideways > 0) errs.push(`the page scrolls sideways ${r.sideways} px`);
+  if (errs.length) throw new Error(errs.join('; '));
   return page;
 });
 
@@ -822,7 +832,7 @@ t('UX-R53 390: every bold name in the README\'s "What to try" (and its banner se
     banner.push(norm(r.banner));
   };
   const page = await open(browser);
-  await grab(); // first screen: Travis K., Start here, Billy S., Sam W.
+  await grab(); // first screen: Who are you?, Travis K. (hint dot), Billy S., Sam W.
   await signIn(page, 'Travis K.');
   await grab(); // worker Home: No signal, Clock In, Messages, Not you?
   await page.click('[data-to="chat-list"]');
