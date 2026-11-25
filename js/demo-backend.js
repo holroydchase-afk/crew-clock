@@ -185,7 +185,7 @@
     return seeding;
   }
 
-  // After "Reset sample data" the page reloads: a request still in flight must not write the visit back.
+  // After "Reset demo" the page reloads: a request still in flight must not write the visit back.
   let stopped = false;
   /** @param {DemoDb} db */
   function save(db) {

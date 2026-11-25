@@ -56,7 +56,7 @@
   }
 
   // ---------- transports ----------
-  let stopped = false; // "Reset sample data": nothing in flight may write the old chat back
+  let stopped = false; // "Reset demo": nothing in flight may write the old chat back
   /** @type {ChatTransport & { _db(): DemoChatStore, _save(d: DemoChatStore): void }} */
   const demoTransport = {
     _db() { return Store.local.get('demo.chat', { keyPackages: {}, groups: [], messages: [], seq: 0 }); },

@@ -24,8 +24,8 @@ bring back one line of words under the banner. Don't bring the pitch back.
 | I8 | "Demo: turn on No signal above, then clock in." (`.demo-hint`, home) | Replace: hint | Hint step 7 |
 | I9 | "Demo: pretend I'm at the job" checkbox label | Keep the control, drop "Demo: " | It stops the demo from reading the visitor's real location (privacy). It needs a label (principle 3). The banner already says this is the demo |
 | I10 | `.verify-hint` "Each punch is signed... Demo: 'Try tampering'..." (boss) | Remove | Explainer text. Hint step 6 points at the button instead |
-| I11 | Banner "Sample data, made-up crew, only in this browser" | Keep | Hard rule: demo data stays labeled (SEP-3/4) |
-| I12 | Banner controls "No signal" and "Reset sample data" | Keep | They are verbs on real controls, and Reset is the only way to start over |
+| I11 | Banner sample-data label | Keep (now the Demo bar's "Sample data" and its Details drawer, SPEC-DEMO-BAR) | Hard rule: demo data stays labeled (SEP-3/4) |
+| I12 | Banner controls "No signal" and Reset | Keep (now "No signal" and "Reset demo" in the Demo bar's drawer, SPEC-DEMO-BAR) | They are verbs on real controls, and Reset is the only way to start over |
 | I13 | "Try tampering" and "Undo the change" (boss verify card) | Keep | These are verb buttons. They are the feature, not a description of it |
 | I14 | "Yesterday (sample day)" heading (boss) | Keep | It labels the data and says which day the visitor is looking at |
 | I15 | demo-backend.js, done screen, boss screen otherwise | No change | No other explanatory text found. The sample address answers are data, not copy |
@@ -44,8 +44,9 @@ bring back one line of words under the banner. Don't bring the pitch back.
   4. Names, once step 2 is done: the boss (Sam W.). Done when tapped.
   5. Boss: the "Today" tab (the boss opens on Map, and "Try tampering" is on Today). Done when tapped.
   6. Boss Today: "Try tampering". Done when tapped.
-  7. Any screen with the demo banner, once steps 1 to 6 are done: the "No signal" switch in the banner.
-     Done when switched on.
+  7. Any screen with the demo bar, once steps 1 to 6 are done (SPEC-DEMO-BAR, M1.18): while the drawer
+     is closed, the bar's "Demo details" toggle (the dot takes the chevron's place); opening it does not
+     finish the step, the dot moves to the "No signal" switch in the drawer. Done when switched on.
 - **Memory:** finished steps live in `localStorage` key `crewclock.hints`. The demo's Reset clears it by name (it is outside the `cc.` keys Reset sweeps).
 - **Never in the way:** `pointer-events: none`. Placed in the target's own padding corner, clear of its
   text box. The target keeps its size (at least 48 px) and its layout, with no extra wrapper in the tab order.

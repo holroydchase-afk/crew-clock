@@ -20,7 +20,7 @@
           req.result.createObjectStore(OUTBOX, { keyPath: 'id' });
         };
         req.onsuccess = () => {
-          // Let "Reset sample data" delete the database instead of waiting on this open connection
+          // Let "Reset demo" delete the database instead of waiting on this open connection
           req.result.onversionchange = () => { req.result.close(); dbPromise = null; };
           resolve(req.result);
         };

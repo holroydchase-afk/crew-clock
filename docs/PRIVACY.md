@@ -233,9 +233,13 @@ Rules:
   SETUP uses the crew app's placeholder address; the B2 rule and CSP are M2.2]
 - **S4** The demo always says it is sample data and never asks for a real name, PIN, picture of a
   person, or location it keeps. "Pretend I'm at the job" exists only in the demo. [true since M1.1:
-  every demo screen shows "Sample data, made-up crew, saved only in this browser" with a link back
-  to chaseholroyd.com; the demo makes no off-site requests except map tiles and never loads the AI
-  models; tested in `tests/e2e-demo.js`]
+  every demo screen shows the studio Demo bar (M1.18): "Demo", "Sample data" (hidden below 390px;
+  from 600px "Sample data · changes stay in this browser") and a link back to chaseholroyd.com; its
+  Details drawer says the crew is made up, changes stay in this browser and are never sent anywhere,
+  and map pictures come from public map servers, which can see what area the map shows (near the
+  visitor only if they turn off "Pretend I'm at the job"). The demo makes no off-site requests except map
+  tiles and never loads the AI models; the crew app shows no bar; tested in `tests/e2e-demo.js`
+  (SEP-3/4/5) and `tests/e2e-demobar.js` (DEMOBAR-3, DEMOBAR-12)]
 - **S5** The crew app never runs the old Google Sheets backend (`backend: 'sheets'`): it keeps the
   PIN in the phone's storage (`js/app.js:295`). [to build: refuse `sheets` in a non-demo build,
   M1.1]

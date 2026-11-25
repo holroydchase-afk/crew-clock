@@ -32,7 +32,7 @@ data.
 1. On the first screen ("Who are you?"), tap **Travis K.**, the first name. A small pulsing dot
    marks the next thing to tap all the way through the demo. The demo starts with "Pretend I'm
    at the job" on, so it never asks for your real location. Uncheck it on Home to try your own GPS.
-2. Turn on **No signal** in the demo banner, then tap **Clock In** and pick a job. The phone says
+2. Open **Details** in the Demo bar at the top, turn on **No signal**, then tap **Clock In** and pick a job. The phone says
    "Saved on your phone" and Home shows "1 waiting to send". Turn No signal off and it sends.
 3. Tap **Messages**, then **Smith kitchen crew**: a sample crew chat, encrypted with MLS like any
    other group.
@@ -45,8 +45,9 @@ data.
    in, out and hours, no GPS).
 
 Before 9 AM your time the sample crew's day is yesterday's, labeled "Yesterday (sample day)".
-Every demo screen has a banner that says it's sample data, with **Reset** (start the sample data
-over) and a link back to chaseholroyd.com.
+Every demo screen has a slim Demo bar at the top with **← Portfolio** (back to Chase's portfolio)
+and **Details**, which opens a short note on the sample data with the No signal switch, Reset demo
+(start the sample data over) and the way back.
 
 ## Product decisions
 

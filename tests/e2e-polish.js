@@ -716,23 +716,36 @@ for (const scheme of ['light', 'dark']) {
 
 // ---------- UX-R43 / UX-R49: boss Today shows the whole first shift above the tab bar on a phone (360 and 390) ----------
 for (const [vp, rule] of /** @type {[{ width: number, height: number }, string][]} */ ([[PHONE, 'bottom'], [{ width: 360, height: 740 }, 'bottom']])) {
-  t(`UX-R43/R49 ${vp.width}x${vp.height} fresh demo, 1:30 PM: the first Today shift ${rule === 'bottom' ? 'is fully' : 'starts'} above the tab bar, and the demo banner is <= 96px`, async (browser) => {
+  t(`UX-R43/R49 ${vp.width}x${vp.height} fresh demo, 1:30 PM: the first Today shift ${rule === 'bottom' ? 'is fully' : 'starts'} above the tab bar, and the demo bar is <= 48px`, async (browser) => {
     const page = await open(browser, vp);
     await boss(page, 'today');
     await page.waitForSelector('.shift');
     const r = await page.evaluate(() => {
       const s = document.querySelector('.shift').getBoundingClientRect();
-      const b = document.querySelector('.demo-banner');
+      // SPEC-DEMO-BAR (M1.18): the slim demo bar (<= 48px) replaced the banner (<= 96px)
+      const b = document.querySelector('section[aria-label="Demo"]');
+      if (!b) return { missing: true };
       const bb = b.getBoundingClientRect();
+      const a = b.querySelector('a[href*="chaseholroyd.com"]');
       return { top: s.top, bottom: s.bottom, tab: document.querySelector('.tabbar').getBoundingClientRect().top, banner: bb.height,
-        bannerText: b.innerText, link: !!b.querySelector('a[href*="chaseholroyd.com"]') };
+        bannerText: b.innerText, link: !!a, linkText: a ? a.innerText.trim() : '',
+        linkCut: a ? a.scrollWidth > a.clientWidth + 0.5 || a.getBoundingClientRect().right > bb.right + 0.5 : true };
     });
+    if (r.missing) throw new Error('no section[aria-label="Demo"] (the demo bar)');
     const errs = [];
     if (rule === 'bottom' && r.bottom > r.tab) errs.push(`first shift ends at ${Math.round(r.bottom)}px, under the tab bar at ${Math.round(r.tab)}px`);
     if (rule === 'top' && r.top >= r.tab) errs.push(`first shift starts at ${Math.round(r.top)}px, under the tab bar at ${Math.round(r.tab)}px`);
-    if (r.banner > 96) errs.push(`demo banner is ${Math.round(r.banner)}px tall (want <= 96)`);
-    if (!/Sample data/.test(r.bannerText)) errs.push('the banner lost "Sample data"');
-    if (!r.link) errs.push('the banner lost its chaseholroyd.com link');
+    if (r.banner > 48) errs.push(`demo bar is ${r.banner.toFixed(1)}px tall (want <= 48)`);
+    // UX-R1 (decided 2026-11-25): from 390px the bar shows "Sample data"; below 390px the summary
+    // gives way so "← Portfolio" stays whole (the drawer still says it is sample data, SEP-3).
+    if (vp.width >= 390) {
+      if (!/Sample data/.test(r.bannerText)) errs.push('the bar lost "Sample data"');
+    } else {
+      if (/Sample data/.test(r.bannerText)) errs.push(`"Sample data" is still visible in the bar at ${vp.width}px (UX-R1 hides the summary below 390px)`);
+    }
+    if (r.linkText !== '← Portfolio') errs.push(`the bar's link reads "${r.linkText}" (want "← Portfolio" at every width)`);
+    if (r.linkCut) errs.push('"← Portfolio" is cut off or runs past the bar');
+    if (!r.link) errs.push('the bar lost its chaseholroyd.com link');
     if (errs.length) throw new Error(errs.join('; '));
     return page;
   });
@@ -807,7 +820,9 @@ t('UX-R45 390: every button in the boss header and the Day/Week toggle is at lea
 // A browser case (not tests/readme.test.js, which is node-only): it walks the README's steps and
 // collects each screen's visible text, plus the aria-labels of icon-only controls. Matching ignores
 // case and runs of spaces.
-t('UX-R53 390: every bold name in the README\'s "What to try" (and its banner sentence) is visible text or an aria-label on the demo', async (browser) => {
+// Rewritten for SPEC-DEMO-BAR (M1.18): the README's sentence about the demo bar, and the bar is read
+// with its Details drawer open (that is where No signal and Reset demo live).
+t('UX-R53 390: every bold name in the README\'s "What to try" (and its demo bar sentence) is visible text or an aria-label on the demo, the bar read with Details open', async (browser) => {
   const fs = require('fs');
   const path = require('path');
   const readme = fs.readFileSync(path.join(__dirname, '../README.md'), 'utf8');
@@ -815,19 +830,22 @@ t('UX-R53 390: every bold name in the README\'s "What to try" (and its banner se
   if (walk.length < 100) throw new Error('setup: no "What to try" section in README.md');
   const bold = (x) => [...new Set([...x.matchAll(/\*\*([^*]+)\*\*/g)].map((m) => m[1].trim()))];
   const all = bold(walk);
-  const bannerLine = walk.replace(/\s+/g, ' ').match(/Every demo screen has a banner[^.]*\./);
-  if (!bannerLine) throw new Error('setup: the README lost its banner sentence');
+  const bannerLine = walk.replace(/\s+/g, ' ').match(/Every demo screen (?:has|opens with|starts with|shows) a[^.]*\bDemo bar\b[^.]*\./i);
+  if (!bannerLine) throw new Error('setup: the README has no "Every demo screen has a ... Demo bar ..." sentence (README line 48, SPEC-DEMO-BAR M1.18.3)');
   const bannerNames = bold(bannerLine[0]);
   const norm = (x) => x.replace(/\s+/g, ' ').trim().toLowerCase();
   const seen = [];
   const banner = [];
   const grab = async () => {
+    // Open the demo bar's Details drawer first, as the README's walkthrough says
+    const tg = page.locator('section[aria-label="Demo"]').getByRole('button', { name: 'Demo details', exact: true });
+    if (await tg.count() && await tg.getAttribute('aria-expanded') !== 'true') await tg.click();
     const r = await page.evaluate(() => {
       const shown = (e) => { const b = e.getBoundingClientRect(); return b.width > 0 && b.height > 0; };
       // An aria-label counts only for a control a visitor sees no words on (an icon button): a
       // button showing "Reset" with the label "Reset sample data" shows a visitor "Reset".
       const labels = (root) => [...root.querySelectorAll('[aria-label]')].filter((e) => shown(e) && !e.innerText.trim()).map((e) => e.getAttribute('aria-label'));
-      const b = document.querySelector('.demo-banner');
+      const b = document.querySelector('section[aria-label="Demo"]');
       return { text: [document.body.innerText, ...labels(document)].join('\n'), banner: b ? [b.innerText, ...labels(b)].join('\n') : '' };
     });
     seen.push(norm(r.text));

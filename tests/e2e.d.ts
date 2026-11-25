@@ -21,6 +21,7 @@ declare var __gps: E2eGps;
 declare var __reads: number;
 declare var __gpsReads: number;
 declare var __hintWrites: string[];
+declare var __sessionWrites: string[];
 declare var __sent: string[];
 declare var __busy: Set<string>;
 declare var __skew: number;
