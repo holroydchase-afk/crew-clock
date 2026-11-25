@@ -159,3 +159,5 @@ CI runs all of them on every pull request.
 ## License
 
 [MIT](LICENSE)
+
+Third-party components and their licenses: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

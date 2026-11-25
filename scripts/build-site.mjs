@@ -19,7 +19,7 @@ const args = process.argv.slice(2);
 const demoOnly = args.includes('--demo');
 const out = resolve(root, args.find((a) => !a.startsWith('--')) || 'dist');
 
-const COPY = ['index.html', 'config.js', 'manifest.webmanifest', 'sw.js', '_headers', 'css', 'js', 'vendor', 'icons'];
+const COPY = ['index.html', 'config.js', 'manifest.webmanifest', 'sw.js', '_headers', 'css', 'js', 'vendor', 'icons', 'LICENSE', 'THIRD_PARTY_NOTICES.md'];
 
 // config.js key <- environment variable
 const ENV = {

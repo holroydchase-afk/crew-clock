@@ -3,7 +3,7 @@
 stage: building
 goal: portfolio
 milestone: CRW-M2
-now: Supabase pre-connect grants (intake #35, M2.0) on claude/project-thread-4p3a4i, built; privacy-security review (M2.0.4) next
+now: LIC-1 license audit (M0.3) on claude/project-thread-wqtobk, built; qa-tdd 3x and privacy-security review next. Also: #35 grants built, M2.0.4 review pending
 next: M2.0.4 review and PR for #35, TS-2 (issue #36 PR 2), demo bar (#38) after #48; then metrics and beta scorecard (portfolio review item 3)
 waiting_on_chase:
   - Supabase project, SETUP steps 1.1 to 1.4 (unblocks M2.1)
@@ -12,7 +12,7 @@ blockers: []
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-11-23 (demo hints, PR #48, merged with main after #52; intake #35 Supabase pre-connect grants, M2.0.1-M2.0.3)
+Updated: 2026-11-24 (intake LIC-1 license audit, M0.3.2 built)
 
 ## What it is
 
@@ -24,6 +24,18 @@ Plan and milestone IDs: [PLAN.md](PLAN.md). Hard rules: [CLAUDE.md](CLAUDE.md). 
 contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
+
+- `M0.3.2` LIC-1 license audit (2026-11-24, spec `docs/product/SPEC-LIC-1.md`). New
+  `THIRD_PARTY_NOTICES.md` (9 sections: the 7 packages bundled in `js/vendor/crew-mls.js`, incl.
+  nested @noble/hashes 2.0.1, plus Leaflet 1.9.4 and Atkinson Hyperlegible Next; copyright lines
+  verbatim from each LICENSE), `vendor/leaflet/LICENSE` (from leaflet@1.9.4), README License link,
+  `"license": "MIT"` in both package.json files and lockfile roots, build-site copies the notices.
+  `messenger/src/mls.js` was checked and is not copied from Hearth: written 2026-10-22 in plain JS,
+  while Hearth's messenger is TypeScript in `packages/messenger`, and code search finds none of
+  mls.js's helpers in hearth; it now says so in lines 1-2 (bundle unchanged, LIC1-11 exit 0).
+  Tests: `tests/license.test.js` (qa-tdd red first). Still to do: qa-tdd 3x, privacy-security, PR.
+  PS-R1: the notices now end with the full MIT permission text (applies to every MIT section),
+  and the Pages build copies `LICENSE` so the notices' link resolves; PS-R2 spec wording fixed.
 
 - `M2.0.1`-`M2.0.3` Supabase pre-connect grants (2026-11-23, intake #35, spec
   `docs/product/SPEC-SUPABASE-GRANTS.md`). New migration `20261123000000_revoke_defaults.sql`
@@ -587,6 +599,9 @@ activate (it failed once in CI on timing).
 
 ## Decisions to review
 
+- **Hearth design docs are MIT here** (2026-11-24, LIC-1): `docs/design/STUDIO-CORE.md` and
+  `docs/design/tokens.json` are Chase's own copies from hearth, licensed MIT in this
+  repo by their author; noted in `THIRD_PARTY_NOTICES.md`. Reversible: drop the copies.
 - **Demo hints have no word label (Chase, 2026-11-23, SPEC-DEMO-HINTS):** the pulsing dot carries no
   text, a deliberate demo-only exception to principle 3 ("Words, not puzzles"). Every dotted target
   already has its own words, and screen readers hear "Suggested next step". Not in the crew app.
@@ -850,6 +865,8 @@ Waiting on Chase, in order (each unblocks an M2 task; nothing in M1 needs these)
 
 ## Portfolio / public presence
 
+- 2026-11-24 (LIC-1, not deployed): the Pages build will serve `THIRD_PARTY_NOTICES.md` after the
+  next deploy (Chase's go); LIC1-12 checks it then.
 - 2026-11-23 (demo hints, in progress): the demo drops its pitch and "Demo:" explainers and opens on
   the crew app's own "Who are you?" screen; a single pulsing dot leads a visitor through clock-in,
   the boss map, the tamper check and No signal. README walkthrough updated; the sign-in screenshot
