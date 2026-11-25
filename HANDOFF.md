@@ -3,8 +3,8 @@
 stage: building
 goal: portfolio
 milestone: CRW-M2
-now: LIC-1 license audit (M0.3) on claude/project-thread-wqtobk, built; qa-tdd 3x and privacy-security review next. Also: #35 grants built, M2.0.4 review pending
-next: M2.0.4 review and PR for #35, TS-2 (issue #36 PR 2), demo bar (#38) after #48; then metrics and beta scorecard (portfolio review item 3)
+now: studio demo bar (intake #38, M1.18) built on claude/project-thread-4p3a4i; review fixes UX-R1..R5, PS-R1, QA-R1..R3 built; qa-tdd 3x and re-review next, then PR. LIC-1 merged (#58)
+next: TS-2 (issue #36 PR 2, approved migration plan); then metrics and beta scorecard (portfolio review item 3)
 waiting_on_chase:
   - Supabase project, SETUP steps 1.1 to 1.4 (unblocks M2.1)
 blockers: []
@@ -12,7 +12,7 @@ blockers: []
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-11-24 (intake LIC-1 license audit, M0.3.2 built)
+Updated: 2026-11-25 (intake #38 studio demo bar review fixes UX-R1..R5, PS-R1, QA-R1..R3 built)
 
 ## What it is
 
@@ -25,6 +25,36 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
 
+- `M1.18.2`-`M1.18.3` Studio demo bar (2026-11-25, intake #38, spec `docs/product/SPEC-DEMO-BAR.md`,
+  built, not committed or reviewed yet). The old `.demo-banner` (its label, actions, "Reset sample
+  data", the `confirm()` and their CSS) is gone. Every demo screen now opens with a 48px
+  `section[aria-label="Demo"]` in the page flow: "← Portfolio" (to https://chaseholroyd.com/), a
+  divider, then one "Demo details" toggle (`aria-expanded`, `aria-controls="demo-drawer"`) holding an
+  ink-outline "Demo" badge, the muted summary ("Sample data", from 600px "Sample data · changes stay
+  in this browser", hidden below 390px) and "Details" with a chevron (still under reduced motion). The
+  toggle pushes down a drawer with the spec's copy and, in order, the No signal switch (same
+  `data-action="demo-offline"`, `role="switch"`, demo build only), Reset demo (asks inline: "Put the
+  sample data back? Your changes will be lost." Reset / Keep, focus on Keep) and "← More of Chase's
+  work". Esc closes it and refocuses the toggle. Open state, the Reset question and focus survive an
+  `#app` redraw (state in `demoBar` in `js/app.js`). Reset sets sessionStorage `crewclock.restored`;
+  the next load removes it and opens the drawer once with "Sample data restored." The private banner
+  sits right under the bar; the crew app gets no bar. Hint step 7: the dot sits on the toggle (in the
+  chevron's place) while the drawer is closed, then on the switch; opening does not finish the step.
+  Bar tokens `--demo-bg/fg/muted/line` read `--surface/--ink/--muted/--line`. The toggle's class is
+  `.demo-bar-toggle`: `.demo-toggle` is already the "Pretend I'm at the job" label on worker Home
+  (UX-R11 counts anything matching it as that checkbox). README step 2 and the
+  Demo bar sentence, PRIVACY S4 evidence, SPEC-DEMO-HINTS I11/I12 and step 7, PLAN M1.18 updated.
+  Old comments naming "Reset sample data" in `js/store.js`, `js/demo-backend.js`, `js/messenger.js`
+  now say "Reset demo". Review fixes (2026-11-25, each test-first by qa-tdd): UX-R1 "← Portfolio" at
+  every width (no "← Back", no `.demo-back-short`), summary hidden below 390px; UX-R2 the drawer copy,
+  the No signal knob and the link's arrow share one left edge; UX-R3 from 592px the bar's and the
+  drawer's content keep to the app column (centred, Details near the summary), background still edge
+  to edge; UX-R4/R5 + PS-R1 the shorter drawer copy (Decisions to review), PRIVACY S4 updated;
+  QA-R1 the long summary is no longer cut off at 600px (the bar's link and toggle step in by 12px
+  from 600px); QA-R2 the spec's Design answers match; QA-R3 PRIVACY S4 says "Sample data" is hidden
+  below 390px. Checked in light and dark at 390 and 1280. Tests: `npm test` and `npm run typecheck`
+  green; `tests/e2e-demobar.js` all pass. Not yet: README screenshots retaken, ux-reviewer before/after shots (DEMOBAR-15), live check
+  (DEMOBAR-16).
 - `M0.3.2` LIC-1 license audit (2026-11-24, spec `docs/product/SPEC-LIC-1.md`). New
   `THIRD_PARTY_NOTICES.md` (9 sections: the 7 packages bundled in `js/vendor/crew-mls.js`, incl.
   nested @noble/hashes 2.0.1, plus Leaflet 1.9.4 and Atkinson Hyperlegible Next; copyright lines
@@ -574,6 +604,10 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
 
 ## Exact next step
 
+Demo bar follow-ups (ux-reviewer round 2, P2, each with a failing test first): UX-R6 from 600px
+align the bar's left edge with the app content (`.demo-in` padding); UX-R7 even 4px space each side
+of the divider from 600px. After the deploy: DEMOBAR-16, walk the README steps on a real phone.
+
 Before M2.1 connects real phones (intake #35 review follow-ups, each with a failing test first):
 PS-R1 narrow the grant-back to what phones really use (boss edits go through the sync function as
 service role, so `jobs` INSERT/UPDATE and `crew` UPDATE can go; `mls_key_packages` UPDATE only on
@@ -598,6 +632,21 @@ into a non-demo build; `docs/PRIVACY.md` S5 marks the refusal "to build"); and
 activate (it failed once in CI on timing).
 
 ## Decisions to review
+
+- **Demo bar back link goes to the site root** (2026-11-25, #38, SPEC-DEMO-BAR decision 1): both
+  "← Portfolio" and "← More of Chase's work" go to https://chaseholroyd.com/, not /crew-clock/ (where
+  the demo itself lives, so it would loop). Reversible: change one URL when a case-study path exists.
+- **Keep "← Portfolio" at every width, hide the summary below 390px** (2026-11-25, #38, UX-R1,
+  replaces SPEC-DEMO-BAR's old "← Back below 390px" decision): "← Back" sat right above the app's own
+  "‹ Back", so the back link always reads "← Portfolio" and the summary gives way instead: hidden
+  below 390px, "Sample data" from 390 to 599px, "Sample data · changes stay in this browser" from
+  600px. Reversible: bring back a short label in `css/app.css` and show the summary from 360px.
+- **Demo drawer copy** (2026-11-25, #38, UX-R4/R5 + PS-R1): "This is the real Crew Clock with a
+  made‑up crew. Changes stay in this browser, never sent anywhere. Map pictures come from map
+  servers, which see the area. Reset demo starts over." ("made‑up" with a non-breaking hyphen). The
+  decision allowed "which see the area" for "which see the area shown" only if the long form ran to
+  5 lines at 390px; it did (5 lines), so the short form ships (4 lines). Reversible: one string in
+  `demoCopy()` in `js/app.js`.
 
 - **Hearth design docs are MIT here** (2026-11-24, LIC-1): `docs/design/STUDIO-CORE.md` and
   `docs/design/tokens.json` are Chase's own copies from hearth, licensed MIT in this
@@ -864,6 +913,11 @@ Waiting on Chase, in order (each unblocks an M2 task; nothing in M1 needs these)
    P2 on M1.6, 2026-10-24). Needed before the portfolio link (M1.8).
 
 ## Portfolio / public presence
+
+- 2026-11-25 (studio demo bar, #38, built, not merged): the demo's tall banner becomes the studio's
+  slim Demo bar ("← Portfolio", Demo badge, "Sample data", Details) with a push-down drawer holding
+  No signal, Reset demo (asks inline) and the way back. README walkthrough step 2 and the bar
+  sentence changed; README screenshots still show the old banner. Live demo unchanged until merge.
 
 - 2026-11-24 (LIC-1, not deployed): the Pages build will serve `THIRD_PARTY_NOTICES.md` after the
   next deploy (Chase's go); LIC1-12 checks it then.

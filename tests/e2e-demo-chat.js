@@ -154,20 +154,25 @@ t('CHAT-SEED-4 a visitor (as the boss) sends a new message in the sample group a
   return page;
 });
 
-t('CHAT-SEED-5 after "Reset sample data" the sample group is back for the boss', async (browser) => {
+// Rewritten for SPEC-DEMO-BAR (M1.18): Reset is in the demo bar's drawer, "Reset demo" then an inline Reset.
+t('CHAT-SEED-5 after "Reset demo" (then Reset) the sample group is back for the boss', async (browser) => {
   const { page } = await open(browser);
   const before = await bossSeesSample(page);
   await page.click('[data-action="chat-back"]');
-  await page.getByRole('button', { name: 'Reset sample data' }).click();
+  const tg = page.locator('section[aria-label="Demo"]').getByRole('button', { name: 'Demo details', exact: true });
+  if (await tg.count() !== 1) throw new Error('no "Demo details" toggle in the demo bar');
+  await tg.click();
+  await page.getByRole('button', { name: 'Reset demo', exact: true }).click();
+  await page.getByRole('button', { name: 'Reset', exact: true }).click();
   await page.waitForSelector('.name-btn');
   const after = await bossSeesSample(page);
   if (after.group !== before.group) throw new Error(`after reset the sample group is "${after.group}", before it was "${before.group}"`);
   return page;
 });
 
-// ---------- UX-R40: the open thread fits under the demo banner, message box on screen ----------
+// ---------- UX-R40: the open thread fits under the demo bar, message box on screen ----------
 for (const vp of [{ width: 390, height: 844 }, { width: 360, height: 740 }, { width: 1280, height: 800 }]) {
-  t(`UX-R40 ${vp.width}x${vp.height}: the "Smith kitchen crew" thread fits the screen under the demo banner; the message box is on screen, no page scroll`, async (browser) => {
+  t(`UX-R40 ${vp.width}x${vp.height}: the "Smith kitchen crew" thread fits the screen under the demo bar; the message box is on screen, no page scroll`, async (browser) => {
     const { page } = await open(browser);
     await page.setViewportSize(vp);
     await signIn(page, 'Sam W.');
@@ -179,10 +184,10 @@ for (const vp of [{ width: 390, height: 844 }, { width: 360, height: 740 }, { wi
     const r = await page.evaluate(() => ({
       boxBottom: document.querySelector('#chat-text').getBoundingClientRect().bottom,
       scrollH: document.documentElement.scrollHeight, inner: innerHeight,
-      banner: !!document.querySelector('.demo-banner'),
+      banner: !!document.querySelector('section[aria-label="Demo"]'), // SPEC-DEMO-BAR: the bar replaced .demo-banner
     }));
     const errs = [];
-    if (!r.banner) errs.push('setup: no demo banner on the thread');
+    if (!r.banner) errs.push('setup: no demo bar on the thread');
     if (r.boxBottom > r.inner) errs.push(`#chat-text bottom is at ${Math.round(r.boxBottom)}px, below the ${r.inner}px screen`);
     if (r.scrollH > r.inner + 1) errs.push(`the page scrolls: scrollHeight ${r.scrollH} > ${r.inner}`);
     if (errs.length) throw new Error(errs.join('; '));

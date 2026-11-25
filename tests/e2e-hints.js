@@ -109,6 +109,14 @@ async function waitTamper(page) {
   await settle(page);
 }
 const noSignal = (page) => page.getByRole('switch', { name: 'No signal' });
+// SPEC-DEMO-BAR (M1.18): No signal and Reset moved into the demo bar's "Demo details" drawer. Step 7's
+// dot sits on the toggle while the drawer is closed, and moves to the switch when it opens.
+const details = (page) => page.locator('section[aria-label="Demo"]').getByRole('button', { name: 'Demo details', exact: true });
+async function openDetails(page) {
+  if (await details(page).count() !== 1) throw new Error(`no "Demo details" toggle in section[aria-label="Demo"] (old .demo-banner: ${await page.locator('.demo-banner').count()})`);
+  if (await details(page).getAttribute('aria-expanded') !== 'true') await details(page).click();
+  await settle(page);
+}
 
 // ---------- HINT-1: none of the pitch or explainer words on any demo screen ----------
 const GONE = [/GPS time clock/i, /\bTry it\b/i, /Start here/i, /Clock in as a worker/i, /Or pick someone else/i,
@@ -139,14 +147,16 @@ t('HINT-1 a fresh demo shows none of the pitch or "Demo:" words on the names scr
 
 // ---------- HINT-3: exactly one dot, on the right target, on each screen of the path ----------
 // The 7 steps (spec section 2): 1 Travis K., 2 Clock in, 3 Not you?, 4 Sam W., 5 the boss Today tab,
-// 6 Try tampering, 7 the banner's No signal switch (any screen with the banner, once 1-6 are done).
-const STEP7 = /No signal/;
+// 6 Try tampering, 7 the demo bar's "Demo details" toggle while the drawer is closed, then its No
+// signal switch once open (any screen with the bar, once 1-6 are done). Rewritten for SPEC-DEMO-BAR.
+const STEP7 = /^Demo details$/; // the toggle's aria-label, which dotsNow reads first
+const STEP7_OPEN = /No signal/;
 async function toTamperResult(page) {
   await tamperBtn(page).click();
   await page.waitForSelector('[data-verify-line].bad', { timeout: 10000 });
   await settle(page);
 }
-t('HINT-3 390: one dot per screen on the path: 1 Travis K., 2 Clock in, 3 Not you?, 4 Sam W., 5 Today tab, 6 Try tampering, 7 No signal', async (browser) => {
+t('HINT-3 390: one dot per screen on the path: 1 Travis K., 2 Clock in, 3 Not you?, 4 Sam W., 5 Today tab, 6 Try tampering, 7 Demo details then No signal', async (browser) => {
   const page = await open(browser);
   await expectOne(page, 'names (fresh)', 1, /Travis K\./);
   await nameBtn(page, 'Travis K.').click();
@@ -177,6 +187,11 @@ t('HINT-3 390: one dot per screen on the path: 1 Travis K., 2 Clock in, 3 Not yo
   await page.waitForSelector('.punch');
   await settle(page);
   await expectOne(page, 'worker Home (steps 1-6 done)', 7, STEP7);
+  await details(page).click();
+  await settle(page);
+  await expectOne(page, 'worker Home, Details open', 7, STEP7_OPEN);
+  const done = await page.evaluate((k) => JSON.parse(localStorage.getItem(k) || '[]'), KEY);
+  if (done.includes(7)) throw new Error('opening Details finished step 7; only turning No signal on may');
   await noSignal(page).click();
   await settle(page);
   await expectNone(page, 'worker Home with No signal on');
@@ -229,6 +244,8 @@ t('HINT-4 tapping each of the 7 dotted targets finishes it: the next one shows, 
   await expectOne(page, 'boss Today after tampering', 7, STEP7);
   await reloadTo(page, '.boss');
   await expectOne(page, 'boss after tampering and a reload', 7, STEP7);
+  await openDetails(page); // SPEC-DEMO-BAR: the dot moves to the switch inside the drawer
+  await expectOne(page, 'boss after tampering, Details open', 7, STEP7_OPEN);
   await noSignal(page).click();
   await settle(page);
   await expectNone(page, 'boss with No signal on');
@@ -238,7 +255,8 @@ t('HINT-4 tapping each of the 7 dotted targets finishes it: the next one shows, 
 });
 
 // ---------- HINT-5: Reset starts the dots over ----------
-t('HINT-5 Reset (confirmed) clears crewclock.hints and step 1 shows again on Travis K.', async (browser) => {
+// Rewritten for SPEC-DEMO-BAR (M1.18): Reset demo in the drawer, then the inline Reset (no confirm()).
+t('HINT-5 Reset demo, then Reset, clears crewclock.hints and step 1 shows again on Travis K.', async (browser) => {
   const page = await open(browser);
   await nameBtn(page, 'Travis K.').click();
   await page.waitForSelector('.punch');
@@ -246,7 +264,9 @@ t('HINT-5 Reset (confirmed) clears crewclock.hints and step 1 shows again on Tra
   await finishClockIn(page);
   const before = await page.evaluate((k) => localStorage.getItem(k), KEY);
   if (!before) throw new Error(`steps 1 and 2 done, but localStorage "${KEY}" is empty`);
-  await page.getByRole('button', { name: 'Reset sample data' }).click(); // the confirm is accepted
+  await openDetails(page);
+  await page.getByRole('button', { name: 'Reset demo', exact: true }).click();
+  await page.getByRole('button', { name: 'Reset', exact: true }).click();
   await page.waitForSelector('.name-btn', { timeout: 15000 });
   await page.waitForLoadState('load');
   await settle(page, 400);
@@ -257,10 +277,12 @@ t('HINT-5 Reset (confirmed) clears crewclock.hints and step 1 shows again on Tra
 });
 
 // ---------- HINT-6: the dots alone lead a visitor through the demo ----------
-t('HINT-6 390x844: tapping only dotted targets 1..7 in order (plus a job, Done and any tamper confirm) passes worker Home, done, boss and the tamper result and ends with No signal on', async (browser) => {
+// Rewritten for SPEC-DEMO-BAR (M1.18): step 7 is two taps through the bar, "Demo details" then No signal.
+t('HINT-6 390x844: tapping only dotted targets 1..7 in order (7 = Demo details, then No signal; plus a job, Done and any tamper confirm) passes worker Home, done, boss and the tamper result and ends with No signal on', async (browser) => {
   const page = await open(browser, { viewport: PHONE });
   const passed = new Set();
   const trail = [];
+  const seven = []; // what each step-7 dot sat on
   const note = async () => {
     if (await page.locator('.punch').count()) passed.add('worker Home');
     if (await page.locator('.big-check').count()) passed.add('done screen');
@@ -283,7 +305,9 @@ t('HINT-6 390x844: tapping only dotted targets 1..7 in order (plus a job, Done a
     const dot = page.locator('.hint-dot').filter({ visible: true });
     if (await dot.count()) {
       const target = dot.first().locator('xpath=ancestor::*[@data-hint][1]');
-      trail.push(`dot ${await target.getAttribute('data-hint')}`);
+      const step = await target.getAttribute('data-hint');
+      trail.push(`dot ${step}`);
+      if (step === '7') seven.push((await target.getAttribute('aria-label')) || (await target.getAttribute('role')) || (await target.innerText()));
       await target.click();
       continue;
     }
@@ -300,7 +324,8 @@ t('HINT-6 390x844: tapping only dotted targets 1..7 in order (plus a job, Done a
   const want = ['worker Home', 'done screen', 'boss screen', 'tamper result'];
   const missed = want.filter((w) => !passed.has(w));
   const order = trail.filter((x) => x.startsWith('dot ')).map((x) => x.slice(4));
-  if (order.join(',') !== '1,2,3,4,5,6,7') missed.push(`the dots in order 1..7 (followed ${order.join(',') || 'none'})`);
+  if (order.join(',') !== '1,2,3,4,5,6,7,7') missed.push(`the dots in order 1..6, then 7 twice (followed ${order.join(',') || 'none'})`);
+  if (seven.length !== 2 || seven[0] !== 'Demo details' || seven[1] !== 'switch') missed.push(`step 7 through the bar: "Demo details" then the switch (dots sat on ${JSON.stringify(seven)})`);
   if (!on || missed.length) {
     throw new Error(`followed: ${trail.join(' > ') || 'nothing'}; No signal ${on ? 'on' : 'not on'}; never reached: ${missed.join(', ') || '-'}`);
   }

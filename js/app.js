@@ -624,7 +624,7 @@
   function privateBanner() {
     return Store.isVolatile() ? `<div class="private-banner" role="status">Private mode: keep this tab open until it says Sent.</div>` : '';
   }
-  function banners() { return privateBanner() + demoBanner(); }
+  function banners() { return demoBarHtml() + privateBanner(); } // the bar takes the top, the private banner right under it (DEMOBAR-11)
 
   // Names and addresses never keep control characters or text-direction overrides (HRD-14).
   // Same rule as cleanText in supabase/functions/_shared/core.ts.
@@ -634,11 +634,62 @@
     return String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '').trim();
   }
 
-  // One line on every demo screen (SEP-3, SEP-4); the crew app never shows it (SEP-5).
-  function demoBanner() {
-    return Api.isDemo ? `<div class="demo-banner" role="note"><span class="demo-label">Sample data, made-up crew, <span class="wide-only">saved </span>only in this browser</span>
-      <span class="demo-actions">${demoControls() ? `<button type="button" class="demo-switch" role="switch" aria-checked="${DemoBackend.isOffline()}" data-action="demo-offline"><span class="knob" aria-hidden="true"></span>No signal</button>` : ''}<button type="button" data-action="demo-reset" aria-label="Reset sample data">Reset<span class="wide-only">&nbsp;sample data</span></button>
-      <a href="https://chaseholroyd.com/" aria-label="Back to chaseholroyd.com"><span class="wide-only">Back to&nbsp;</span>chaseholroyd.com</a></span></div>` : '';
+  // ---------- Studio demo bar (docs/product/SPEC-DEMO-BAR.md, M1.18) ----------
+  // A slim, collapsed bar on every demo screen (SEP-3, SEP-4): a way back, the Demo badge and a
+  // "Demo details" toggle that pushes a short drawer down (the No signal switch, Reset demo, the way
+  // back again). The crew app never shows it (SEP-5, DEMOBAR-12). Its state lives here, so an #app
+  // redraw keeps the drawer, the Reset question and focus (DEMOBAR-8).
+  const RESTORED_KEY = 'crewclock.restored'; // sessionStorage, set by Reset, read and removed once on load
+  const demoBar = { open: false, asking: false, restored: false };
+  if (Api.isDemo) {
+    try {
+      if (sessionStorage.getItem(RESTORED_KEY)) { sessionStorage.removeItem(RESTORED_KEY); demoBar.open = true; demoBar.restored = true; }
+    } catch (e) { /* private mode: no flag, the bar starts collapsed */ }
+  }
+  function demoCopy() {
+    // UX-R4 + PS-R1: short and true per PRIVACY S4; "made‑up" keeps a non-breaking hyphen (U+2011, UX-R5)
+    return `${demoBar.restored ? '<b>Sample data restored.</b> ' : ''}This is the real Crew Clock with a made\u2011up crew.
+      Changes stay in this browser, never sent anywhere. Map pictures come from map servers, which see the area.
+      Reset demo starts over.`;
+  }
+  function demoBarHtml() {
+    if (!Api.isDemo) return '';
+    const b = demoBar;
+    const sw = demoControls() ? `<button type="button" class="demo-switch" role="switch" aria-checked="${DemoBackend.isOffline()}" data-action="demo-offline" data-bar="switch"><span class="knob" aria-hidden="true"></span>No signal</button>` : '';
+    return `<section class="demo-bar" aria-label="Demo"><div class="demo-bar-in"><a class="demo-back" href="https://chaseholroyd.com/" data-bar="back">← Portfolio</a><span class="demo-div" aria-hidden="true"></span><button type="button" class="demo-bar-toggle" data-action="demo-details" data-bar="toggle" aria-label="Demo details" aria-expanded="${b.open}" aria-controls="demo-drawer"><span class="demo-badge">Demo</span><span class="demo-sum">Sample data<span class="demo-sum-more"> · changes stay in this browser</span></span><span class="demo-more">Details</span><svg class="demo-chev" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div></section>
+      <div class="demo-drawer" id="demo-drawer"${b.open ? '' : ' hidden'}><div class="demo-in">
+        <p class="demo-copy">${demoCopy()}</p>
+        <div class="demo-acts">${sw}<button type="button" class="demo-reset" data-action="demo-reset" data-bar="reset"${b.asking ? ' hidden' : ''}>Reset demo</button><div class="demo-ask"${b.asking ? '' : ' hidden'}><span>Put the sample data back? Your changes will be lost.</span><span class="demo-ask-btns"><button type="button" class="demo-reset" data-action="demo-reset-go" data-bar="go">Reset</button><button type="button" class="demo-reset" data-action="demo-reset-keep" data-bar="keep">Keep</button></span></div><a class="demo-link" href="https://chaseholroyd.com/" data-bar="link">← More of Chase's work</a></div>
+      </div></div>`;
+  }
+  // Puts the drawer's open state and the Reset question on the page in place (no redraw, so the
+  // chevron turns), then focuses the named control.
+  /** @param {string} [focus] a data-bar key */
+  function syncDemoBar(focus) {
+    const tg = $app.querySelector('.demo-bar-toggle');
+    const dr = /** @type {HTMLElement | null} */ ($app.querySelector('#demo-drawer'));
+    if (!tg || !dr) return;
+    tg.setAttribute('aria-expanded', String(demoBar.open));
+    dr.hidden = !demoBar.open;
+    const copy = dr.querySelector('.demo-copy');
+    if (copy) copy.innerHTML = demoCopy();
+    const reset = /** @type {HTMLElement | null} */ (dr.querySelector('[data-bar="reset"]'));
+    const ask = /** @type {HTMLElement | null} */ (dr.querySelector('.demo-ask'));
+    if (reset) reset.hidden = demoBar.asking;
+    if (ask) ask.hidden = !demoBar.asking;
+    applyHints();
+    if (focus) focusBar(focus);
+  }
+  /** @param {string} key */
+  function focusBar(key) {
+    const el = /** @type {HTMLElement | null} */ ($app.querySelector(`[data-bar="${key}"]`));
+    if (el) el.focus({ preventScroll: true });
+  }
+  /** @param {boolean} open */
+  function setDrawer(open) {
+    demoBar.open = open;
+    if (!open) { demoBar.asking = false; demoBar.restored = false; }
+    syncDemoBar(open ? undefined : 'toggle');
   }
   // The demo's own controls ("No signal", "Try tampering"): the public demo build only, never the
   // crew app, nor a crew build that fell back to demo (same guard as fakeGps, M1.13).
@@ -669,7 +720,11 @@
     } },
     { step: 5, find: () => state.screen === 'boss' && $app.querySelector('[data-action="boss-tab"][data-tab="today"]:not(.on)') },
     { step: 6, find: () => state.screen === 'boss' && $app.querySelector('[data-action="demo-tamper"]') },
-    { step: 7, after: [1, 2, 3, 4, 5, 6], find: () => $app.querySelector('.demo-banner [data-action="demo-offline"][aria-checked="false"]') },
+    // Step 7 goes through the demo bar: the "Demo details" toggle while the drawer is closed, then the
+    // No signal switch inside it (SPEC-DEMO-BAR); only turning the switch on finishes it.
+    { step: 7, after: [1, 2, 3, 4, 5, 6], find: () => (demoBar.open
+      ? $app.querySelector('#demo-drawer [data-action="demo-offline"][aria-checked="false"]')
+      : !DemoBackend.isOffline() && $app.querySelector('.demo-bar .demo-bar-toggle')) },
   ];
   function applyHints() {
     $app.querySelectorAll('.hint-dot').forEach((d) => d.remove());
@@ -700,7 +755,8 @@
   document.addEventListener('click', (e) => {
     const el = /** @type {Element | null} */ (e.target);
     const t = /** @type {HTMLElement | null} */ (el && el.closest ? el.closest('[data-hint]') : null);
-    if (t && demoControls()) finishHint(Number(t.dataset.hint));
+    // Opening the demo bar's drawer moves step 7's dot to the switch; it does not finish the step
+    if (t && demoControls() && t.dataset.action !== 'demo-details') finishHint(Number(t.dataset.hint));
   }, true);
 
   screens.names = () => {
@@ -1492,8 +1548,12 @@
     const old = tab && tab === bossScroll.tab ? $app.querySelector('.boss-body') : null;
     let keep = old ? old.scrollTop : 0;
     if (old && keep === bossScroll.got && bossScroll.want > bossScroll.got) keep = bossScroll.want;
-    // The boss screen puts the banner inside its own frame, so the tab bar still fits (UX-5).
+    // Focus on a demo bar control comes back after the redraw (DEMOBAR-8)
+    const active = /** @type {HTMLElement | null} */ (document.activeElement);
+    const barKey = active && active.dataset && $app.contains(active) ? active.dataset.bar : undefined;
+    // The boss screen puts the bar inside its own frame, so the tab bar still fits (UX-5).
     $app.innerHTML = (state.screen === 'boss' ? '' : banners()) + html;
+    if (barKey) focusBar(barKey);
     // An open chat thread fills the screen under the banner, its message box on screen (UX-R40)
     $app.classList.toggle('fit', state.screen === 'chat-thread');
     const body = keep && $app.querySelector('.boss-body');
@@ -1614,9 +1674,21 @@
       if (on) updateSyncLine(); else syncNow();
       applyHints(); // hint step 7 sits on this switch only while it is off (UX-R34)
     },
-    // Demo only (M1.4): forget this visit and start again from the sample crew.
+    // The demo bar's toggle opens and closes its drawer (SPEC-DEMO-BAR)
+    'demo-details': () => setDrawer(!demoBar.open),
+    // Reset demo asks first, inline (never a browser dialog): focus goes to Keep
     'demo-reset': () => {
-      if (!Api.isDemo || !confirm('Start over with the sample crew? Everything you did in this demo is cleared.')) return;
+      if (!Api.isDemo) return;
+      demoBar.asking = true;
+      syncDemoBar('keep');
+    },
+    'demo-reset-keep': () => {
+      demoBar.asking = false;
+      syncDemoBar('reset');
+    },
+    // Demo only (M1.4): forget this visit and start again from the sample crew.
+    'demo-reset-go': () => {
+      if (!Api.isDemo) return;
       try { Object.keys(localStorage).filter((k) => k.startsWith('cc.')).forEach((k) => localStorage.removeItem(k)); } catch (e) { /* private mode */ }
       try { localStorage.removeItem(HINTS_KEY); } catch (e) { /* private mode */ } // outside the cc. keys (SPEC-DEMO-HINTS)
       if (window.DemoBackend) window.DemoBackend.reset();
@@ -1628,6 +1700,8 @@
         try { const r = indexedDB.deleteDatabase(db); r.onsuccess = r.onerror = r.onblocked = () => done(); } catch (e) { done(); }
         setTimeout(done, 2000);
       });
+      // After the reload the drawer opens once and says "Sample data restored."
+      try { sessionStorage.setItem(RESTORED_KEY, '1'); } catch (e) { /* private mode: no note */ }
       Promise.all(['crewclock', 'crewclock-chat', 'crewclock-keys'].map(gone)).then(() => location.reload());
     },
     'boss-tab': (el) => {
@@ -1868,6 +1942,8 @@
     if (el.dataset.action === 'photo-file' && el.files && el.files[0]) onPhotoFile(el.files[0]);
   });
   document.addEventListener('keydown', (e) => {
+    // Esc closes the demo bar's drawer and puts focus back on its toggle (DEMOBAR-4)
+    if (e.key === 'Escape' && demoBar.open) { setDrawer(false); return; }
     if (e.key === 'Enter' && /** @type {Element} */ (e.target).id === 'job-address') { e.preventDefault(); /** @type {() => unknown} */ (handlers['geo-search'])(); }
   });
 

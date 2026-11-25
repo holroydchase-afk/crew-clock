@@ -168,11 +168,21 @@ t('ENH-1c a punch the visitor makes is signed on this phone and counted by the b
 });
 
 // ---------- ENH-2 the demo's "No signal" switch ----------
+// SPEC-DEMO-BAR (M1.18): the switch moved from the banner into the demo bar's "Demo details" drawer,
+// so a visitor opens Details first (ENH-2a/2b, UX-R34 rewritten for it).
+const BAR = 'section[aria-label="Demo"]';
+async function openDetails(page) {
+  const tg = page.locator(BAR).getByRole('button', { name: 'Demo details', exact: true });
+  if (await tg.count() !== 1) throw new Error(`no "Demo details" toggle in ${BAR} (old .demo-banner: ${await page.locator('.demo-banner').count()})`);
+  if (await tg.getAttribute('aria-expanded') !== 'true') await tg.click();
+  if (await tg.getAttribute('aria-expanded') !== 'true') throw new Error('"Demo details" did not open');
+}
 t('ENH-2a "No signal" holds a clock-in on the phone; turning it off sends it; the boss sees it came late, no signal', async (browser) => {
   const page = await open(browser);
   await signIn(page, 'Travis K.');
+  await openDetails(page);
   const sw = page.getByRole('switch', { name: 'No signal' });
-  if (await sw.count() !== 1) throw new Error('expected one "No signal" switch');
+  if (await sw.count() !== 1) throw new Error('expected one "No signal" switch in the open drawer');
   await sw.click();
   if (await sw.getAttribute('aria-checked') !== 'true') throw new Error('the switch does not say it is on');
   await page.click('.punch.in');
@@ -184,6 +194,7 @@ t('ENH-2a "No signal" holds a clock-in on the phone; turning it off sends it; th
   await page.waitForSelector('.punch.out');
   await until(async () => /1 waiting to send/.test(await text(page.locator('[data-sync-line]'))), 5000, 'Home says 1 waiting to send');
   if ((await demoDb(page)).punches.some((p) => p.crewId === 'c5')) throw new Error('the punch reached the demo server with "No signal" on');
+  await openDetails(page); // clocking in may have redrawn the screen; the switch is still in the drawer
   if (await page.getByRole('switch', { name: 'No signal' }).getAttribute('aria-checked') !== 'true') throw new Error('the switch did not stay on');
   await page.evaluate(() => { window.__skew = 10 * 60000; }); // ten minutes in a dead spot
   await page.getByRole('switch', { name: 'No signal' }).click();
@@ -201,11 +212,12 @@ t('ENH-2a "No signal" holds a clock-in on the phone; turning it off sends it; th
   return page;
 });
 
-t('ENH-2b "No signal" is in the demo banner on the boss screen too, and boss Refresh with it on keeps the last list', async (browser) => {
+t('ENH-2b "No signal" is in the demo bar\'s Details drawer on the boss screen too, and boss Refresh with it on keeps the last list', async (browser) => {
   const page = await open(browser);
   await bossToday(page);
   await verifiedCount(page); // the team list has loaded
   const rows = await page.locator('.shift').count();
+  await openDetails(page);
   await page.getByRole('switch', { name: 'No signal' }).click();
   await page.click('[data-action="reload-team"]');
   await page.waitForTimeout(600);
@@ -446,8 +458,9 @@ t('UX-R33 Week shows hours so far for shifts still open today as "6.6+", with a 
 });
 
 // Rewritten for SPEC-DEMO-HINTS (QA-R1): the "Demo: turn on No signal above, then clock in." line
-// became hint step 7, a dot on the banner's No signal switch once steps 1-6 are done.
-t('UX-R34 demo worker Home invites a visitor to try No signal (the hint dot on the switch, after the other hints), until it is on', async (browser) => {
+// became hint step 7, a dot on the banner's No signal switch once steps 1-6 are done. Rewritten again
+// for SPEC-DEMO-BAR (M1.18): the dot sits on "Demo details" until the drawer opens, then on the switch.
+t('UX-R34 demo worker Home invites a visitor to try No signal (the hint dot on Demo details, then on the switch once open, after the other hints), until it is on', async (browser) => {
   const page = await open(browser);
   // Steps 1-6: Travis K., Clock in (and Done), Not you?, Sam W., Today, Try tampering
   await travisClocksIn(page);
@@ -459,11 +472,16 @@ t('UX-R34 demo worker Home invites a visitor to try No signal (the hint dot on t
   await page.waitForSelector('.name-btn');
   await signIn(page, 'Travis K.');
   await page.waitForTimeout(250);
-  const sw = page.getByRole('switch', { name: 'No signal' });
-  if (await sw.count() !== 1) throw new Error('no "No signal" switch on worker Home');
   const dotsOn = () => page.evaluate(() => [...document.querySelectorAll('.hint-dot')]
     .filter((d) => d.getBoundingClientRect().width > 0)
     .map((d) => { const t = d.closest('[data-hint]'); return t ? `${t.dataset.hint}:${(t.innerText || '').replace(/\s+/g, ' ').trim()}` : 'no target'; }));
+  // SPEC-DEMO-BAR: with the drawer closed, step 7's dot is on the "Demo details" toggle
+  const closed = await dotsOn();
+  if (closed.length !== 1 || !/^7:.*Details/.test(closed[0])) throw new Error(`worker Home, drawer closed: want one hint dot, on "Demo details" (step 7); see ${JSON.stringify(closed)}`);
+  await openDetails(page);
+  await page.waitForTimeout(200);
+  const sw = page.getByRole('switch', { name: 'No signal' });
+  if (await sw.count() !== 1) throw new Error('no "No signal" switch in the drawer on worker Home');
   const before = await dotsOn();
   if (before.length !== 1 || !/^7:.*No signal/.test(before[0])) throw new Error(`worker Home: want one hint dot, on the No signal switch (step 7); see ${JSON.stringify(before)}`);
   if (await page.getByText(/Demo: turn on No signal/).count()) throw new Error('the old "Demo: turn on No signal" line is still there');
@@ -678,12 +696,15 @@ t('LIVE-3 Today, Week and the summary round hours the same way (Jake R.\'s 8.45 
   return page;
 });
 
-t('LIVE-4 on a phone the demo banner is at most 90 px tall, on the name list, worker Home and the boss screen', async (browser) => {
+// Rewritten for SPEC-DEMO-BAR (M1.18): the slim demo bar is at most 48 px (was the banner at 90).
+t('LIVE-4 on a phone the demo bar is at most 48 px tall, on the name list, worker Home and the boss screen', async (browser) => {
   const page = await open(browser);
   const tall = [];
   const check = async (where) => {
-    const h = await page.locator('.demo-banner').evaluate((b) => b.getBoundingClientRect().height);
-    if (h > 90) tall.push(`${where}: ${Math.round(h)} px`);
+    const bar = page.locator('section[aria-label="Demo"]');
+    if (await bar.count() !== 1) { tall.push(`${where}: ${await bar.count()} section[aria-label="Demo"]`); return; }
+    const h = await bar.evaluate((b) => b.getBoundingClientRect().height);
+    if (h > 48) tall.push(`${where}: ${h.toFixed(1)} px`);
     const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     if (over > 0) tall.push(`${where}: scrolls sideways ${over} px`);
   };

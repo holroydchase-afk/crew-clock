@@ -13,7 +13,8 @@
 //          "Not you?" and "Stop using my location" on worker Home, "Wrong job? Fix it" on the done
 //          screen, "Sign out" in the boss header, light and dark at 390x844; and on worker Home no
 //          visible text other than the punch button is red/rust (within 30 deg hue of --punch-out,
-//          saturation > 0.3), the demo banner and status chips exempt
+//          saturation > 0.3), status chips exempt (SPEC-DEMO-BAR: the demo bar is no longer exempt; it uses
+//          --ink/--muted, never --accent)
 //   AC-R62 the map's job pin square is --ink, light and dark
 //   AC-R63 no boss tab label overflows its tab or the screen at 360x780 and 390x844
 //   AC-R64 the demo "pretend I'm at the job" label on worker Home is --ink Static CSS checks are in tests/theme.test.js. Against a demo build on :8123:
@@ -260,7 +261,7 @@ function redText() {
   for (let n = walker.nextNode(); n; n = walker.nextNode()) {
     const text = n.textContent.replace(/\s+/g, ' ').trim();
     const el = n.parentElement;
-    if (!text || !el || seen.has(el) || el.closest('script, style, noscript, .punch, .demo-banner, .chip')) continue;
+    if (!text || !el || seen.has(el) || el.closest('script, style, noscript, .punch, .chip')) continue;
     const range = document.createRange(); range.selectNodeContents(n);
     const rr = range.getBoundingClientRect();
     if (rr.width < 1 || rr.height < 1) continue;

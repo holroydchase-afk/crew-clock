@@ -161,9 +161,15 @@ async function walk(browser, viewport, colorScheme) {
   await page.waitForSelector('table.week');
   await check(page, 'boss week', found);
   await page.click('[data-action="today-view"][data-view="day"]');
+  // SPEC-DEMO-BAR (M1.18): No signal lives in the demo bar's Details drawer; checked with it open
+  const details = page.locator('section[aria-label="Demo"]').getByRole('button', { name: 'Demo details', exact: true });
+  if (await details.count() !== 1) throw new Error('no "Demo details" toggle in the demo bar');
+  await details.click();
+  await check(page, 'boss today (Details open)', found);
   await page.click('[data-action="demo-offline"]');
   await check(page, 'boss today (no signal on)', found);
   await page.click('[data-action="demo-offline"]');
+  await details.click(); // close it again for the rest of the walk
   // UX-R41: an open chat thread, with one of the boss's own bubbles in it
   await openThread(page, 'Smith kitchen crew');
   await check(page, 'boss chat thread', found);
@@ -288,7 +294,13 @@ fv('SHOW-4 the demo\'s first screen is the crew app\'s "Who are you?", with the 
   else if (travis.last === 'in') errs.push('Travis K. is on the clock when the demo opens');
   const text = await page.locator('main').innerText();
   if (!/boss/i.test(text)) errs.push(`the names screen does not mark the boss: ${JSON.stringify(text.slice(0, 240))}`);
-  if (!(await page.getByRole('switch', { name: 'No signal' }).count())) errs.push('no "No signal" switch on the first screen');
+  // SPEC-DEMO-BAR (M1.18): "in reach" is one tap away, inside the demo bar's Details drawer
+  const details = page.locator('section[aria-label="Demo"]').getByRole('button', { name: 'Demo details', exact: true });
+  if (await details.count() !== 1) errs.push('no "Demo details" toggle in the demo bar on the first screen');
+  else {
+    await details.click();
+    if (!(await page.getByRole('switch', { name: 'No signal' }).filter({ visible: true }).count())) errs.push('no visible "No signal" switch after opening Details on the first screen');
+  }
   if (errs.length) throw new Error(errs.join('; '));
   return page;
 });

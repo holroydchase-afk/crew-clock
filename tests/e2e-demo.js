@@ -112,6 +112,15 @@ async function assertDemoMode(page) {
   if (!demo) throw new Error('the app left demo mode (Api is not the demo backend)');
 }
 
+// SPEC-DEMO-BAR (M1.18): the demo bar and its "Demo details" drawer replace the old banner.
+const BAR = 'section[aria-label="Demo"]';
+async function openDetails(page) {
+  const tg = page.locator(BAR).getByRole('button', { name: 'Demo details', exact: true });
+  if (await tg.count() !== 1) throw new Error(`no "Demo details" toggle in ${BAR} (old .demo-banner: ${await page.locator('.demo-banner').count()})`);
+  if (await tg.getAttribute('aria-expanded') !== 'true') await tg.click();
+  if (await tg.getAttribute('aria-expanded') !== 'true') throw new Error('"Demo details" did not open');
+}
+
 // The boss adds a job by address (the demo's address search), then backs out.
 async function addressSearch(page) {
   await bossTab(page, 'jobs');
@@ -146,15 +155,38 @@ t('SEP-2 demo opened with a stale crew-app session in storage stays in demo mode
   return page;
 });
 
-t('SEP-3 every demo screen shows a visible "Sample data" label that says data stays in this browser', async (browser) => {
+// Rewritten for SPEC-DEMO-BAR (M1.18): at 390 the bar says "Sample data"; the made-up crew and
+// "this browser" moved to the drawer, which every screen's bar opens. At 1280 the summary itself says it.
+t('SEP-3 every demo screen shows "Sample data" visibly in the demo bar, and its Details drawer says the crew is made up and changes stay in this browser', async (browser) => {
   const { page } = await open(browser);
   const missing = [];
   await everyScreen(page, async (p, where) => {
-    const label = p.getByText(/Sample data/i).filter({ visible: true });
-    if (!(await label.count())) return missing.push(`${where}: no visible "Sample data" label`);
-    const text = (await label.first().innerText()) + ' ' + (await label.first().evaluate((e) => (e.closest('.demo-banner, [role="note"], [role="status"], header, div') || e).innerText));
-    if (!/made-up/i.test(text)) missing.push(`${where}: label does not say the crew is made up ("${text.trim().slice(0, 80)}")`);
-    if (!/this browser/i.test(text)) missing.push(`${where}: label does not say data stays in this browser ("${text.trim().slice(0, 80)}")`);
+    const bar = p.locator(BAR);
+    if (await bar.count() !== 1) return missing.push(`${where}: no ${BAR}`);
+    const label = bar.getByText(/Sample data/).filter({ visible: true });
+    if (!(await label.count())) return missing.push(`${where}: no visible "Sample data" in the bar`);
+    await openDetails(p);
+    const text = await p.evaluate((sel) => {
+      const tg = [...document.querySelectorAll(`${sel} button`)].find((b) => b.getAttribute('aria-label') === 'Demo details');
+      const d = tg && document.getElementById(tg.getAttribute('aria-controls') || '');
+      return d ? d.innerText : '';
+    }, BAR);
+    // UX-R5: the copy writes "made‑up" with a non-breaking hyphen (U+2011) so it never wraps at the
+    // hyphen; accept that or a plain hyphen, still case-insensitive, still required on every screen.
+    if (!/made[-‑]up/i.test(text)) missing.push(`${where}: the drawer does not say the crew is made up ("${text.trim().slice(0, 80)}")`);
+    if (!/this browser/i.test(text)) missing.push(`${where}: the drawer does not say data stays in this browser ("${text.trim().slice(0, 80)}")`);
+    await p.keyboard.press('Escape');
+  });
+  if (missing.length) throw new Error(missing.join(' | '));
+  return page;
+});
+t('SEP-3 1280: the demo bar\'s own summary says the changes stay in this browser on every screen', async (browser) => {
+  const { page } = await open(browser);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const missing = [];
+  await everyScreen(page, async (p, where) => {
+    const said = p.locator(BAR).getByText(/Sample data · changes stay in this browser/).filter({ visible: true });
+    if (!(await said.count())) missing.push(`${where}: no visible "Sample data · changes stay in this browser"`);
   });
   if (missing.length) throw new Error(missing.join(' | '));
   return page;
@@ -254,19 +286,19 @@ t('SEP-4 every demo screen has a visible link to https://chaseholroyd.com', asyn
   await everyScreen(page, async (p, where) => {
     const hrefs = await p.locator('a[href]').filter({ visible: true }).evaluateAll((as) => as.map((a) => a.getAttribute('href')));
     if (!hrefs.some((h) => PORTFOLIO.test(h))) missing.push(where);
-    // The link's tap area stays inside the banner, so it never covers a control under it
-    const spill = await p.evaluate(() => {
-      // ...and the banner's two controls ("Reset sample data", the link) never cover each other
-      const b = document.querySelector('.demo-banner');
-      if (!b) return 0;
+    // The link's tap area stays inside the demo bar, so it never covers a control under it
+    const spill = await p.evaluate((sel) => {
+      // ...and the bar's controls (the back link, the Details toggle) never cover each other
+      const b = document.querySelector(sel);
+      if (!b) return 99;
       const br = b.getBoundingClientRect();
       return Math.max(0, ...[...b.querySelectorAll('a, button')].map((a) => {
         const ar = a.getBoundingClientRect();
         const hit = document.elementFromPoint(ar.left + ar.width / 2, ar.top + ar.height / 2);
         return Math.max(ar.bottom - br.bottom, br.top - ar.top, hit && a.contains(hit) ? 0 : 99);
       }));
-    });
-    if (spill > 0.5) missing.push(`${where} (a banner control's tap area spills ${spill.toFixed(1)} px past the banner or is covered)`);
+    }, BAR);
+    if (spill > 0.5) missing.push(`${where} (no ${BAR}, or a bar control's tap area spills ${spill.toFixed(1)} px past the bar or is covered)`);
   });
   if (missing.length) throw new Error(`no visible chaseholroyd.com link on: ${missing.join(', ')}`);
   return page;
@@ -313,11 +345,14 @@ async function openCrewApp(browser) {
 async function noDemoBits(page, where, found) {
   const checks = [
     ['demo banner', page.locator('.demo-banner')],
+    ['demo bar', page.locator(BAR)],
+    ['"Demo details" toggle', page.getByRole('button', { name: /Demo details/i })],
     ['"Sample data" label', page.getByText(/Sample data/i)],
     ['chaseholroyd.com link', page.locator('a[href*="chaseholroyd.com"]')],
     ['"pretend I\'m at the job" control', page.getByText(/pretend I'?m at the job/i)],
     ['demo PIN hint', page.getByText(/Demo: tap anyone|Demo mode/i)],
     ['"Reset sample data" button', page.getByRole('button', { name: /Reset sample data/i })],
+    ['"Reset demo" button', page.getByRole('button', { name: /Reset demo/i })],
   ];
   for (const [what, loc] of checks) if (await loc.count()) found.push(`${where}: ${what}`);
 }
@@ -329,7 +364,7 @@ async function pinIn(page, name, pin, onPinScreen) {
   for (const k of pin) await page.click(`.keypad [data-k="${k}"]`);
 }
 
-t('SEP-5 the crew app (backend: supabase) shows no demo banner, sample-data label, portfolio link, demo hints or "pretend I\'m at the job"', async (browser) => {
+t('SEP-5 the crew app (backend: supabase) shows no demo banner or bar, sample-data label, portfolio link, demo hints or "pretend I\'m at the job"', async (browser) => {
   const found = [];
   const { ctx, page } = await openCrewApp(browser);
   await page.waitForSelector('.name-btn');
@@ -362,7 +397,8 @@ t('SEP-5 the crew app (backend: supabase) shows no demo banner, sample-data labe
   return page;
 });
 
-t('RST-1 "Reset sample data" on the demo puts the sample crew back and forgets what the visitor did', async (browser) => {
+// Rewritten for SPEC-DEMO-BAR (M1.18): Reset is in the bar's drawer, "Reset demo" then an inline Reset.
+t('RST-1 "Reset demo" (then Reset) on the demo puts the sample crew back and forgets what the visitor did', async (browser) => {
   const { page } = await open(browser);
   await page.waitForSelector('.name-btn');
   await signIn(page, 'Travis K.'); // off the clock in the seed
@@ -373,10 +409,12 @@ t('RST-1 "Reset sample data" on the demo puts the sample crew back and forgets w
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.waitForSelector('.punch.out');
   await page.evaluate(() => localStorage.setItem('cc.bossTab', JSON.stringify('jobs')));
-  // Reachable from any screen: it sits in the demo banner
-  const reset = page.getByRole('button', { name: 'Reset sample data' });
-  if (await reset.count() !== 1) throw new Error('expected one "Reset sample data" button on the home screen');
+  // Reachable from any screen: it sits in the demo bar's drawer
+  await openDetails(page);
+  const reset = page.getByRole('button', { name: 'Reset demo', exact: true });
+  if (await reset.count() !== 1) throw new Error('expected one "Reset demo" button in the drawer on the home screen');
   await reset.click();
+  await page.getByRole('button', { name: 'Reset', exact: true }).click();
   await page.waitForSelector('.name-btn');
   const left = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('cc.') && !k.startsWith('cc.demo.db')));
   // gpsAt() sets cc.demoFake again on every load; nothing else of the visit may survive
