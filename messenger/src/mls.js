@@ -1,3 +1,5 @@
+// Original work for Crew Clock, MIT. Not copied from Hearth (@holroyd/messenger,
+// AGPL-3.0-or-later); it only calls ts-mls's public API.
 // End-to-end encrypted group chat with MLS (RFC 9420) via ts-mls.
 // Bundled to js/vendor/crew-mls.js by `npm run build` in this folder.
 // Stateless API: every call takes and returns the group state as base64, so the
