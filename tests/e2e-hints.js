@@ -27,7 +27,7 @@ let lastPage = null;
 // The demo starts with "pretend I'm at the job" on, so these reads should never happen; counted anyway.
 function gpsAtJob() {
   window.__reads = 0;
-  const at = () => /** @type {GeolocationPosition} */ ({ coords: { latitude: 38.454, longitude: -81.929, accuracy: 8 }, timestamp: Date.now() });
+  const at = () => /** @type {GeolocationPosition} */ ({ coords: { latitude: 38.800, longitude: -98.200, accuracy: 8 }, timestamp: Date.now() });
   navigator.geolocation.watchPosition = (ok) => { window.__reads++; setTimeout(() => ok(at()), 0); return 1; };
   navigator.geolocation.clearWatch = () => {};
   navigator.geolocation.getCurrentPosition = (ok) => { window.__reads++; setTimeout(() => ok(at()), 0); };
@@ -316,7 +316,7 @@ const CREW = [
   { id: '00000000-0000-4000-8000-0000000000b1', name: 'Test Worker', role: 'crew' },
   { id: '00000000-0000-4000-8000-0000000000b0', name: 'Test Boss', role: 'boss' },
 ];
-const JOB = { id: '00000000-0000-4000-8000-0000000000c1', name: 'Test job', address: 'Test Rd', lat: 38.45, lng: -81.93, radius_ft: 300, active: true };
+const JOB = { id: '00000000-0000-4000-8000-0000000000c1', name: 'Test job', address: 'Test Rd', lat: 38.796, lng: -98.201, radius_ft: 300, active: true };
 
 async function openCrewApp(browser) {
   const ctx = await browser.newContext({ viewport: PHONE, serviceWorkers: 'block' });

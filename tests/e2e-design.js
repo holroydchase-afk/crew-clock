@@ -29,7 +29,7 @@ const BOSS_TABS = ['map', 'today', 'jobs', 'crew', 'chat'];
 const ACRONYMS = new Set(['GPS', 'CSV', 'PIN', 'AM', 'PM', 'ID', 'OK', 'WV', 'PWA', 'MLS', 'US', 'SMS', 'PDF', 'URL', 'OSM', 'USGS', 'ES256']);
 
 function gpsAtJob() {
-  const at = () => /** @type {GeolocationPosition} */ ({ coords: { latitude: 38.454, longitude: -81.929, accuracy: 8 }, timestamp: Date.now() });
+  const at = () => /** @type {GeolocationPosition} */ ({ coords: { latitude: 38.800, longitude: -98.200, accuracy: 8 }, timestamp: Date.now() });
   navigator.geolocation.watchPosition = (ok) => { setTimeout(() => ok(at()), 0); return 1; };
   navigator.geolocation.clearWatch = () => {};
   navigator.geolocation.getCurrentPosition = (ok) => setTimeout(() => ok(at()), 0);

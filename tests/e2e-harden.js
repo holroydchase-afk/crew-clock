@@ -7,7 +7,7 @@ const path = require('path');
 const { launch } = require('./browser.js');
 
 const BASE = process.env.BASE_URL || 'http://localhost:8123/';
-const JOBS = { j1: { lat: 38.454, lng: -81.929 }, j2: { lat: 38.420, lng: -81.791 }, j4: { lat: 38.433, lng: -82.020 } };
+const JOBS = { j1: { lat: 38.800, lng: -98.200 }, j2: { lat: 38.830, lng: -98.160 }, j4: { lat: 38.810, lng: -98.260 } };
 const SITE_JPG = fs.readFileSync(path.join(__dirname, 'fixtures/site.jpg')).toString('base64');
 const cases = [];
 const t = (name, fn) => cases.push({ name, fn });

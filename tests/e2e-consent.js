@@ -6,7 +6,7 @@ const { launch } = require('./browser.js');
 
 const BASE = process.env.BASE_URL || 'http://localhost:8123/';
 const ORIGIN = new URL(BASE).origin;
-const J1 = { lat: 38.454, lng: -81.929, acc: 8 };
+const J1 = { lat: 38.800, lng: -98.200, acc: 8 };
 const VERSION = 'loc-v1';
 const cases = [];
 const t = (name, fn) => cases.push({ name, fn });

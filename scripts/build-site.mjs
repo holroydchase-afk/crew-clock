@@ -3,7 +3,8 @@
 //
 // It also:
 // - fills config.js from environment variables when they are set (the host's dashboard),
-//   so the real Supabase project doesn't have to be committed;
+//   so the real Supabase project doesn't have to be committed; refuses SHEETS_BACKEND_URL, since
+//   the old Sheets backend is demo-only (EF-CK-11);
 // - with --demo (the public GitHub Pages demo), ignores those variables and refuses to build
 //   anything but demo mode, so a visitor can never reach the real crew's backend;
 // - stamps the service worker VERSION with a hash of the app files, so phones always
@@ -28,7 +29,6 @@ const ENV = {
   supabaseAnonKey: 'SUPABASE_ANON_KEY',
   orgCode: 'ORG_CODE',
   vapidPublicKey: 'VAPID_PUBLIC_KEY',
-  backendUrl: 'SHEETS_BACKEND_URL',
   sheetUrl: 'SHEET_URL',
 };
 
@@ -54,12 +54,29 @@ export function shelveAi(src) {
   return src.replace(re, (_, head) => head + 'false');
 }
 
+// EF-CK-11: the old Sheets backend is demo-only, and the demo never has a backend URL, so no
+// build may take one from the environment.
+export function assertNoSheets(env) {
+  if (env.SHEETS_BACKEND_URL) throw new Error('Sheets backend is demo-only: unset SHEETS_BACKEND_URL (the crew app runs Supabase only)');
+}
+
 export function assertDemo(config) {
   const cfg = new Function('window', `${config}; return window.APP_CONFIG;`)({});
   const live = ['supabaseUrl', 'supabaseAnonKey', 'orgCode', 'vapidPublicKey', 'backendUrl', 'sheetUrl'].filter((k) => cfg[k]);
   if (cfg.backend !== 'demo' || live.length) {
     throw new Error(`--demo build has a live backend (backend: ${cfg.backend}${live.length ? `, ${live.join(', ')}` : ''})`);
   }
+}
+
+// #57: the public demo shows the portfolio's own header (a script the portfolio site serves at
+// /assets/demo-bar.js, same origin as the demo). Only the --demo build gets the tag; the crew app
+// never loads it, and the service worker never caches it.
+export const DEMO_BAR = '<script src="/assets/demo-bar.js" data-page="white" defer></script>';
+export function addDemoBar(html) {
+  if (html.includes(DEMO_BAR)) return html;
+  const i = html.lastIndexOf('</body>');
+  if (i < 0) throw new Error('index.html has no </body>');
+  return `${html.slice(0, i)}  ${DEMO_BAR}\n${html.slice(i)}`;
 }
 
 export function shellFiles(sw) {
@@ -75,6 +92,7 @@ export function stampVersion(sw, hash) {
 }
 
 function build() {
+  if (!demoOnly) assertNoSheets(process.env);
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
   for (const p of COPY) cpSync(join(root, p), join(out, p), { recursive: true });
@@ -83,6 +101,10 @@ function build() {
   const config = shelveAi(readFileSync(configPath, 'utf8'));
   if (demoOnly) assertDemo(config);
   writeFileSync(configPath, demoOnly ? config : fillConfig(config, process.env));
+  if (demoOnly) {
+    const indexPath = join(out, 'index.html');
+    writeFileSync(indexPath, addDemoBar(readFileSync(indexPath, 'utf8')));
+  }
 
   const swPath = join(out, 'sw.js');
   const sw = readFileSync(swPath, 'utf8');

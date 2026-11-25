@@ -46,7 +46,7 @@ Pinned clock everywhere (never today's date). No new hours or totals are shown, 
 - **CRW-1 (auto)** Given `seed()` at 2026-11-25 10:00, then all 4 job addresses end "Fernhollow (sample town)", 0 contain ", WV", and every pin has 3 decimals with lat in 38.700–38.950 and lng in -98.400 to -98.000 (rural Kansas, nowhere near the crew).
 - **CRW-2 (auto)** Given those 4 pins, then every pair is at least 3 km apart and all fit in a 30 km box, and the map's default view (`js/app.js` lines ~1056 and ~1418) centres inside that box.
 - **CRW-3 (auto)** Given the moved seed at 2026-11-25 21:30, then each punch p1–p8 keeps the geofence status it had at `9adcf3b` (p4 `nogps`, the rest as recorded there; offsets from each pin are preserved).
-- **CRW-4 (auto)** Given the repo minus `.git` and `node_modules`, then "Teays", "Cross Lanes", "Scott Depot", "Hurricane" and "Charleston" have 0 hits, and `js/` plus `tests/` (incl. `sql/`, `edge/`, `e2e-*`) have 0 coordinates matching `38\.4\d+,\s*-8[12]\.\d+`. Demo store key is `cc.demo.db.v8`.
+- **CRW-4 (auto)** Given the repo minus `.git` and `node_modules`, then the 5 old real place names (redacted here 2026-11-25, QA-R6; the list lives in `tests/intakes.test.js` as split strings) have 0 hits, and `js/` plus `tests/` (incl. `sql/`, `edge/`, `e2e-*`) have 0 coordinates matching `38\.4\d+,\s*-8[12]\.\d+`. Demo store key is `cc.demo.db.v8`.
 - **CRW-5 (auto)** Given demo geocode "Main St, Fernhollow", then the answer label ends "(sample)" and its pin is inside the CRW-1 box.
 
 **#57 portfolio header (demo build only; independent of the #38 demo bar)**

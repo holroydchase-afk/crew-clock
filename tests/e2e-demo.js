@@ -9,7 +9,7 @@ const ORIGIN = new URL(BASE).origin;
 // The one allowed exception: the boss map's tiles (streets and satellite).
 const TILE_HOSTS = ['tile.openstreetmap.org', 'basemap.nationalmap.gov'];
 const PORTFOLIO = /^https:\/\/chaseholroyd\.com(\/|$)/;
-const J1 = { lat: 38.4537, lng: -81.9290, acc: 8 };
+const J1 = { lat: 38.7997, lng: -98.2000, acc: 8 };
 const cases = [];
 const t = (name, fn) => cases.push({ name, fn });
 // A 1x1 PNG, so map tiles load the way real ones do (an empty 204 is a broken image)
@@ -116,7 +116,7 @@ async function assertDemoMode(page) {
 async function addressSearch(page) {
   await bossTab(page, 'jobs');
   await page.click('[data-action="job-new"]');
-  await page.fill('#job-address', 'Main St, Hurricane WV');
+  await page.fill('#job-address', 'Main St, Fernhollow');
   await page.click('[data-action="geo-search"]');
   await page.waitForTimeout(600);
   await page.click('[data-action="boss-back"]');
@@ -280,7 +280,7 @@ const CREW = [
   { id: '00000000-0000-4000-8000-0000000000b1', name: 'Test Worker', role: 'crew' },
   { id: '00000000-0000-4000-8000-0000000000b0', name: 'Test Boss', role: 'boss' },
 ];
-const JOB = { id: '00000000-0000-4000-8000-0000000000c1', name: 'Test job', address: 'Test Rd', lat: 38.45, lng: -81.93, radius_ft: 300, active: true };
+const JOB = { id: '00000000-0000-4000-8000-0000000000c1', name: 'Test job', address: 'Test Rd', lat: 38.796, lng: -98.201, radius_ft: 300, active: true };
 
 async function openCrewApp(browser) {
   const ctx = await browser.newContext(CONTEXT);

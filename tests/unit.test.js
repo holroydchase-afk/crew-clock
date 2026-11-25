@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const Geo = require('../js/geo.js');
 const Report = require('../js/report.js');
 
-const job = { lat: 38.4537, lng: -81.9290, radiusFt: 300 };
+const job = { lat: 38.7997, lng: -98.2000, radiusFt: 300 };
 /** @param {number} ft */
 const offsetNorth = (ft) => job.lat + Geo.toMeters(ft) / 111320;
 

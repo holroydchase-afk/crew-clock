@@ -120,13 +120,16 @@ F-06 (setup points the crew at the demo host) must be closed before M2.1 to M2.5
   `Content-Security-Policy` for the crew host (scheduled, M2.2).
 
 ### F-07 (P2) Demo names and places
+
+> Note 2026-11-25: the real place names below were redacted in place (#56, M2.0.5.3); the demo now uses a made-up town.
+
 - **Evidence:** `js/demo-backend.js:11-23`: crew "Dad", "Ray T.", "Jake R.", "Cody M.",
-  "Billy S.", "Travis K."; jobs "Smith kitchen", "Miller roof", "Scott Depot deck", "Hurricane
-  addition". Chase never gave crew names in the project chat (caller-verified); these follow the
+  "Billy S.", "Travis K."; jobs "Smith kitchen", "Miller roof", and two more named after
+  real towns [names redacted 2026-11-25, #56]. Chase never gave crew names in the project chat (caller-verified); these follow the
   pattern of a model-invented roster (common first names, one initial, the two most common US
   surnames for clients). Addresses are town or road names only, no house numbers. Coordinates
   (`demo-backend.js:11-14,26-30`, also tests) are at 4-5 decimals (about 1-10 m), so a pin on
-  "Teays Valley Rd" or "Main St, Hurricane" can sit on a real property.
+  a named road in a real town [redacted 2026-11-25, #56] can sit on a real property.
 - **Done when:** Chase confirms SEP-6 (no name matches a real crew member or client); demo job
   pins are moved to public places (a park, a church lot, a store lot) or rounded to 3 decimals.
 

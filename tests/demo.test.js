@@ -42,7 +42,7 @@ test('SEP-2 the demo address search answers from sample results, without calling
   const { auth } = await ctx.DemoBackend.handle('demoLogin', { crewId: 'c0' });
   /** @type {ApiResult} */
   let res;
-  try { res = await ctx.DemoBackend.handle('geocode', { auth, address: 'Main St, Hurricane WV' }); } catch (e) { res = { error: /** @type {Error} */ (e).message }; }
+  try { res = await ctx.DemoBackend.handle('geocode', { auth, address: 'Main St, Fernhollow' }); } catch (e) { res = { error: /** @type {Error} */ (e).message }; }
   assert.deepStrictEqual(fetched, [], `demo geocode fetched ${fetched.join(', ')}`);
   assert.ok(res && Array.isArray(res.results) && res.results.length > 0, `demo geocode gave ${JSON.stringify(res)}`);
   for (const r of res.results) {
@@ -124,7 +124,7 @@ test('RST-2 a demo request in flight during "Reset sample data" never writes the
   const { ctx } = loadDemo();
   const store = () => { const k = ['cc.demo.db.v6', 'cc.demo.db.v7', 'cc.demo.db.v8'].find((x) => ctx.localStorage.getItem(x)); return k && ctx.localStorage.getItem(k); };
   const { auth } = await ctx.DemoBackend.handle('demoLogin', { crewId: 'c5' });
-  const punch = { kind: 'punch', id: 'rst-2-punch', crewId: 'c5', jobId: 'j1', type: 'in', at: Date.now(), lat: 38.454, lng: -81.929, accuracy: 8 };
+  const punch = { kind: 'punch', id: 'rst-2-punch', crewId: 'c5', jobId: 'j1', type: 'in', at: Date.now(), lat: 38.800, lng: -98.200, accuracy: 8 };
   const inFlight = ctx.DemoBackend.handle('sync', { auth, items: [punch] }).catch(() => null);
   ctx.DemoBackend.reset();
   await inFlight;

@@ -58,6 +58,12 @@ _Done when the beta crew has used the real app for 2 weeks, every worker's conse
   - `M2.0.2` Revoke migration `20261123000000_revoke_defaults.sql` and `tests/sql/70_grants_test.sql` — done when GRANT-2..8 pass 3x
   - `M2.0.3` Schedules moved to `supabase/manual/schedules.sql`; SETUP 1.2 and 6, digest header, NOTES, PRIVACY S6 fixed — done when GRANT-12 and GRANT-13 pass
   - `M2.0.4` privacy-security review and HANDOFF — done when GRANT-14 has no P0 or P1
+- `M2.0.5` Intakes #56, #53 (EF-CK-1, EF-CK-11), #57 (`docs/product/SPEC-INTAKES-2026-11-25.md`) — in progress on `claude/project-thread-yqzdzd`
+  - `M2.0.5.1` EF-CK-1 closed-shift chip and evening top-up — built (CRW-6..8 green; CRW-9 manual pending)
+  - `M2.0.5.2` EF-CK-11 no Sheets route in `js/api.js` or the crew build — built (CRW-10..14 green)
+  - `M2.0.5.3` #56 made-up town and pins, demo key v8, repo-wide sweep — built (CRW-1..5 green)
+  - `M2.0.5.4` #57 demo-bar tag in the `--demo` build only — built (CRW-15, CRW-16 green); deploy waits for Chase's go (CRW-17)
+  - `M2.0.5.5` privacy-security and ux-reviewer pass — todo — done when CRW-18 has no P0 or P1
 - `M2.1` Supabase project live (SETUP 1.1-1.4, migrations incl. consent and retention) — blocked: Chase creates the Supabase project and pastes URL + anon key (about 25 min) — done when CI's e2e-supabase passes against it — branch `m2.1-supabase-live`
 - `M2.2` Crew app host on Cloudflare Pages, separate from the demo — blocked: Chase creates a Cloudflare account and Pages project, picks the crew-app hostname (Porkbun DNS) — done when the crew URL serves `backend: 'supabase'` and chaseholroyd.com/crew-clock/ still serves demo — branch `m2.2-crew-host`
 - `M2.3` Photos and alerts (SETUP 2, 3, 4, 6) — blocked: Chase's Backblaze bucket + keys, VAPID key — done when a test punch with photo shows in the boss Map and the boss's phone gets the alert — branch `m2.3-services-live`
