@@ -40,7 +40,7 @@ function staleCrewSession() {
   localStorage.setItem('cc.orgCode', JSON.stringify('ANY'));
   localStorage.setItem('cc.auth', JSON.stringify({ crewId: uuid }));
   localStorage.setItem('cc.me', JSON.stringify({ id: uuid, name: 'Stale Worker', role: 'crew' }));
-  localStorage.setItem('cc.jobs', JSON.stringify([{ id: 'x1', name: 'Stale Job', lat: 38.1, lng: -81.1, radiusFt: 300, active: true }]));
+  localStorage.setItem('cc.jobs', JSON.stringify([{ id: 'x1', name: 'Stale Job', lat: 38.75, lng: -98.35, radiusFt: 300, active: true }]));
   localStorage.setItem('cc.locPrimed', 'true');
 }
 
@@ -232,7 +232,10 @@ t('M1.1 (CI flake) "Not you?" while a sync is still running never signs the next
   return page;
 });
 
-t('SEP-2 (PSR-2) a crew build that falls back to demo mode (empty supabaseUrl) keeps the crew-app session', async (browser) => {
+// CRW-10 (SPEC-INTAKES-2026-11-25): a crew build with no supabaseUrl no longer falls back to the
+// demo; it shows the sign-in screen with the no-signal notice and no sample crew. PSR-2 still holds:
+// the crew-app session on the phone is kept, never deleted.
+t('SEP-2 (PSR-2) a crew build with an empty supabaseUrl shows the offline sign-in screen (no sample crew) and keeps the crew-app session', async (browser) => {
   const ctx = await browser.newContext(CONTEXT);
   const page = await ctx.newPage();
   page.errors = [];
@@ -242,7 +245,10 @@ t('SEP-2 (PSR-2) a crew build that falls back to demo mode (empty supabaseUrl) k
     body: "window.APP_CONFIG = { backend: 'supabase', supabaseUrl: '', supabaseAnonKey: '', orgCode: '', gpsTimeoutMs: 1500 };" }));
   await page.addInitScript(() => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('cc.sbSession', JSON.stringify({ refreshToken: 'rt-keep' })); } });
   await page.goto(BASE);
-  await page.waitForSelector('.name-btn, .punch, .boss');
+  await page.getByRole('heading', { name: 'Who are you?' }).waitFor({ timeout: 10000 });
+  await page.getByText('No signal. The first time you sign in, you need signal.', { exact: false }).waitFor({ timeout: 10000 });
+  if (await page.locator('.name-btn').count()) throw new Error('a crew build with no supabaseUrl listed the sample crew (fell back to the demo)');
+  if (await page.locator('.demo-banner').count()) throw new Error('a crew build with no supabaseUrl showed the demo banner');
   const kept = await page.evaluate(() => localStorage.getItem('cc.sbSession'));
   if (!kept || !kept.includes('rt-keep')) throw new Error('cc.sbSession was deleted by a build that is not the demo');
   return page;

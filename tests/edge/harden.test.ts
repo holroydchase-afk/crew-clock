@@ -49,7 +49,7 @@ function fakeRepo(crew: CrewRow[], opts: { devices?: Device[]; consent?: boolean
 const active = (id: string, org = ORG): CrewRow => ({ id, org_id: org, active: true, deactivated_at: null });
 const turnedOff = (id: string, at: number): CrewRow => ({ id, org_id: ORG, active: false, deactivated_at: new Date(at).toISOString() });
 const punch = (o: Partial<PunchItem> = {}): PunchItem =>
-  ({ kind: 'punch', id: 'p-x', crewId: JAKE, byCrewId: JAKE, jobId: 'j1', type: 'out', at: now - 30 * 60000, lat: 38.5, lng: -81.9, accuracy: 9, ...o });
+  ({ kind: 'punch', id: 'p-x', crewId: JAKE, byCrewId: JAKE, jobId: 'j1', type: 'out', at: now - 30 * 60000, lat: 38.8, lng: -98.2, accuracy: 9, ...o });
 
 // ---------- PS-4: a worker turned off before their last clock-out syncs ----------
 
@@ -77,11 +77,11 @@ const leaks = (reasons: { reason: string }[], values: string[]) =>
 
 Deno.test('HRD-14 a punch with impossible coordinates or accuracy is kept without its location (never refused: CLAUDE.md "never block a clock-in")', async () => {
   const bad: Partial<PunchItem>[] = [
-    { id: 'p-lat', lat: 95, lng: -81.9 },
-    { id: 'p-lng', lat: 38.5, lng: -181 },
+    { id: 'p-lat', lat: 95, lng: -98.2 },
+    { id: 'p-lng', lat: 38.8, lng: -181 },
     { id: 'p-acc', accuracy: -3 },
     // deno-lint-ignore no-explicit-any
-    { id: 'p-str', lat: '38.5; drop table' as any },
+    { id: 'p-str', lat: '38.8; drop table' as any },
     { id: 'p-nan', lat: NaN },
   ];
   const f = fakeRepo([active(JAKE)]);
@@ -119,10 +119,10 @@ Deno.test('HRD-14 the boss\'s job and crew edits are refused past 60 chars (name
   const longAddr = '1 Test Rd ' + 'y'.repeat(191); // 201
   const longCrew = 'Test Person ' + 'z'.repeat(49); // 61
   const items = [
-    { kind: 'job' as const, id: 'e1', data: { id: id(11), name: longName, address: '', lat: 38.5, lng: -81.9 } },
-    { kind: 'job' as const, id: 'e2', data: { id: id(12), name: 'Test job', address: longAddr, lat: 38.5, lng: -81.9 } },
-    { kind: 'job' as const, id: 'e3', data: { id: id(13), name: 'Test job', address: '', lat: 91.25, lng: -81.9 } },
-    { kind: 'job' as const, id: 'e4', data: { id: id(14), name: 'Test job', address: '', lat: 38.5, lng: -181.75 } },
+    { kind: 'job' as const, id: 'e1', data: { id: id(11), name: longName, address: '', lat: 38.8, lng: -98.2 } },
+    { kind: 'job' as const, id: 'e2', data: { id: id(12), name: 'Test job', address: longAddr, lat: 38.8, lng: -98.2 } },
+    { kind: 'job' as const, id: 'e3', data: { id: id(13), name: 'Test job', address: '', lat: 91.25, lng: -98.2 } },
+    { kind: 'job' as const, id: 'e4', data: { id: id(14), name: 'Test job', address: '', lat: 38.8, lng: -181.75 } },
     { kind: 'crew' as const, id: 'e5', data: { id: id(15), name: longCrew, role: 'crew' } },
   ];
   const r = await ingest(claims(BOSS, 'boss'), items, f.repo, now);
@@ -144,7 +144,7 @@ Deno.test('HRD-14 (guard) names at exactly 60 chars and an address at 200 are st
 Deno.test('HRD-14 control characters are stripped from job and crew names', async () => {
   const f = fakeRepo([active(BOSS)]);
   await ingest(claims(BOSS, 'boss'), [
-    { kind: 'job', id: 'e1', data: { id: '00000000-0000-4000-8000-000000000031', name: 'Test\u0007 job\u0000\u001b[2J', address: 'A\u0008B', lat: 38.5, lng: -81.9 } },
+    { kind: 'job', id: 'e1', data: { id: '00000000-0000-4000-8000-000000000031', name: 'Test\u0007 job\u0000\u001b[2J', address: 'A\u0008B', lat: 38.8, lng: -98.2 } },
     { kind: 'crew', id: 'e2', data: { id: '00000000-0000-4000-8000-000000000032', name: '‮Test\u0000 Person\n', role: 'crew' } },
   ], f.repo, now);
   for (const v of [f.jobs[0].name, f.jobs[0].address, f.crewRows[0].name]) {
@@ -189,7 +189,7 @@ Deno.test('PS-M112-1 a turned-off foreman can sync nothing but their own early p
     punch({ id: 'p-own', crewId: CODY, byCrewId: CODY, at: offAt - 10 * MIN }),
     punch({ id: 'p-for-jake', crewId: JAKE, byCrewId: CODY, at: offAt - 10 * MIN }),
     { kind: 'consent' as const, id: '00000000-0000-4000-8000-0000000000f9', crewId: CODY, action: 'withdraw', textVersion: 'loc-v1', at: offAt - 5 * MIN },
-    { kind: 'job' as const, id: 'e-job', data: { id: '00000000-0000-4000-8000-000000000041', name: 'Test job', address: '', lat: 38.5, lng: -81.9 } },
+    { kind: 'job' as const, id: 'e-job', data: { id: '00000000-0000-4000-8000-000000000041', name: 'Test job', address: '', lat: 38.8, lng: -98.2 } },
   ];
   const r = await ingest(claims(CODY, 'foreman'), items, f.repo, now);
   assertEquals(r.accepted, ['p-own'], `rejected: ${JSON.stringify(r.rejected)}`);
@@ -230,8 +230,8 @@ Deno.test('PS-M112-2 the next signed punch keeps no pointer to the dropped punch
   const dev: Device = { id: 'dev-1', crew_id: JAKE, org_id: ORG, public_key: await Chain.exportPublic(keys.publicKey), last_seq: 0, last_hash: 'genesis', revoked: false };
   const f = fakeRepo([active(JAKE)], { devices: [dev] });
   const base = { kind: 'punch' as const, deviceId: 'dev-1', crewId: JAKE, byCrewId: JAKE, jobId: 'j1', accuracy: 9 };
-  const p1 = await Chain.signPunch({ ...base, id: 'p-1', type: 'in', at: now - 120 * MIN, lat: 95, lng: -81.9 }, keys.privateKey, { seq: 0, hash: 'genesis' });
-  const p2 = await Chain.signPunch({ ...base, id: 'p-2', type: 'out', at: now - 60 * MIN, lat: 38.5, lng: -81.9 }, keys.privateKey, { seq: 1, hash: p1.hash });
+  const p1 = await Chain.signPunch({ ...base, id: 'p-1', type: 'in', at: now - 120 * MIN, lat: 95, lng: -98.2 }, keys.privateKey, { seq: 0, hash: 'genesis' });
+  const p2 = await Chain.signPunch({ ...base, id: 'p-2', type: 'out', at: now - 60 * MIN, lat: 38.8, lng: -98.2 }, keys.privateKey, { seq: 1, hash: p1.hash });
   const r1 = await ingest(claims(JAKE), [p1], f.repo, now);
   assert(f.devices[0].last_hash !== p1.hash, 'the device row still holds the dropped punch\'s hash');
   const r2 = await ingest(claims(JAKE), [p2], f.repo, now);
@@ -249,7 +249,7 @@ Deno.test('PS-M112-2 (guard) a good signed punch keeps its hash, signature and l
   const keys = await Chain.generateKey();
   const dev: Device = { id: 'dev-1', crew_id: JAKE, org_id: ORG, public_key: await Chain.exportPublic(keys.publicKey), last_seq: 0, last_hash: 'genesis', revoked: false };
   const f = fakeRepo([active(JAKE)], { devices: [dev] });
-  const base = { kind: 'punch' as const, deviceId: 'dev-1', crewId: JAKE, byCrewId: JAKE, jobId: 'j1', accuracy: 9, lat: 38.5, lng: -81.9 };
+  const base = { kind: 'punch' as const, deviceId: 'dev-1', crewId: JAKE, byCrewId: JAKE, jobId: 'j1', accuracy: 9, lat: 38.8, lng: -98.2 };
   const p1 = await Chain.signPunch({ ...base, id: 'p-1', type: 'in', at: now - 120 * MIN }, keys.privateKey, { seq: 0, hash: 'genesis' });
   const p2 = await Chain.signPunch({ ...base, id: 'p-2', type: 'out', at: now - 60 * MIN }, keys.privateKey, { seq: 1, hash: p1.hash });
   await ingest(claims(JAKE), [p1, p2], f.repo, now);

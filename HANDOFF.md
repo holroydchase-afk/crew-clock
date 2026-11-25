@@ -506,6 +506,11 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
   supabaseUrl)" waits for name buttons, but CRW-10 removes that fallback (the app now opens on
   "Who are you?" with "No signal"; the session it checks is still kept). Exact next step: qa-tdd
   updates those two, all suites 3x, then M2.0.5.5 reviews (CRW-9 screenshot, CRW-18).
+  Follow-ups (engineer, 2026-11-25): TS-1 `finishDay` in `js/demo-backend.js` narrows
+  `db.sampleDay` (same behaviour, tsc clean); PS-R3 `docs/PRIVACY.md` S5 now [true] (CRW-10..13)
+  and `config.js` says `sheets`/`backendUrl` are ignored outside the demo; PS-R1 the last
+  West Virginia fixture points in `tests/edge/*.ts` and `tests/sql/10_rls_test.sql` moved near the
+  made-up town (38.8,-98.2). Left for qa-tdd: `tests/e2e-demo.js` still uses 38.1,-81.1.
 
 - Demo hints (2026-11-23, Chase's ask), `docs/product/SPEC-DEMO-HINTS.md`, on `claude/project-thread-wc5ywq`,
   not committed yet. Done: the demo's names screen is the crew app's ("Who are you?", Travis K. first);

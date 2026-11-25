@@ -33,6 +33,10 @@ async function newPage(browser, viewport, colorScheme) {
   });
   page.on('dialog', (d) => d.accept());
   await ctx.route((u) => u.origin !== ORIGIN, (r) => r.fulfill({ status: 204, body: '' }));
+  // CRW-15: the --demo build loads the portfolio header from /assets/demo-bar.js, which the
+  // portfolio site serves (not this repo). Stub it as tests/e2e-intakes.js does, so a 404 for a
+  // file this build never ships is not counted; every other console error still is.
+  await ctx.route('**/assets/demo-bar.js', (r) => r.fulfill({ contentType: 'application/javascript', body: '/* portfolio header stub */' }));
   await page.addInitScript(gpsAtJob);
   await page.goto(BASE);
   await page.waitForSelector('.name-btn');

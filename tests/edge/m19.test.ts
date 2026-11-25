@@ -184,7 +184,7 @@ Deno.test('F-13a the report token must match exactly and be set up long enough',
 
 Deno.test('F-13b the report carries shifts and names only, never GPS', () => {
   const shift = { crew_id: JAKE, crew_name: 'Jake R.', job_id: 'j1', job_name: 'Smith kitchen', clock_in: 'a', clock_out: 'b',
-    hours: 8, status: 'on_site', note: null, lat: 38.4, lng: -81.9, accuracy_m: 9, address: '1 Made Up Rd', distance_ft: 20 };
+    hours: 8, status: 'on_site', note: null, lat: 38.7, lng: -98.2, accuracy_m: 9, address: '1 Made Up Rd', distance_ft: 20 };
   const out = reportPayload({ name: 'Example Construction', timezone: 'America/New_York' }, [shift], [{ name: 'Jake R.', role: 'crew', pin_hash: 'x' }]);
   const text = JSON.stringify(out);
   for (const bad of ['lat', 'lng', 'accuracy', 'address', 'distance', 'pin_hash']) assert(!text.includes(bad), `report has ${bad}`);

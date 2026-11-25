@@ -230,8 +230,9 @@
   /** @param {DemoDb} db */
   async function finishDay(db) {
     const due = eveningDue(db);
-    if (!due.length) return;
-    const add = due.map((e) => at(e.id, e.crewId, e.jobId, 'out', db.sampleDay + e.h * H, e.off, e.acc));
+    const day = db.sampleDay; // eveningDue only returns rows when this is today's sample day
+    if (!due.length || day == null) return;
+    const add = due.map((e) => at(e.id, e.crewId, e.jobId, 'out', day + e.h * H, e.off, e.acc));
     add.forEach((p) => { p.receivedAt = p.at + 30000; score(db, p); });
     db.punches.push(...add);
     // Re-sign each of those sample phones' chains so the boss's check still passes. Never after

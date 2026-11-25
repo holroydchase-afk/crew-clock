@@ -39,7 +39,11 @@ test('every same-site link, script, stylesheet and icon in the demo exists', () 
   const html = fs.readFileSync(path.join(OUT, 'index.html'), 'utf8');
   const manifest = JSON.parse(fs.readFileSync(path.join(OUT, 'manifest.webmanifest'), 'utf8'));
   const all = [...refs('index.html', html), ...(manifest.icons || []).map((/** @type {{ src: string }} */ i) => ['manifest', i.src])];
+  // CRW-15: the portfolio site (not this repo) serves its header script at this one exact path.
+  // Only index.html may reference it; every other same-site reference must exist in the build.
+  const PORTFOLIO_PATHS = new Set(['index.html -> /assets/demo-bar.js']);
   for (const [from, u] of all) {
+    if (PORTFOLIO_PATHS.has(`${from} -> ${u}`)) continue;
     if (!fs.existsSync(path.join(OUT, u.replace(/^\.?\//, '')))) missing.push(`${from} -> ${u}`);
   }
   assert.deepStrictEqual(missing, []);

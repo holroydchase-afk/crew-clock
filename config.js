@@ -1,7 +1,8 @@
 // Fill these in during setup (see docs/SETUP.md).
 // With nothing filled in, the app runs in demo mode with data kept on this phone.
 window.APP_CONFIG = {
-  // 'supabase' (v2), 'sheets' (the Google Apps Script MVP) or 'demo'
+  // 'supabase' (the crew app) or 'demo'. The old 'sheets' value is ignored outside the demo:
+  // a crew build without a supabaseUrl talks to no server (EF-CK-11).
   backend: 'demo',
 
   // Supabase: Project Settings > API
@@ -12,7 +13,8 @@ window.APP_CONFIG = {
   // Web push: the VAPID public key (docs/SETUP.md shows how to make one)
   vapidPublicKey: '',
 
-  // Sheets MVP backend: the Apps Script "Web app URL", ends in /exec
+  // Old Sheets MVP backend URL: ignored outside the demo (the crew app runs Supabase only), and a
+  // crew build refuses SHEETS_BACKEND_URL. Leave it empty.
   backendUrl: '',
   // The Google Sheet link, shown to the boss as "Open the Google Sheet"
   sheetUrl: '',

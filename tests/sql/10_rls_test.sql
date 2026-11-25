@@ -11,7 +11,7 @@ insert into crew (id, org_id, name, role) values
 update crew set pin_hash = 'pbkdf2$secret';
 insert into jobs (id, org_id, name, lat, lng, radius_ft) values
   ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000a1', 'Smith kitchen', 38.7997, -98.2000, 300),
-  ('00000000-0000-0000-0000-0000000000c9', '00000000-0000-0000-0000-0000000000a2', 'Their job', 38.0, -81.0, 300);
+  ('00000000-0000-0000-0000-0000000000c9', '00000000-0000-0000-0000-0000000000a2', 'Their job', 38.6, -98.4, 300);
 -- punches: Jake on site, then out near; Cody wrong job fixed
 insert into punches (id, org_id, crew_id, by_crew_id, job_id, type, phone_at, lat, lng, accuracy_m) values
   ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-0000000000c1', 'in', '2026-10-21 07:00-04', 38.79975, -98.19995, 8),
