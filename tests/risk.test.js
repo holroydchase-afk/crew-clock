@@ -4,17 +4,17 @@ const Risk = require('../js/risk.js');
 /** @param {{ code: string }[]} f */
 const codes = (f) => f.map((x) => x.code).sort();
 const noon = Date.parse('2026-10-21T12:00:00-04:00');
-const base = { id: 'n', crewId: 'c1', byCrewId: 'c1', deviceId: 'd1', type: 'in', at: noon, lat: 38.4537, lng: -81.929, accuracy: 9 };
+const base = { id: 'n', crewId: 'c1', byCrewId: 'c1', deviceId: 'd1', type: 'in', at: noon, lat: 38.7997, lng: -98.200, accuracy: 9 };
 
 test('a normal punch has no flags', () => {
   assert.deepStrictEqual(Risk.assess(base, { receivedAt: noon + 5000, chain: 'linked' }), []);
 });
-test('impossible travel: Charleston to Teays Valley in 2 minutes', () => {
-  const prev = { id: 'a', crewId: 'c1', at: noon - 2 * 60000, lat: 38.3498, lng: -81.6326 };
+test('impossible travel: 28 km between two sample towns in 2 minutes', () => {
+  const prev = { id: 'a', crewId: 'c1', at: noon - 2 * 60000, lat: 38.6958, lng: -97.9036 };
   assert.deepStrictEqual(codes(Risk.assess(base, { crewHistory: [prev] })), ['impossible_travel']);
 });
 test('normal drive between jobs is fine', () => {
-  const prev = { id: 'a', crewId: 'c1', at: noon - 40 * 60000, lat: 38.3498, lng: -81.6326 };
+  const prev = { id: 'a', crewId: 'c1', at: noon - 40 * 60000, lat: 38.6958, lng: -97.9036 };
   assert.deepStrictEqual(Risk.assess(base, { crewHistory: [prev] }), []);
 });
 test('frozen GPS: exact same coordinates as yesterday', () => {

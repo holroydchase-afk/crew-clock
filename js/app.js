@@ -16,11 +16,13 @@
     if (ios && !installed) document.documentElement.classList.add('ios-safari-tab');
   } catch (e) { /* old browser: no extra padding */ }
 
-  /** @type {Record<string, { word: string, cls: string }>} */
+  // `past` is the word for a closed shift on boss Today: the check was made at the punch, so a
+  // clocked-out worker is never shown as "On site" now (EF-CK-1). Weak and No GPS read the same.
+  /** @type {Record<string, { word: string, cls: string, past?: string }>} */
   const STATUS = {
-    onsite: { word: 'On site', cls: 's-onsite' },
-    near: { word: 'Near', cls: 's-near' },
-    offsite: { word: 'Off site', cls: 's-offsite' },
+    onsite: { word: 'On site', cls: 's-onsite', past: 'Was on site' },
+    near: { word: 'Near', cls: 's-near', past: 'Was near' },
+    offsite: { word: 'Off site', cls: 's-offsite', past: 'Was off site' },
     weak: { word: 'Weak GPS', cls: 's-weak' },
     nogps: { word: 'No GPS', cls: 's-nogps' },
   };
@@ -123,10 +125,10 @@
     syncNow();
   }
 
-  /** @param {string | null | undefined} status @param {boolean} [hasPhoto] */
-  function chip(status, hasPhoto) {
+  /** @param {string | null | undefined} status @param {boolean} [hasPhoto] @param {boolean} [closed] */
+  function chip(status, hasPhoto, closed) {
     const s = STATUS[String(status)] || STATUS.nogps;
-    return `<span class="chip ${s.cls}"><i></i>${s.word}${hasPhoto ? ` <span class="chip-cam">${Icons.camera}</span>` : ''}</span>`;
+    return `<span class="chip ${s.cls}"><i></i>${(closed && s.past) || s.word}${hasPhoto ? ` <span class="chip-cam">${Icons.camera}</span>` : ''}</span>`;
   }
 
   /** @typedef {{ _t?: ReturnType<typeof setTimeout>, _t2?: ReturnType<typeof setTimeout> }} ToastTimers */
@@ -1053,7 +1055,7 @@
       pts.push(ll);
     });
     if (pts.length) map.fitBounds(pts, { padding: [40, 40], maxZoom: 16 });
-    else map.setView([38.44, -81.88], 11); // Teays Valley / Cross Lanes
+    else map.setView([38.80, -98.205], 11); // the demo's made-up town, Fernhollow (#56)
     map.on('popupopen', (e) => {
       const btn = e.popup.getElement().querySelector('[data-action="show-photo"]');
       if (btn) btn.addEventListener('click', () => showPhoto(btn.dataset.id));
@@ -1283,7 +1285,7 @@
           <div class="muted small">${esc(job ? job.name : '')}</div>
           <div class="muted small shift-times">${span}${dupes.length ? ' <span class="nw">· clocked out twice</span>' : ''}</div>
           ${late ? `<div class="muted small sent-late">${Icons.cloudOff}<span>${late}</span></div>` : ''}${riskHtml(flags)}</div>
-        <div class="shift-right">${chip(s.status)}
+        <div class="shift-right">${chip(s.status, false, !s.open)}
           ${s.hours != null ? `<span class="muted small shift-hours nw">${Report.fmtHours(s.hours)} h</span>` : ''}
           ${photoP ? `<button class="mini" data-action="show-photo" data-id="${esc(photoP.id)}">${Icons.camera}</button>` : ''}</div>
       </div>`;
@@ -1415,7 +1417,7 @@
       if (zoom) /** @type {L.Map} */ (jobFormMap).setView([lat, lng], zoom);
     };
     if (j.lat != null) place(j.lat, /** @type {number} */ (j.lng), 17);
-    else map.setView([38.44, -81.88], 11);
+    else map.setView([38.80, -98.205], 11);
     map.on('click', (e) => {
       if ((state.jobMode || 'address') !== 'address') place(e.latlng.lat, e.latlng.lng);
     });

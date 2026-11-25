@@ -3,8 +3,8 @@
 stage: building
 goal: portfolio
 milestone: CRW-M2
-now: LIC-1 license audit (M0.3) on claude/project-thread-wqtobk, built; qa-tdd 3x and privacy-security review next. Also: #35 grants built, M2.0.4 review pending
-next: M2.0.4 review and PR for #35, TS-2 (issue #36 PR 2), demo bar (#38) after #48; then metrics and beta scorecard (portfolio review item 3)
+now: M2.0.5 intakes #56, #53 (EF-CK-1, EF-CK-11), #57 built on claude/project-thread-yqzdzd (M2.0.5.1-.4); 2 older tests conflict with the spec and need qa-tdd (see In progress)
+next: qa-tdd fixes the 2 conflicting tests and runs all suites 3x, then M2.0.5.5 privacy-security and ux-reviewer (CRW-9, CRW-18), then the PR; M2.0.4 review for #35, TS-2 (#36 PR 2)
 waiting_on_chase:
   - Supabase project, SETUP steps 1.1 to 1.4 (unblocks M2.1)
 blockers: []
@@ -12,7 +12,7 @@ blockers: []
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-11-24 (intake LIC-1 license audit, M0.3.2 built)
+Updated: 2026-11-25 (intakes #56, #53, #57: M2.0.5.1 to M2.0.5.4 built)
 
 ## What it is
 
@@ -24,6 +24,30 @@ Plan and milestone IDs: [PLAN.md](PLAN.md). Hard rules: [CLAUDE.md](CLAUDE.md). 
 contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
+
+- `M2.0.5.1`-`M2.0.5.4` intakes #56, #53 (EF-CK-1, EF-CK-11), #57 (2026-11-25, built, not merged;
+  spec `docs/product/SPEC-INTAKES-2026-11-25.md`, tests `tests/intakes.test.js` and
+  `tests/e2e-intakes.js`, qa-tdd red first).
+  - EF-CK-1: boss Today's chip on a closed shift reads "Was on site", "Was near", "Was off site"
+    (Weak GPS and No GPS unchanged, colours unchanged); an open shift keeps "On site". The demo
+    store's evening top-up: after 6 PM a store seeded earlier today gets the seeded clock-outs
+    (p6-p8) for workers still on their seeded clock-in; a worker the visitor clocked out, voided or
+    clocked in again, a store from an earlier day and an emptied store are left alone. Those sample
+    phones' chains are re-signed (never after "Try tampering").
+  - EF-CK-11: `js/api.js` has no Sheets route (no `fetch`): a build with no Supabase URL that isn't
+    `backend: 'demo'` fails every call as offline, so punches wait in the outbox (CRW-14).
+    `build-site.mjs` refuses `SHEETS_BACKEND_URL` ("Sheets backend is demo-only").
+  - #56: the demo's jobs and address-search places moved to a made-up town, "Fernhollow (sample
+    town)", in rural Kansas (pins 3 decimals, 3+ km apart); jobs j3/j4 renamed "Porter deck",
+    "Hale addition"; demo key `cc.demo.db.v8`; map default views centre on it; every test fixture
+    (unit, e2e, SQL) moved with its offset from the pin kept; the old place names redacted in the
+    spec, both 2026-10 review docs and the HANDOFF Blockers item, each with a dated note.
+  - #57: the `--demo` build adds `<script src="/assets/demo-bar.js" data-page="white" defer>`
+    before `</body>`; the crew build and `sw.js` never mention it. Layout (QA-R2): the body is one
+    window-tall column including any padding a host header adds, screens fill what's left under the
+    banner, and on crew Home the Clock in button gives up height (180px floor) before the page
+    scrolls, so at 390x844 Home fits one screen with the 52px header and the demo banner.
+  - QA-R1: `tests/e2e-intakes.js` is in `npm run test:e2e`.
 
 - `M0.3.2` LIC-1 license audit (2026-11-24, spec `docs/product/SPEC-LIC-1.md`). New
   `THIRD_PARTY_NOTICES.md` (9 sections: the 7 packages bundled in `js/vendor/crew-mls.js`, incl.
@@ -471,6 +495,23 @@ never "Dad" (Chase's ask, 2026-10-23). The real app always asks for the PIN.
   offers "Clock out"); its assertions are unchanged.
 ## In progress
 
+- M2.0.5 intakes (2026-11-25, branch `claude/project-thread-yqzdzd`, not committed by the engineer):
+  M2.0.5.1-.4 built, `tests/intakes.test.js` 15/15 and `tests/e2e-intakes.js` 6/6 green. Three
+  older checks contradict the spec and are left for qa-tdd, unedited. `tests/e2e-showcase.js`
+  SHOW-1 counts the local server's 404 for `/assets/demo-bar.js` as a console error (it needs the
+  same stub `e2e-intakes.js` uses). The other two:
+  `tests/showcase.test.js` "every same-site link ... exists" fails on `/assets/demo-bar.js` (a file
+  the portfolio host serves, outside the demo's folder; CRW-15 requires the tag), and
+  `tests/e2e-demo.js` "SEP-2 (PSR-2) a crew build that falls back to demo mode (empty
+  supabaseUrl)" waits for name buttons, but CRW-10 removes that fallback (the app now opens on
+  "Who are you?" with "No signal"; the session it checks is still kept). Exact next step: qa-tdd
+  updates those two, all suites 3x, then M2.0.5.5 reviews (CRW-9 screenshot, CRW-18).
+  Follow-ups (engineer, 2026-11-25): TS-1 `finishDay` in `js/demo-backend.js` narrows
+  `db.sampleDay` (same behaviour, tsc clean); PS-R3 `docs/PRIVACY.md` S5 now [true] (CRW-10..13)
+  and `config.js` says `sheets`/`backendUrl` are ignored outside the demo; PS-R1 the last
+  West Virginia fixture points in `tests/edge/*.ts` and `tests/sql/10_rls_test.sql` moved near the
+  made-up town (38.8,-98.2). Left for qa-tdd: `tests/e2e-demo.js` still uses 38.1,-81.1.
+
 - Demo hints (2026-11-23, Chase's ask), `docs/product/SPEC-DEMO-HINTS.md`, on `claude/project-thread-wc5ywq`,
   not committed yet. Done: the demo's names screen is the crew app's ("Who are you?", Travis K. first);
   the pitch, proof list, "Try it", "Start here", "Clock in as a worker", "Or pick someone else",
@@ -598,6 +639,17 @@ into a non-demo build; `docs/PRIVACY.md` S5 marks the refusal "to build"); and
 activate (it failed once in CI on timing).
 
 ## Decisions to review
+
+- **The Sheets route is removed, not gated** (2026-11-25, EF-CK-11, spec): a non-demo build with no
+  Supabase URL talks to no server and queues punches as offline. Reversible: restore `remote()`.
+- **Map default view is the demo's made-up town in both builds** (2026-11-25, #56, CRW-2): with no
+  punches or job pin yet, the boss map and job form open on Fernhollow (rural Kansas), also in the
+  crew app, where the boss then uses address search or "Use where I'm standing". Reversible: a
+  per-build default view.
+- **Closed-shift chip words** (2026-11-25, EF-CK-1): "Was on site", "Was near", "Was off site";
+  Weak GPS and No GPS read the same open or closed. Reversible: one table in `js/app.js`.
+- **Home's Clock in button can shrink to 180px** (2026-11-25, QA-R2): only when the window is too
+  short for it at full size (e.g. under the portfolio header). Reversible: CSS only.
 
 - **Hearth design docs are MIT here** (2026-11-24, LIC-1): `docs/design/STUDIO-CORE.md` and
   `docs/design/tokens.json` are Chase's own copies from hearth, licensed MIT in this
@@ -859,12 +911,18 @@ Waiting on Chase, in order (each unblocks an M2 task; nothing in M1 needs these)
    Chase") with whoever does the company's payroll. Only the hours row could change.
 6. Turn on secret scanning and push protection (2 minutes): repo **Settings > Advanced Security**
    (or **Code security**) > Secret Protection > Enable, then Push protection > Enable.
-7. Confirm none of the demo's four made-up job pins (town level: Teays Valley, Cross Lanes, Scott
-   Depot, Hurricane; rounded to about 100 m) sits near a real past or current job (privacy-security
-   P2 on M1.6, 2026-10-24). Needed before the portfolio link (M1.8).
+7. Confirm none of the demo's four made-up job pins (town level: [four place names redacted
+   2026-11-25, #56]; rounded to about 100 m) sits near a real past or current job (privacy-security
+   P2 on M1.6, 2026-10-24). Needed before the portfolio link (M1.8). Superseded by M2.0.5.3: the
+   pins now sit in a made-up town, "Fernhollow (sample town)", in rural Kansas.
 
 ## Portfolio / public presence
 
+- 2026-11-25 (M2.0.5, merged: no; live: no): the demo build adds the portfolio's header script
+  (`/assets/demo-bar.js`, #57) and moves its sample jobs to a made-up town, "Fernhollow (sample
+  town)" (#56); Today's closed shifts read "Was on site". Needs Chase's go to deploy; CRW-17 checks
+  the live page at 390 and 1280 after. `docs/screenshots/demo-today.png` still shows the old chip
+  words and needs a retake (M2.0.5.5).
 - 2026-11-24 (LIC-1, not deployed): the Pages build will serve `THIRD_PARTY_NOTICES.md` after the
   next deploy (Chase's go); LIC1-12 checks it then.
 - 2026-11-23 (demo hints, in progress): the demo drops its pitch and "Demo:" explainers and opens on

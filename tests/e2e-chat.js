@@ -3,7 +3,7 @@
 const { launch } = require('./browser.js');
 (async () => {
   const browser = await launch();
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, permissions: ['geolocation'], geolocation: { latitude: 38.4538, longitude: -81.929, accuracy: 10 } });
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, permissions: ['geolocation'], geolocation: { latitude: 38.7998, longitude: -98.200, accuracy: 10 } });
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));

@@ -579,7 +579,7 @@ const CREW = [
   { id: '00000000-0000-4000-8000-0000000000b1', name: 'Test Worker', role: 'crew' },
   { id: '00000000-0000-4000-8000-0000000000b0', name: 'Test Boss', role: 'boss' },
 ];
-const JOB = { id: '00000000-0000-4000-8000-0000000000c1', name: 'Test job', address: 'Test Rd', lat: 38.45, lng: -81.93, radius_ft: 300, active: true };
+const JOB = { id: '00000000-0000-4000-8000-0000000000c1', name: 'Test job', address: 'Test Rd', lat: 38.796, lng: -98.201, radius_ft: 300, active: true };
 const PUNCH = { id: '00000000-0000-4000-8000-0000000000d1', crew_id: CREW[0].id, by_crew_id: CREW[0].id, job_id: JOB.id, type: 'in',
   phone_at: new Date(Date.now() - 3600000).toISOString(), received_at: new Date(Date.now() - 3590000).toISOString(),
   status: 'onsite', risk: [], sig_ok: true, seq: 1, hash: 'h', signature: 's', device_id: '00000000-0000-4000-8000-0000000000e1' };

@@ -49,7 +49,7 @@ Deno.test('signed punch is accepted, chained, and an alert raised when off site'
   const keys = await Chain.generateKey();
   const dev: Device = { id: 'dev-1', crew_id: JAKE, org_id: ORG, public_key: await Chain.exportPublic(keys.publicKey), last_seq: 0, last_hash: 'genesis', revoked: false };
   const f = fakeRepo([dev]);
-  const p = await Chain.signPunch({ kind: 'punch', id: 'p1', deviceId: 'dev-1', crewId: JAKE, byCrewId: JAKE, jobId: 'j1', type: 'in', at: now, lat: 38.5, lng: -81.9, accuracy: 9 }, keys.privateKey, { seq: 0, hash: 'genesis' });
+  const p = await Chain.signPunch({ kind: 'punch', id: 'p1', deviceId: 'dev-1', crewId: JAKE, byCrewId: JAKE, jobId: 'j1', type: 'in', at: now, lat: 38.8, lng: -98.2, accuracy: 9 }, keys.privateKey, { seq: 0, hash: 'genesis' });
   const r = await ingest(claims(JAKE), [p], f.repo, now + 1000);
   assertEquals(r.accepted, ['p1']);
   assertEquals(f.punches[0].sig_ok, true);
@@ -65,7 +65,7 @@ Deno.test('forged punch is stored but flagged bad_signature', async () => {
   const keys = await Chain.generateKey();
   const dev: Device = { id: 'dev-1', crew_id: JAKE, org_id: ORG, public_key: await Chain.exportPublic(keys.publicKey), last_seq: 0, last_hash: 'genesis', revoked: false };
   const f = fakeRepo([dev]);
-  const p = await Chain.signPunch({ kind: 'punch', id: 'p1', deviceId: 'dev-1', crewId: JAKE, jobId: 'j1', type: 'in', at: now, lat: 38.5, lng: -81.9, accuracy: 9 }, keys.privateKey, { seq: 0, hash: 'genesis' });
+  const p = await Chain.signPunch({ kind: 'punch', id: 'p1', deviceId: 'dev-1', crewId: JAKE, jobId: 'j1', type: 'in', at: now, lat: 38.8, lng: -98.2, accuracy: 9 }, keys.privateKey, { seq: 0, hash: 'genesis' });
   const forged = { ...p, at: now - 3600000 };
   const r = await ingest(claims(JAKE), [forged], f.repo, now);
   assertEquals(f.punches[0].sig_ok, false);
@@ -138,7 +138,7 @@ Deno.test('a withdrawal is a new record, never an edit', async () => {
 
 Deno.test('a punch from a worker with no current consent is stored without its location (PRIVACY L3)', async () => {
   const f = fakeRepo([], []);
-  const gps = { kind: 'punch' as const, crewId: JAKE, byCrewId: JAKE, jobId: 'j1', type: 'in' as const, lat: 38.5, lng: -81.9, accuracy: 9 };
+  const gps = { kind: 'punch' as const, crewId: JAKE, byCrewId: JAKE, jobId: 'j1', type: 'in' as const, lat: 38.8, lng: -98.2, accuracy: 9 };
   // no record at all
   await ingest(claims(JAKE), [{ ...gps, id: 'p-none', at: now - 3000 }], f.repo, now);
   // agreed, then withdrew before this punch
@@ -162,6 +162,6 @@ Deno.test('a punch from a worker with no current consent is stored without its l
 Deno.test('a punch from a worker who agreed keeps its location', async () => {
   const f = fakeRepo([], []);
   // deno-lint-ignore no-explicit-any
-  await ingest(claims(JAKE), [consent({ at: now - 5000 }) as any, { kind: 'punch', id: 'p-ok', crewId: JAKE, byCrewId: JAKE, jobId: 'j1', type: 'in', at: now - 1000, lat: 38.5, lng: -81.9, accuracy: 9 }], f.repo, now);
-  assertEquals([f.punches[0].lat, f.punches[0].lng, f.punches[0].accuracy_m], [38.5, -81.9, 9]);
+  await ingest(claims(JAKE), [consent({ at: now - 5000 }) as any, { kind: 'punch', id: 'p-ok', crewId: JAKE, byCrewId: JAKE, jobId: 'j1', type: 'in', at: now - 1000, lat: 38.8, lng: -98.2, accuracy: 9 }], f.repo, now);
+  assertEquals([f.punches[0].lat, f.punches[0].lng, f.punches[0].accuracy_m], [38.8, -98.2, 9]);
 });

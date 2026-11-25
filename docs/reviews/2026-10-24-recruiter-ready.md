@@ -49,8 +49,8 @@ No P0 or P1 is open in code. The two "P0 if true" rows are checks, not known pro
 
 ## Conditions before Chase adds it to the portfolio
 
-1. **Confirm the demo data is made up.** Read the four job pins (Teays Valley, Cross Lanes, Scott
-   Depot, Hurricane) and the crew names in `js/demo-backend.js`. Reply "none are real" in the
+1. **Confirm the demo data is made up.** Read the four job pins (four real town names, redacted
+   2026-11-25 for #56; the demo now uses a made-up town) and the crew names in `js/demo-backend.js`. Reply "none are real" in the
    thread. If one is near a real job or names a real person, stop: it gets moved or renamed first.
 2. **Merge PR #18, then PR #19** (stacked). Wait for CI and the Pages deploy on `main`.
 3. **Open https://chaseholroyd.com/crew-clock/ on your phone** after the deploy. Check: the intro

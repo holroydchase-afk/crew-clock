@@ -1,7 +1,7 @@
 // Stand-in for the Apps Script backend, used when no backendUrl is set.
 // Same actions and rules as backend/Code.gs, stored in this browser only.
 (function (root) {
-  const KEY = 'cc.demo.db.v7'; // v2: boss renamed from "Dad"; v3: job pins rounded (SEP-6); v4: location consents (M1.2); v5: daytime sample day (M1.6); v6: finished day in the evening (M1.10); v7: signed punches and earlier sample days (M1.13)
+  const KEY = 'cc.demo.db.v8'; // v2: boss renamed from "Dad"; v3: job pins rounded (SEP-6); v4: location consents (M1.2); v5: daytime sample day (M1.6); v6: finished day in the evening (M1.10); v7: signed punches and earlier sample days (M1.13); v8: made-up town (#56)
   const OFFLINE_KEY = 'cc.demoOffline'; // the demo's "No signal" switch (M1.13 ENH-2); Reset clears it with the other cc. keys
   const H = 3600000;
 
@@ -14,19 +14,31 @@
     return { day, base: early ? day - 24 * H : day, done: early || now >= day + 18 * H };
   }
 
+  // The sample jobs (#56): a made-up town in rural Kansas, nowhere near the crew.
+  const TOWN = 'Fernhollow (sample town)';
+  const JOB_PINS = [
+    { id: 'j1', name: 'Smith kitchen', address: 'Elm St, ' + TOWN, lat: 38.800, lng: -98.200, radiusFt: 300 },
+    { id: 'j2', name: 'Miller roof', address: 'Mill Rd, ' + TOWN, lat: 38.830, lng: -98.160, radiusFt: 300 },
+    { id: 'j3', name: 'Porter deck', address: 'Creek Rd, ' + TOWN, lat: 38.770, lng: -98.150, radiusFt: 150 },
+    { id: 'j4', name: 'Hale addition', address: 'Ridge Rd, ' + TOWN, lat: 38.810, lng: -98.260, radiusFt: 600 },
+  ];
+  // The sample day's clock-outs (hour of day, GPS offset from the job's pin in degrees). Added at
+  // seed time once the day is done, or later by the evening top-up (EF-CK-1).
+  const EVENING = [
+    { id: 'p6', crewId: 'c1', jobId: 'j1', inId: 'p1', h: 15.4, off: [-0.00002, -0.00002], acc: 9 },
+    { id: 'p7', crewId: 'c2', jobId: 'j1', inId: 'p2', h: 15.5, off: [0.00021, 0.00029], acc: 14 },
+    { id: 'p8', crewId: 'c3', jobId: 'j2', inId: 'p3', h: 15.2, off: [0.00151, -0.00252], acc: 22 },
+  ];
+
   /** @returns {DemoDb} */
   function seed() {
     const now = Date.now();
     const day = root.Report.startOfDay(now);
-    // Made-up jobs, named by town only (no street). Pins are rounded to 3 decimals (about 100 m), so none marks any one house (SEP-6),
-    // and spread out so the boss map stays readable on a phone (M1.6).
+    // Made-up jobs in a made-up town, "Fernhollow (sample town)", placed in open farmland far from
+    // any real crew (#56). Pins are rounded to 3 decimals (about 100 m), so none marks any one house
+    // (SEP-6), and spread a few km apart so the boss map stays readable on a phone (M1.6).
     /** @type {Job[]} */
-    const jobs = [
-      { id: 'j1', name: 'Smith kitchen', address: 'Teays Valley, WV', lat: 38.454, lng: -81.929, radiusFt: 300, active: true },
-      { id: 'j2', name: 'Miller roof', address: 'Cross Lanes, WV', lat: 38.420, lng: -81.791, radiusFt: 300, active: true },
-      { id: 'j3', name: 'Scott Depot deck', address: 'Scott Depot, WV', lat: 38.478, lng: -81.858, radiusFt: 150, active: true },
-      { id: 'j4', name: 'Hurricane addition', address: 'Hurricane, WV', lat: 38.433, lng: -82.020, radiusFt: 600, active: true },
-    ];
+    const jobs = JOB_PINS.map((j) => Object.assign({}, j, { active: true }));
     const crew = [
       { id: 'c0', name: 'Sam W.', role: 'boss', pin: '1234', active: true },
       { id: 'c1', name: 'Ray T.', role: 'foreman', pin: '3333', active: true },
@@ -45,19 +57,13 @@
     const t = (h) => Math.min(base + h * H, now - 60000);
     /** @type {Punch[]} */
     const punches = [
-      mk('p1', 'c1', 'j1', 'in', t(6.9), 38.45405, -81.92895, 8),
-      mk('p2', 'c2', 'j1', 'in', t(7.05), 38.45432, -81.92860, 15),
-      mk('p3', 'c3', 'j2', 'in', t(7.2), 38.42160, -81.79340, 25),
+      at('p1', 'c1', 'j1', 'in', t(6.9), [0.00005, 0.00005], 8),
+      at('p2', 'c2', 'j1', 'in', t(7.05), [0.00032, 0.0004], 15),
+      at('p3', 'c3', 'j2', 'in', t(7.2), [0.0016, -0.0024], 25),
       mk('p4', 'c4', 'j3', 'in', t(7.5), null, null, null),
-      mk('p5', 'c4', 'j3', 'out', t(Math.min(11.5, (now - base) / H - 0.25)), 38.47820, -81.85800, 12),
+      at('p5', 'c4', 'j3', 'out', t(Math.min(11.5, (now - base) / H - 0.25)), [0.0002, 0], 12),
     ];
-    if (done) {
-      punches.push(
-        mk('p6', 'c1', 'j1', 'out', t(15.4), 38.45398, -81.92902, 9),
-        mk('p7', 'c2', 'j1', 'out', t(15.5), 38.45421, -81.92871, 14),
-        mk('p8', 'c3', 'j2', 'out', t(15.2), 38.42151, -81.79352, 22),
-      );
-    }
+    if (done) punches.push(...EVENING.map((e) => at(e.id, e.crewId, e.jobId, 'out', t(e.h), e.off, e.acc)));
     punches.forEach((p) => { p.receivedAt = p.at + 30000; });
     // UX-R44: Cody M.'s phone had no signal at the Miller roof, so his 7:12 AM clock-in reached the
     // server at 7:58 AM and the boss's Today row says so. receivedAt is not part of the signed
@@ -111,8 +117,10 @@
   // M1.13 ENH-1: each sample worker's phone signs and chains their punches, like a real phone does
   // (js/device.js), with a key made here in this browser. The private half is never kept: only the
   // public key is stored, so the boss's screen can check every punch. No WebCrypto: left unsigned.
-  /** @param {DemoDb} db */
-  async function signSeed(db) {
+  // only: re-sign just these workers' sample phones (the evening top-up); the visitor's own
+  // punches, signed by this browser's own key, are never touched.
+  /** @param {DemoDb} db @param {string[]} [only] */
+  async function signSeed(db, only) {
     const Chain = root.Chain;
     if (!Chain || !root.crypto || !root.crypto.subtle) return;
     try {
@@ -120,12 +128,15 @@
       /** @type {Record<string, Punch>} */
       const signed = {};
       /** @type {DemoDb['devices']} */
-      const devices = [];
+      const devices = only ? (db.devices || []).filter((d) => !only.some((c) => d.id === 'sample-phone-' + c)) : [];
       for (const c of db.crew) {
-        const mine = all.filter((p) => p.crewId === c.id).sort((a, b) => a.at - b.at);
+        if (only && !only.includes(c.id)) continue;
+        const deviceId = 'sample-phone-' + c.id;
+        if (only && !(db.devices || []).some((d) => d.id === deviceId)) continue; // never signed: stays so
+        const mine = all.filter((p) => p.crewId === c.id && (!only || p.deviceId === deviceId || EVENING.some((e) => e.id === p.id)))
+          .sort((a, b) => a.at - b.at);
         if (!mine.length) continue;
         const keys = await Chain.generateKey();
-        const deviceId = 'sample-phone-' + c.id;
         let prev = { seq: 0, hash: 'genesis' };
         for (const p of mine) {
           const s = await Chain.signPunch(Object.assign({}, p, { deviceId }), keys.privateKey, prev);
@@ -142,10 +153,8 @@
 
   // Address search answers in the demo: made-up sample places, rounded like the job pins.
   const SAMPLE_PLACES = [
-    { label: 'Hurricane, WV (sample)', lat: 38.433, lng: -82.020 },
-    { label: 'Teays Valley, WV (sample)', lat: 38.454, lng: -81.929 },
-    { label: 'Scott Depot, WV (sample)', lat: 38.478, lng: -81.858 },
-    { label: 'Cross Lanes, WV (sample)', lat: 38.420, lng: -81.791 },
+    { label: 'Main St, Fernhollow (sample)', lat: 38.805, lng: -98.205 },
+    ...JOB_PINS.map((j) => ({ label: j.address.replace(' (sample town)', ' (sample)'), lat: j.lat, lng: j.lng })),
   ];
 
   /**
@@ -154,6 +163,17 @@
    */
   function mk(id, crewId, jobId, type, at, lat, lng, accuracy) {
     return { id, crewId, byCrewId: crewId, jobId, type, at, lat, lng, accuracy };
+  }
+  // A sample punch a small offset from its job's pin, rounded so no float noise shows on screen.
+  /**
+   * @param {string} id @param {string} crewId @param {string} jobId @param {PunchType} type @param {number} when
+   * @param {number[]} off @param {number} accuracy @returns {Punch}
+   */
+  function at(id, crewId, jobId, type, when, off, accuracy) {
+    const pin = /** @type {{ lat: number, lng: number }} */ (JOB_PINS.find((j) => j.id === jobId));
+    /** @param {number} n */
+    const r = (n) => Math.round(n * 1e6) / 1e6;
+    return mk(id, crewId, jobId, type, when, r(pin.lat + off[0]), r(pin.lng + off[1]), accuracy);
   }
 
   /** @returns {DemoDb | null} */
@@ -171,9 +191,14 @@
   /** @returns {Promise<DemoDb>} */
   function load() {
     const db = stored();
-    if (db) return Promise.resolve(db);
+    if (db && !eveningDue(db).length) return Promise.resolve(db);
     if (!seeding) {
       seeding = (async () => {
+        if (db) {
+          await finishDay(db);
+          save(db);
+          return db;
+        }
         const fresh = seed();
         await signSeed(fresh);
         fresh.punches.forEach((p) => score(fresh, p));
@@ -185,6 +210,35 @@
     return seeding;
   }
 
+  // EF-CK-1 evening top-up: a store seeded during the day keeps the crew on the clock forever, so
+  // once today's sample day is done (6 PM) each seeded worker still on their seeded clock-in gets
+  // the clock-out the seed would have given them. Left alone: a worker the visitor clocked out,
+  // voided or clocked in again (never "clocked out twice"), a store from an earlier day, and an
+  // emptied store.
+  /** @param {DemoDb} db */
+  function eveningDue(db) {
+    const { base, done } = sampleDay(Date.now());
+    if (!done || db.sampleDay !== base || !Array.isArray(db.punches)) return [];
+    const voided = new Set(db.punches.filter((p) => p.type === 'void').map((p) => p.voidsId));
+    return EVENING.filter((e) => {
+      if (db.punches.some((p) => p.id === e.id)) return false;
+      const last = db.punches.filter((p) => p.crewId === e.crewId && p.type !== 'void' && !voided.has(p.id))
+        .sort((a, b) => a.at - b.at).pop();
+      return !!last && last.id === e.inId && last.type === 'in';
+    });
+  }
+  /** @param {DemoDb} db */
+  async function finishDay(db) {
+    const due = eveningDue(db);
+    const day = db.sampleDay; // eveningDue only returns rows when this is today's sample day
+    if (!due.length || day == null) return;
+    const add = due.map((e) => at(e.id, e.crewId, e.jobId, 'out', day + e.h * H, e.off, e.acc));
+    add.forEach((p) => { p.receivedAt = p.at + 30000; score(db, p); });
+    db.punches.push(...add);
+    // Re-sign each of those sample phones' chains so the boss's check still passes. Never after
+    // "Try tampering": re-signing would hide the change, so the new clock-outs stay unsigned then.
+    if (!db.tampered) await signSeed(db, due.map((e) => e.crewId));
+  }
   // After "Reset sample data" the page reloads: a request still in flight must not write the visit back.
   let stopped = false;
   /** @param {DemoDb} db */

@@ -179,7 +179,7 @@ test('HRD-7 the boss Today list uses Report.shiftsForDay (not a filter that drop
 // The rule (js/geo.js fenceStatus): the worker gets the benefit of the phone's stated error:
 // closest = distance - accuracy; onsite if closest <= radius; accuracy over 152 m is weak; no fix is nogps.
 
-const job = { lat: 38.4537, lng: -81.9290, radiusFt: 300 };
+const job = { lat: 38.7997, lng: -98.2000, radiusFt: 300 };
 const R = Geo.toMeters(300);
 
 test('HRD-8 (guard) exactly at the radius with a perfect fix counts as on site', () => {

@@ -14,7 +14,7 @@ const AXE = require.resolve('axe-core/axe.min.js', { paths: [path.join(__dirname
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
 function gpsAtJob() {
-  const at = () => /** @type {GeolocationPosition} */ ({ coords: { latitude: 38.454, longitude: -81.929, accuracy: 8 }, timestamp: Date.now() });
+  const at = () => /** @type {GeolocationPosition} */ ({ coords: { latitude: 38.800, longitude: -98.200, accuracy: 8 }, timestamp: Date.now() });
   navigator.geolocation.watchPosition = (ok) => { setTimeout(() => ok(at()), 0); return 1; };
   navigator.geolocation.clearWatch = () => {};
   navigator.geolocation.getCurrentPosition = (ok) => setTimeout(() => ok(at()), 0);
@@ -33,6 +33,10 @@ async function newPage(browser, viewport, colorScheme) {
   });
   page.on('dialog', (d) => d.accept());
   await ctx.route((u) => u.origin !== ORIGIN, (r) => r.fulfill({ status: 204, body: '' }));
+  // CRW-15: the --demo build loads the portfolio header from /assets/demo-bar.js, which the
+  // portfolio site serves (not this repo). Stub it as tests/e2e-intakes.js does, so a 404 for a
+  // file this build never ships is not counted; every other console error still is.
+  await ctx.route('**/assets/demo-bar.js', (r) => r.fulfill({ contentType: 'application/javascript', body: '/* portfolio header stub */' }));
   await page.addInitScript(gpsAtJob);
   await page.goto(BASE);
   await page.waitForSelector('.name-btn');

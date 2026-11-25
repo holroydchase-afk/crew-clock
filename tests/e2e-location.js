@@ -18,7 +18,7 @@ function gpsSpy(opts) {
   // answer 'rough': one reading good enough to count (on site, not weak) but not to stop the
   // watch early (the punch flow waits for 20 m), then nothing.
   const acc = opts.answer === 'rough' ? 40 : 8;
-  const at = () => /** @type {GeolocationPosition} */ ({ coords: { latitude: 38.454, longitude: -81.929, accuracy: acc }, timestamp: Date.now() });
+  const at = () => /** @type {GeolocationPosition} */ ({ coords: { latitude: 38.800, longitude: -98.200, accuracy: acc }, timestamp: Date.now() });
   navigator.geolocation.watchPosition = (ok) => {
     const id = window.__gps.next++;
     window.__gps.reads++;

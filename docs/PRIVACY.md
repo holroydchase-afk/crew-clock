@@ -236,9 +236,12 @@ Rules:
   every demo screen shows "Sample data, made-up crew, saved only in this browser" with a link back
   to chaseholroyd.com; the demo makes no off-site requests except map tiles and never loads the AI
   models; tested in `tests/e2e-demo.js`]
-- **S5** The crew app never runs the old Google Sheets backend (`backend: 'sheets'`): it keeps the
-  PIN in the phone's storage (`js/app.js:295`). [to build: refuse `sheets` in a non-demo build,
-  M1.1]
+- **S5** The crew app never runs the old Google Sheets backend (`backend: 'sheets'`), which kept the
+  PIN in the phone's storage. [true: `js/api.js` has no Sheets route and makes no `fetch` itself;
+  `backend: 'supabase'` with a `supabaseUrl` uses Supabase, and any other non-demo config (`sheets`,
+  or `supabase` without a URL) talks to no server, so every call fails as offline and punches wait in
+  the outbox; `scripts/build-site.mjs` refuses a crew build with `SHEETS_BACKEND_URL` set ("Sheets
+  backend is demo-only"); tested by CRW-10 to CRW-13 in `tests/intakes.test.js` (EF-CK-11)]
 - **S6** Database grants: a signed-out caller (`anon`) holds no right on any public table, column,
   sequence or function. A signed-in phone (`authenticated`) holds only what the app uses: read
   orgs, devices and punches; read, add and change jobs and chat rows; its own push subscriptions;

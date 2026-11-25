@@ -17,7 +17,7 @@ async function phone(n) {
   const out = [];
   for (let i = 0; i < n; i++) {
     const p = await Chain.signPunch({ id: 'p' + i, deviceId: 'd1', crewId: 'c2', jobId: 'j1', type: i % 2 ? 'out' : 'in',
-      at: 1761000000000 + i * 3600000, lat: 38.454, lng: -81.929, accuracy: 9 }, keys.privateKey, prev);
+      at: 1761000000000 + i * 3600000, lat: 38.800, lng: -98.200, accuracy: 9 }, keys.privateKey, prev);
     prev = { seq: p.seq, hash: p.hash };
     out.push(p);
   }
@@ -134,7 +134,7 @@ test('ENH-1 a signed punch synced to the demo keeps its signature and chain fiel
   const k = await Chain.generateKey();
   const pub = await Chain.exportPublic(k.publicKey);
   const p = await Chain.signPunch({ id: 'v1', deviceId: 'dev-v', crewId: 'c5', byCrewId: 'c5', jobId: 'j1', type: 'in',
-    at: Date.now() - 1000, lat: 38.4542, lng: -81.9291, accuracy: 9 }, k.privateKey, { seq: 0, hash: 'genesis' });
+    at: Date.now() - 1000, lat: 38.8002, lng: -98.2001, accuracy: 9 }, k.privateKey, { seq: 0, hash: 'genesis' });
   const res = await ctx.DemoBackend.handle('sync', { auth, device: { deviceId: 'dev-v', publicKey: pub }, items: [Object.assign({ kind: 'punch' }, p)] });
   assert.deepStrictEqual([...res.accepted], ['v1']); // an array from the sandbox's realm
   const stored = db().punches.find((/** @type {Punch} */ x) => x.id === 'v1');
@@ -225,8 +225,8 @@ test('ENH-3 weekStart: Monday 00:00 of the week holding a time (Sunday belongs t
 
 test('ENH-3 timesheetCsv: name, date, in, out, hours, and nothing else (no GPS, job pin, photo or risk)', () => {
   const punches = [
-    pin('a', 'c2', 'in', day(0, 7), { lat: 38.4543, lng: -81.9286, accuracy: 15, photoKey: 'k/abc.jpg', risk: [{ code: 'odd_hours' }], hash: 'h', signature: 's' }),
-    pin('b', 'c2', 'out', day(0, 15.5), { lat: 38.4542, lng: -81.9287 }),
+    pin('a', 'c2', 'in', day(0, 7), { lat: 38.8003, lng: -98.1996, accuracy: 15, photoKey: 'k/abc.jpg', risk: [{ code: 'odd_hours' }], hash: 'h', signature: 's' }),
+    pin('b', 'c2', 'out', day(0, 15.5), { lat: 38.8002, lng: -98.1997 }),
   ];
   const csv = Report.timesheetCsv(punches, { c2: 'Jake R.' }, monday);
   const lines = csv.trim().split(/\r?\n/);
@@ -264,7 +264,7 @@ const D = 86400000;
 
 test('PS-M113-1 Report.dropOldGps: punches older than 8 days keep their times but lose lat, lng, accuracy, address and distance', () => {
   const now = new Date(2026, 9, 28, 13, 30).getTime();
-  const gps = { lat: 38.4543, lng: -81.9286, accuracy: 15, address: 'Near 38.4543, -81.9286', distanceFt: 40 };
+  const gps = { lat: 38.8003, lng: -98.1996, accuracy: 15, address: 'Near 38.8003, -98.1996', distanceFt: 40 };
   const old = pin('old', 'c2', 'in', now - 9 * D, Object.assign({}, gps));
   const edge = pin('edge', 'c2', 'out', now - 8 * D - 60000, Object.assign({}, gps));
   const recent = pin('new', 'c2', 'in', now - 7 * D, Object.assign({}, gps));
@@ -273,8 +273,8 @@ test('PS-M113-1 Report.dropOldGps: punches older than 8 days keep their times bu
     for (const f of ['lat', 'lng', 'accuracy', 'address', 'distanceFt']) assert.ok(p[f] == null, `${p.id} still has ${f}`);
     assert.ok(p.at && p.type && p.crewId && p.jobId && p.status, `${p.id} lost what the week view needs`);
   }
-  assert.strictEqual(out[2].lat, 38.4543, 'a punch from the last 8 days keeps its GPS (Today and the map use it)');
-  assert.strictEqual(old.lat, 38.4543, 'the input punches are not changed');
+  assert.strictEqual(out[2].lat, 38.8003, 'a punch from the last 8 days keeps its GPS (Today and the map use it)');
+  assert.strictEqual(old.lat, 38.8003, 'the input punches are not changed');
 });
 
 test('PS-M113-1 the crew app\'s team view hands back no GPS older than 8 days (it is held and cached in cc.team)', async () => {
@@ -282,8 +282,8 @@ test('PS-M113-1 the crew app\'s team view hands back no GPS older than 8 days (i
   const now = Date.now();
   /** @param {string} id @param {number} at */
   const row = (id, at) => ({ id, crew_id: 'c2', by_crew_id: 'c2', job_id: 'j1', type: 'in', phone_at: new Date(at).toISOString(),
-    received_at: new Date(at + 30000).toISOString(), lat: 38.4543, lng: -81.9286, accuracy_m: 15, distance_ft: 40,
-    status: 'onsite', address: 'Near 38.4543, -81.9286', risk: [] });
+    received_at: new Date(at + 30000).toISOString(), lat: 38.8003, lng: -98.1996, accuracy_m: 15, distance_ft: 40,
+    status: 'onsite', address: 'Near 38.8003, -98.1996', risk: [] });
   /** @param {unknown} body */
   const json = (body) => ({ ok: true, status: 200, json: async () => body });
   /** @param {string} url */
@@ -307,7 +307,7 @@ test('PS-M113-1 the crew app\'s team view hands back no GPS older than 8 days (i
   const recent = team.punches.find((/** @type {Punch} */ p) => p.id === 'new');
   for (const f of ['lat', 'lng', 'accuracy', 'address', 'distanceFt']) assert.ok(old[f] == null, `a 12-day-old punch still has ${f}`);
   assert.ok(old.at, 'the old punch keeps its time');
-  assert.strictEqual(recent.lat, 38.4543);
+  assert.strictEqual(recent.lat, 38.8003);
 });
 
 test('PS-M113-3 csvCell: a formula after leading spaces is escaped too', () => {

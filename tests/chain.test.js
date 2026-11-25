@@ -3,7 +3,7 @@ const assert = require('node:assert');
 const Chain = require('../js/chain.js');
 
 const base = { id: 'p1', deviceId: 'd1', crewId: 'c1', jobId: 'j1', type: 'in', at: 1761130000000,
-  lat: 38.4537123, lng: -81.929011, accuracy: 8.24 };
+  lat: 38.7997123, lng: -98.200011, accuracy: 8.24 };
 
 test('signed punch verifies and links to genesis', async () => {
   const keys = await Chain.generateKey();
