@@ -163,3 +163,7 @@ CI runs all of them on every pull request.
 [MIT](LICENSE)
 
 Third-party components and their licenses: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## How this is built
+
+Built with Claude Code (AI-assisted code, tests and docs). The maintainer directs the work and decides what ships. Tests and CI run on every pull request; the current state is in HANDOFF.md.
