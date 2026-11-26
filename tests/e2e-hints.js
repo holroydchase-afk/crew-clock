@@ -5,7 +5,7 @@
 // Hooks (spec, "Hooks"): the dot is `.hint-dot` inside the target; the target has data-hint="1".."7"
 // and aria-describedby naming a visually hidden "Suggested next step"; progress is in localStorage
 // `crewclock.hints`. Against a demo build on :8123:
-//   node scripts/build-site.mjs dist --demo && npx http-server dist -p 8123 -c-1 -s &
+//   node scripts/build-site.mts dist --demo && npx http-server dist -p 8123 -c-1 -s &
 //   node tests/e2e-hints.js            (or one case: node tests/e2e-hints.js HINT-6)
 // Every off-origin request (map tiles) is answered empty, never reaching the internet. HINT-7 serves
 // the crew app's config (backend: supabase) and a fake Supabase in the test, as tests/e2e-enhance.js

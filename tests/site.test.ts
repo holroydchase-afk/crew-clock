@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
-const script = path.join(import.meta.dirname, '..', 'scripts', 'build-site.mjs');
+const script = path.join(import.meta.dirname, '..', 'scripts', 'build-site.mts');
 const load = () => import(script);
 
 test('config values come from the environment, the rest stays', async () => {

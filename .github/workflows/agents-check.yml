@@ -49,7 +49,7 @@ jobs:
       # Python is on the runner; Node is set up for repos whose verify command is npm-based.
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .node-version
       - name: Agents line matches the run log (and qa-tdd's suites rerun on CI)
         env:
           BODY: ${{ github.event.pull_request.body }}

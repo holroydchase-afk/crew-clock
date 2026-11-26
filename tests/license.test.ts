@@ -192,7 +192,7 @@ test('LIC1-9 messenger/src/mls.js says in lines 1-5 it is original MIT work, not
 test('LIC1-10 the --demo build ships THIRD_PARTY_NOTICES.md and vendor/leaflet/LICENSE', () => {
   const out = fs.mkdtempSync(path.join(os.tmpdir(), 'crew-lic-'));
   try {
-    execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'build-site.mjs'), out, '--demo'], { stdio: 'pipe' });
+    execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'build-site.mts'), out, '--demo'], { stdio: 'pipe' });
     assert.ok(fs.existsSync(path.join(out, 'THIRD_PARTY_NOTICES.md')), 'demo build has no THIRD_PARTY_NOTICES.md');
     assert.ok(fs.existsSync(path.join(out, 'vendor', 'leaflet', 'LICENSE')), 'demo build has no vendor/leaflet/LICENSE');
   } finally {
@@ -239,7 +239,7 @@ test('PS-R1 the --demo build ships LICENSE and THIRD_PARTY_NOTICES.md, so the no
   assert.ok(readNotices().includes('](LICENSE)'), 'the notices no longer link [LICENSE](LICENSE)');
   const out = fs.mkdtempSync(path.join(os.tmpdir(), 'crew-lic-'));
   try {
-    execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'build-site.mjs'), out, '--demo'], { stdio: 'pipe' });
+    execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'build-site.mts'), out, '--demo'], { stdio: 'pipe' });
     assert.ok(fs.existsSync(path.join(out, 'THIRD_PARTY_NOTICES.md')), 'demo build has no THIRD_PARTY_NOTICES.md');
     assert.ok(fs.existsSync(path.join(out, 'LICENSE')), 'demo build has no LICENSE, so the notices\' [LICENSE](LICENSE) link 404s');
     assert.ok(norm(fs.readFileSync(path.join(out, 'LICENSE'), 'utf8')).includes(mitPermissionText()), 'built LICENSE lacks the MIT text');

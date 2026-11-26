@@ -84,7 +84,10 @@ build ignores them anyway.
 **Crew app** (Cloudflare Pages, free):
 
 1. [dash.cloudflare.com](https://dash.cloudflare.com) > **Workers & Pages > Create > Pages > Connect to
-   Git** > `crew-clock`. Build command `node scripts/build-site.mjs`, output directory `dist`.
+   Git** > `crew-clock`. Build command `node scripts/build-site.mts`, output directory `dist`.
+   The build script is TypeScript that Node runs directly, so it needs Node 22.18 or later: Cloudflare
+   reads the repo's `.node-version` file for that. If a build log shows an older Node, add the variable
+   `NODE_VERSION` with the version in `.node-version`.
 2. Under **Settings > Variables and secrets**, add:
 
    | Variable | Value |
@@ -101,7 +104,7 @@ build ignores them anyway.
    `clock.example.com`, and at Porkbun add the `CNAME` it shows. Use that address in the CORS
    rule, in `APP_ORIGIN` and in the install link. Never use the demo's address for the crew.
 
-`scripts/build-site.mjs` publishes only the phone app (no backend code, tests or docs) and stamps
+`scripts/build-site.mts` publishes only the phone app (no backend code, tests or docs) and stamps
 the service worker with a hash of the app files, so phones pick up every release without bumping
 `VERSION` by hand. `_headers` sets the crew app's security headers on Cloudflare.
 

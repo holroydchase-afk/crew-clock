@@ -1,5 +1,5 @@
 // M1.2 location consent: browser cases for CON-1..CON-6, against a demo build on :8123.
-//   node scripts/build-site.mjs dist --demo && npx http-server dist -p 8123 -c-1 -s &
+//   node scripts/build-site.mts dist --demo && npx http-server dist -p 8123 -c-1 -s &
 //   node tests/e2e-consent.js            (or one case: node tests/e2e-consent.js CON-2)
 // In the demo seed every worker has agreed except Billy S., so a fresh visitor sees the screen once.
 const { launch } = require('./browser.js');

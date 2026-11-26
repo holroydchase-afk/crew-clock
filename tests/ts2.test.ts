@@ -5,7 +5,7 @@
 //
 // build-ts contract these tests fix (the spec says "writes to a temp dir" and "an empty input dir"
 // without naming flags; this is the simplest shape that satisfies both):
-//   node scripts/build-ts.mjs [--src DIR] [--out DIR]     defaults: --src js --out js
+//   node scripts/build-ts.mts [--src DIR] [--out DIR]     defaults: --src js --out js
 //   reads DIR/*.ts (not *.d.ts), writes OUT/NAME.js with line 1
 //   "// Generated from js/NAME.ts by npm run build. Do not edit."
 //   exit 1 on any syntax error, writing nothing; exit 1 with "no js/*.ts found" for an empty --src.
@@ -28,8 +28,8 @@ const NAMES = ['ai', 'api-supabase', 'api', 'app', 'chain', 'demo-backend', 'dev
   'messenger', 'push', 'report', 'risk', 'store'];
 const SHARED = ['geo', 'report', 'chain', 'risk'];
 const banner = (n: string) => `// Generated from js/${n}.ts by npm run build. Do not edit.`;
-const BUILD_TS = path.join(ROOT, 'scripts', 'build-ts.mjs');
-const BUILD_SITE = path.join(ROOT, 'scripts', 'build-site.mjs');
+const BUILD_TS = path.join(ROOT, 'scripts', 'build-ts.mts');
+const BUILD_SITE = path.join(ROOT, 'scripts', 'build-site.mts');
 
 function hasEsbuild(): boolean {
   try { require.resolve('esbuild', { paths: [ROOT] }); return true; } catch { return false; }
@@ -140,7 +140,7 @@ test('TS2-4 a .ts with a syntax error exits 1 and leaves the committed js/ uncha
 });
 
 test('TS2-4 an empty input dir exits 1 with "no js/*.ts found"', () => {
-  assert.ok(fs.existsSync(BUILD_TS), 'scripts/build-ts.mjs missing');
+  assert.ok(fs.existsSync(BUILD_TS), 'scripts/build-ts.mts missing');
   const src = tmp('empty'), out = tmp('emptyout');
   try {
     const r = runBuild(['--src', src, '--out', out]);
@@ -167,7 +167,7 @@ test('TS2-4 two build-site --demo runs give identical files and the same VERSION
 test('TS2-5 package.json: build script, serve builds first, esbuild pinned exact in package.json and lockfile', () => {
   const pkg = JSON.parse(read('package.json'));
   const s = pkg.scripts || {};
-  assert.strictEqual(s.build, 'node scripts/build-ts.mjs');
+  assert.strictEqual(s.build, 'node scripts/build-ts.mts');
   assert.ok(String(s.serve || '').startsWith('npm run build'), `serve starts with npm run build (got ${s.serve})`);
   const v = (pkg.devDependencies || {}).esbuild;
   assert.ok(v, 'esbuild in devDependencies');
@@ -232,7 +232,7 @@ test('TS2-7 build-site --demo ships no .ts (globals.d.ts included), every SHELL_
   const pages = read('.github/workflows/pages.yml');
   assert.strictEqual((pages.match(/npm/g) || []).length, 0, 'pages.yml mentions npm');
   assert.strictEqual((pages.match(/esbuild/g) || []).length, 0, 'pages.yml mentions esbuild');
-  assert.match(pages, /build-site\.mjs dist --demo/, 'Pages still builds --demo only');
+  assert.match(pages, /build-site\.mts dist --demo/, 'Pages still builds --demo only');
 });
 
 // ---------------------------------------------------------------- TS2-8

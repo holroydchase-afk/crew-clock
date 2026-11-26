@@ -130,11 +130,12 @@ test('TS3-1 tests/ holds 0 unit tests in JS and 30 in TypeScript; the 19 e2e, br
   const e2e = top.filter((f) => /^e2e.*\.js$/.test(f));
   assert.strictEqual(e2e.length, 17, `17 tests/e2e*.js stay JS: ${e2e.join(', ')}`);
   assert.ok(top.includes('browser.js'), 'tests/browser.js stays JS');
-  assert.ok(exists('tests/sql/runner.test.mjs'), 'tests/sql/runner.test.mjs stays as it is');
+  assert.ok(exists('tests/sql/runner.test.mts'), 'tests/sql/runner.test.mts stays as it is');
   assert.strictEqual(e2e.length + 1 + 1, 19, '19 JS files stay');
   assert.deepStrictEqual(js, [], `no tests/*${JS} left (found ${js.length})`);
-  const ts = tsTests();
-  assert.strictEqual(ts.length, 30, `30 tests/*${TS} (29 renamed plus ts3), found ${ts.length}`);
+  // TS-4 (QA-R3): later phases add their own ts<N> guard tests beside this one; they are admitted, nothing else is.
+  const ts = tsTests().filter((f) => !(/^ts\d+\.test\.ts$/.test(f) && ![...NAMES, 'ts3'].includes(f.slice(0, -TS.length))));
+  assert.strictEqual(ts.length, 30, `30 tests/*${TS} (29 renamed plus ts3) besides later ts<N> guards, found ${ts.length}`);
   assert.deepStrictEqual(ts, [...NAMES, 'ts3'].map((n) => n + TS).sort(), 'exactly the 29 pinned names plus ts3');
 });
 
@@ -298,7 +299,10 @@ test('TS3-8 ts2 reads the renamed shared and location tests; typecheck still ass
 // ---------- TS3-9 (regression guard: true on main) ----------
 const MAIN_VERSION = 'b95449e9fb'; // build-site --demo on main 72764fc
 function buildDemo(root: string, out: string) {
-  const r = spawnSync(process.execPath, [path.join(root, 'scripts', 'build-site.mjs'), out, '--demo'], { cwd: root, encoding: 'utf8' });
+  // TS-4 (QA-R3): main's archived tree may still have the .mjs build-site; run whichever one that tree has.
+  const script = ['build-site.mts', 'build-site' + '.mjs'].map((f) => path.join(root, 'scripts', f)).find((f) => fs.existsSync(f));
+  assert.ok(script, `scripts/build-site exists in ${root}`);
+  const r = spawnSync(process.execPath, [script, out, '--demo'], { cwd: root, encoding: 'utf8' });
   assert.strictEqual(r.status, 0, `build-site failed:\n${r.stdout}${r.stderr}`);
   const m = /const VERSION = '[^']*-([0-9a-f]{10})';/.exec(fs.readFileSync(path.join(out, 'sw.js'), 'utf8'));
   assert.ok(m, 'sw.js VERSION stamped');
@@ -337,7 +341,7 @@ test('TS3-10 no old unit-test file names in docs, scripts, workflows or test com
     read(f).split('\n').forEach((l, i) => { if (l.includes(JS)) hits.push(`${f}:${i + 1}: ${l.trim()}`); });
   }
   const testFiles = topTests().filter((f) => /\.(js|ts|mjs)$/.test(f) && !f.endsWith('.d.ts')).map((f) => `tests/${f}`);
-  testFiles.push(...fs.readdirSync(path.join(ROOT, 'tests', 'sql')).filter((f) => f.endsWith('.mjs')).map((f) => `tests/sql/${f}`));
+  testFiles.push(...fs.readdirSync(path.join(ROOT, 'tests', 'sql')).filter((f) => f.endsWith('.mts')).map((f) => `tests/sql/${f}`));
   for (const f of testFiles) {
     if (path.basename(f) === SELF) continue;
     for (const l of commentLines(read(f))) if (l.includes(JS)) hits.push(`${f} comment: ${l.trim()}`);

@@ -13,7 +13,7 @@ const require = createRequire(import.meta.url);
 
 const ROOT = path.join(import.meta.dirname, '..');
 const read = (f: string) => fs.readFileSync(path.join(ROOT, f), 'utf8');
-const BUILD_TS = path.join(ROOT, 'scripts', 'build-ts.mjs');
+const BUILD_TS = path.join(ROOT, 'scripts', 'build-ts.mts');
 
 function hasEsbuild(): boolean {
   try { require.resolve('esbuild', { paths: [ROOT] }); return true; } catch { return false; }

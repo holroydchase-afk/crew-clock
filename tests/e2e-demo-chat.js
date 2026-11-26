@@ -1,5 +1,5 @@
 // M1.10-a CHAT-SEED: a visitor to the public demo finds a sample crew chat already going.
-//   node scripts/build-site.mjs dist --demo && npx http-server dist -p 8123 -c-1 -s &
+//   node scripts/build-site.mts dist --demo && npx http-server dist -p 8123 -c-1 -s &
 //   node tests/e2e-demo-chat.js            (or one case: node tests/e2e-demo-chat.js CHAT-SEED-2)
 // Every off-origin request is answered in the test (never reaches the internet).
 const { launch } = require('./browser.js');

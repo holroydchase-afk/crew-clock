@@ -6,7 +6,7 @@
 // switch (data-action="demo-offline"), "Reset demo" and a link to https://chaseholroyd.com/.
 // The spec names no hook for the summary, badge or chevron, so they are found by their words inside
 // the toggle (QA-R finding in the M1.18 qa block). Against a demo build on :8123:
-//   node scripts/build-site.mjs dist --demo && npx http-server dist -p 8123 -c-1 -s &
+//   node scripts/build-site.mts dist --demo && npx http-server dist -p 8123 -c-1 -s &
 //   node tests/e2e-demobar.js            (or one case: node tests/e2e-demobar.js DEMOBAR-7)
 // Every off-origin request (map tiles) is answered empty, never reaching the internet. DEMOBAR-12
 // serves the crew app's config (backend: supabase) and a fake Supabase in the test, as

@@ -1,7 +1,7 @@
 // M1.6 showcase polish: every demo screen a visitor can reach, at 390x844 and 1280x800, light and
 // dark, has no axe violations (WCAG 2.2 A/AA) and the app logs no console errors. Against a demo
 // build on :8123:
-//   node scripts/build-site.mjs dist --demo && npx http-server dist -p 8123 -c-1 -s &
+//   node scripts/build-site.mts dist --demo && npx http-server dist -p 8123 -c-1 -s &
 //   npm install --no-save axe-core@4.11.3
 //   node tests/e2e-showcase.js            (or one combo: node tests/e2e-showcase.js 390-dark)
 // Map tiles and other off-origin requests are answered empty here, so only same-origin errors count.

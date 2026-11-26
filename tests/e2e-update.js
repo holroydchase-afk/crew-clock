@@ -21,7 +21,7 @@ const URL = `http://localhost:${PORT}/crew-clock/`;
 const TYPES = { '.js': 'text/javascript', '.html': 'text/html', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json', '.webmanifest': 'application/manifest+json' };
 
 function build(out) {
-  execFileSync(process.execPath, [path.join(ROOT, 'scripts/build-site.mjs'), path.join(out, 'crew-clock'), '--demo'], { cwd: ROOT, stdio: 'ignore' });
+  execFileSync(process.execPath, [path.join(ROOT, 'scripts/build-site.mts'), path.join(out, 'crew-clock'), '--demo'], { cwd: ROOT, stdio: 'ignore' });
 }
 
 // The "old deploy": the same app with a different boss name and storage key, so it has its own

@@ -3,8 +3,8 @@
 stage: building
 goal: portfolio
 milestone: CRW-M2
-now: TS-3 (issue #36 PR 3, M0.5) built on claude/project-thread-4p3a4i, not committed: the 29 unit tests are tests/*.test.ts in strict TypeScript on Node type stripping (TS-2 merged in #66); qa-tdd 3x, architect review next, then PR
-next: after merge TS3-12 (language bar); then metrics and beta scorecard (portfolio review item 3)
+now: TS-4 (issue #36 PR 4, M0.6) built on claude/project-thread-4p3a4i, not committed: the 5 repo-owned scripts are .mts in strict TypeScript, .node-version pins Node, studio scripts vendored (the unit-test phase merged in #68); qa-tdd 3x, architect and privacy-security review next, then PR
+next: after merge TS4-13 (Pages run, live VERSION) and TS4-14 (language bar, close #36); then metrics and beta scorecard (portfolio review item 3)
 waiting_on_chase:
   - Supabase project, SETUP steps 1.1 to 1.4 (unblocks M2.1)
 blockers: []
@@ -12,7 +12,7 @@ blockers: []
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-11-26 (TS-3 built: unit tests in strict TypeScript, M0.5)
+Updated: 2026-11-26 (TS-4 built: repo scripts in strict TypeScript, M0.6)
 
 ## What it is
 
@@ -25,8 +25,30 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
 
+- `M0.6.2`-`M0.6.4` TS-4 (2026-11-26, issue #36 PR 4, spec `docs/product/SPEC-TS-4.md`, built by
+  engineer against qa-tdd's `tests/ts4.test.ts`; on the branch, not reviewed or merged yet).
+  `git mv` of `scripts/build-site`, `scripts/build-ts`, `tests/sql/runner.test`,
+  `evals/geofence/model` and `evals/geofence/run` from `.mjs` to `.mts`, JSDoc turned into inline
+  types (erasable syntax only, 0 explicit `any`, no suppressions); tsconfig `include` names them and
+  sets `allowImportingTsExtensions` (run.mts imports `./model.mts`). package.json `build`, `test:sql`
+  and `eval:geofence`, `pages.yml` and `ci.yml` call the `.mts` files. `.node-version` (22.23.5)
+  is read by setup-node `node-version-file` in ci, pages and agents-check, and by Cloudflare (SETUP
+  step 5). ci.yml adds `deno check scripts/new-company.ts`. `.gitattributes` marks the 24
+  studio-synced `scripts/*.mjs` linguist-vendored. Tests: path strings only (9 unit tests and 13
+  e2e usage comments), plus ts3's two allowed edits (TS3-1 admits later ts<N> guards, TS3-9 runs
+  whichever build-site main's archive has). Living docs and the generated `docs/evals/geofence.md`
+  name the `.mts` files. Demo and crew dist byte-identical to main (VERSION `v3-b95449e9fb`),
+  `js/*.js` unchanged. Left on purpose (QA-R1): `sw.js:2`'s comment still names the old
+  build-site, since editing sw.js moves VERSION; fix it in the next PR that changes sw.js.
+  Review fixes: PS-R1 (privacy-security, P2) build-site's filter now drops `.ts`, `.mts`, `.cts`
+  and `.d.mts` sources from dist (`/\.[cm]?ts$/`), demo dist still byte-identical. Architect notes,
+  open: ARCH-R2 when doing SETUP step 5, check Cloudflare does not run `npm install` before the build
+  (the build needs no packages; set the skip-install variable if its log shows an install); ARCH-R4
+  Node 22 reaches end of life on 2027-04-30, so bump `.node-version` to the next LTS before then and
+  rerun all suites; ARCH-R1 agents-check.yml is studio-synced and now reads `.node-version`, so it
+  drifts from studio-agents until upstream takes the change (INTAKE draft saved for studio-agents).
 - `M0.5.2`-`M0.5.4` TS-3 (2026-11-26, issue #36 PR 3, spec `docs/product/SPEC-TS-3.md`, built by
-  engineer against qa-tdd's `tests/ts3.test.ts`, not committed or reviewed yet). The 29 unit tests
+  engineer against qa-tdd's `tests/ts3.test.ts`, merged in #68). The 29 unit tests
   are renamed with `git mv` to `tests/*.test.ts`, and qa-tdd's `ts3` test last: ESM `import` from
   `node:*`, `import.meta.dirname`/`filename`, and `createRequire` only to load the emitted `js/*.js`,
   each typed `as typeof import('../js/NAME.js')`. JSDoc types became inline TypeScript; every assert
@@ -667,12 +689,26 @@ file's "In progress" section above is stale (everything in it is merged) and goe
 `M2.1` still waits on Chase's Supabase project (Blockers 1).
 Found while writing `docs/DESIGN.md` (2026-11-22), each needs a failing test first: the hard rule
 "the crew app runs only the Supabase backend" is not enforced in code (`js/api.js:31-37` still
-routes to Sheets when `backendUrl` is set and `scripts/build-site.mjs:30` maps `SHEETS_BACKEND_URL`
+routes to Sheets when `backendUrl` is set and `scripts/build-site.mts:31` maps `SHEETS_BACKEND_URL`
 into a non-demo build; `docs/PRIVACY.md` S5 marks the refusal "to build"); and
 `tests/e2e-update.js:70-73` waits fixed times for the new service worker and should wait for it to
 activate (it failed once in CI on timing).
 
 ## Decisions to review
+
+- **TS-4 (2026-11-26): `.mts`, not `.ts`, for the 5 converted repo scripts.** package.json has no
+  `"type": "module"` (the CommonJS e2e needs that), so a `.ts` with `import` prints
+  MODULE_TYPELESS_PACKAGE_JSON and is parsed twice; `.mts` is ESM per file and runs clean. Reversible
+  with a rename.
+- **TS-4: the 24 studio-synced `scripts/*.mjs` are linguist-vendored.** studio-agents owns them and
+  its sync overwrites them, so they are converted there if ever, and the language bar counts only
+  this repo's own code. Remove the `.gitattributes` lines to undo.
+- **TS-4: `sw.js:2` keeps its stale build-site comment** (QA-R1): sw.js is hashed whole into
+  VERSION, so fixing a comment would make every phone refetch for nothing. Fix it in the next PR
+  that changes sw.js anyway.
+- **TS-4: agents-check.yml reads `.node-version`** (spec design answer 2). That workflow is
+  studio-synced: the change should go upstream to studio-agents too, or the next sync puts
+  `node-version: 22` back (TS4-4 would catch it).
 
 - **TS-2 (2026-11-25): `no build step` now means no deploy-time build.** Emitted `js/*.js` are
   committed and CI-checked, not built on Pages or the crew host, so neither needs a toolchain and the

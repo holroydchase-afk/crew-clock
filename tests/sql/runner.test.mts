@@ -11,15 +11,12 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-/** @param {string} p */
-const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
-/** @param {string} p */
-const exists = (p) => fs.existsSync(path.join(root, p));
+const read = (p: string) => fs.readFileSync(path.join(root, p), 'utf8');
+const exists = (p: string) => fs.existsSync(path.join(root, p));
 const REVOKE = '20261123000000_revoke_defaults.sql';
 const MIGRATIONS = 'supabase/migrations';
 
-/** @param {string[]} args */
-function runSql(args) {
+function runSql(args: string[]) {
   const r = spawnSync('sh', ['tests/sql/run.sh', ...args], { cwd: root, encoding: 'utf8', timeout: 240000 });
   return { status: r.status, out: `${r.stdout || ''}${r.stderr || ''}` };
 }

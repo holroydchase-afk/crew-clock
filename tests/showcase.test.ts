@@ -9,7 +9,7 @@ import { execFileSync } from 'node:child_process';
 
 const ROOT = path.join(import.meta.dirname, '..');
 const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-show-'));
-execFileSync(process.execPath, [path.join(ROOT, 'scripts/build-site.mjs'), OUT, '--demo'], { cwd: ROOT, stdio: 'ignore' });
+execFileSync(process.execPath, [path.join(ROOT, 'scripts/build-site.mts'), OUT, '--demo'], { cwd: ROOT, stdio: 'ignore' });
 
 function files(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((d) => {

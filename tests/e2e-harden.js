@@ -1,5 +1,5 @@
 // M1.5 hardening: browser cases for the HRD tickets, against a demo build on :8123.
-//   node scripts/build-site.mjs dist --demo && npx http-server dist -p 8123 -c-1 -s &
+//   node scripts/build-site.mts dist --demo && npx http-server dist -p 8123 -c-1 -s &
 //   node tests/e2e-harden.js            (or one case: node tests/e2e-harden.js HRD-5)
 // GPS is stubbed in the page so every fix arrives exactly when the test says (no sleeps).
 const fs = require('fs');
