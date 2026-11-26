@@ -1019,3 +1019,6 @@ Waiting on Chase, in order (each unblocks an M2 task; nothing in M1 needs these)
 
 - Setup guide: [docs/SETUP.md](docs/SETUP.md)
 - Privacy review: [docs/reviews/2026-10-23-privacy-security.md](docs/reviews/2026-10-23-privacy-security.md)
+
+## Repo best-practices pass (2026-11-25)
+- Done: CONTRIBUTING.md CODE_OF_CONDUCT.md SECURITY.md PR-template issue-templates SUPPORT.md README-AI-line codeql(actions, javascript-typescript). Added from the GitHub, Linux Foundation and Syracuse checklists (studio-agents docs/repo-standards.md). Left for this project to review: CHANGELOG.md, THIRD_PARTY_NOTICES, wording of the README AI-use line against the claims register, repo description and topics.
