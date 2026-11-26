@@ -817,7 +817,7 @@ t('UX-R45 390: every button in the boss header and the Day/Week toggle is at lea
 });
 
 // ---------- UX-R53: every control the README's walkthrough names in bold is on the 390px demo ----------
-// A browser case (not tests/readme.test.js, which is node-only): it walks the README's steps and
+// A browser case (not tests/readme.test.ts, which is node-only): it walks the README's steps and
 // collects each screen's visible text, plus the aria-labels of icon-only controls. Matching ignores
 // case and runs of spaces.
 // Rewritten for SPEC-DEMO-BAR (M1.18): the README's sentence about the demo bar, and the bar is read

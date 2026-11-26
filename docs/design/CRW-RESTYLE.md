@@ -33,7 +33,7 @@ section 2 principle needs Chase first.
   at least 30% toward `ink` until `accent-ink` on it is 7:1. Product status extras (`--danger-soft`,
   `--warn`, `--warn-soft` for "Near"/"waiting to send"/the demo banner) are derived the same way as
   safeSoft (93% page light, 82% dark). The old blue/gray palette names are gone.
-- **DS-7 Contrast test (section 7 step 3).** `tests/theme.test.js` checks in light, dark and both high
+- **DS-7 Contrast test (section 7 step 3).** `tests/theme.test.ts` checks in light, dark and both high
   contrast sets: ink 7:1 on bg; muted 4.5:1 on bg and fill (7:1 in high contrast); accent 4.5:1 on bg, fill,
   accent-soft; accent-ink on accent 4.5:1 (7:1 hc); safe and danger-text 4.5:1 on bg; tab-line 3:1 on bg
   and surface; warn 4.5:1 on warn-soft; danger-text 4.5:1 on danger-soft; white on the punch buttons 4.5:1.

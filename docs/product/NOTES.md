@@ -112,13 +112,13 @@ here, each with a proof in the repo that passes today. Add the proof first, then
 | ID | Claim | Proof |
 |---|---|---|
 | CRW-CLAIM-1 | The geofence counts GPS error in the worker's favor, and a simulated eval measures how loose that is | `docs/evals/geofence.md` |
-| CRW-CLAIM-2 | Location is read only while clocking in or out (and the boss's job pin); never in the background | `tests/location.test.js` |
-| CRW-CLAIM-3 | The public demo has no server address in it, so a visitor can't reach crew data | `tests/site.test.js` |
-| CRW-CLAIM-4 | Each punch is signed on the phone and chained; the boss's check names a changed punch | `tests/enhance.test.js` |
-| CRW-CLAIM-5 | The weekly CSV carries name, date, in, out and hours only, no GPS | `tests/enhance.test.js` |
+| CRW-CLAIM-2 | Location is read only while clocking in or out (and the boss's job pin); never in the background | `tests/location.test.ts` |
+| CRW-CLAIM-3 | The public demo has no server address in it, so a visitor can't reach crew data | `tests/site.test.ts` |
+| CRW-CLAIM-4 | Each punch is signed on the phone and chained; the boss's check names a changed punch | `tests/enhance.test.ts` |
+| CRW-CLAIM-5 | The weekly CSV carries name, date, in, out and hours only, no GPS | `tests/enhance.test.ts` |
 | CRW-CLAIM-6 | Works with no signal: punches queue on the phone and send later | `tests/e2e-enhance.js` |
 | CRW-CLAIM-7 | Crew chat is end-to-end encrypted with MLS; the server never sees message text (it does see chat metadata: group names, members, who sent when) | `messenger/mls.test.mjs` |
-| CRW-CLAIM-8 | Server logs never carry punch data, URLs or keys | `tests/check-logs.test.js` |
+| CRW-CLAIM-8 | Server logs never carry punch data, URLs or keys | `tests/check-logs.test.ts` |
 
 Not claimable yet: anything about real crew use or results (the beta has not run), "three taps"
 as a measured number, uptime, and the crew app being live.

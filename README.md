@@ -130,7 +130,7 @@ No paid services, no analytics, no tracking scripts.
 
 ## Tests
 
-    npm test                  # geofence, shifts, signatures, risk rules, AI helpers (node)
+    npm test                  # geofence, shifts, signatures, risk rules, AI helpers (node, TypeScript)
     npm run test:sql          # schema + row-level security on a local Postgres
     npm run test:edge         # Edge Function logic (deno)
     npm run test:mls          # MLS group chat (three people, late joiner)
