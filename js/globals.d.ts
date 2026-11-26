@@ -1,6 +1,7 @@
-// TS-1 (issue #36): types for the globals the plain-JS files share through window/self.
-// Type-only: nothing here runs or ships. The shared modules (ai, geo, report, chain, risk) take
-// their types straight from the code; the browser-only ones are described here.
+// TS-1/TS-2 (issue #36): types for the globals the js/*.ts files share through window/self.
+// Type-only: nothing here runs or ships (build-site leaves .ts out of dist). The shared modules
+// (ai, geo, report, chain, risk) describe themselves in their own `export declare` lines; the
+// browser-only ones are described here.
 
 // ---------- data the app passes around ----------
 type FenceStatus = 'onsite' | 'near' | 'offsite' | 'weak' | 'nogps';

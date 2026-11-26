@@ -21,11 +21,11 @@ The consent screen (below) is the short version of this.
 
 | When | What is read | Where it goes | Status |
 | --- | --- | --- | --- |
-| Worker taps **Clock in** or **Clock out**, after picking the job | GPS watched for up to 20 s (stops early at 20 m accuracy), best fix kept: latitude, longitude, accuracy, time | Saved with the punch, sent to the server when there is signal | [true] `js/app.js` `locate`, `js/geo.js` `bestFix`; stops when they leave the screen (L2) |
-| Worker taps **Clock in** (job list) | One rough, low-accuracy reading to put the nearest job on top | Stays in the app's memory for that screen; never saved or sent | [true] `js/app.js` `sortJobsByDistance`; stops when they pick a job or leave the list (L2) |
-| First sign-in, **OK, ask me** | One reading only to make the phone show its permission prompt | Thrown away | [true] `js/app.js` `prime-location`; stops if the app goes to the background (L2) |
-| Foreman clocks in a teammate | The **foreman's** phone GPS; a picture is asked for, and a punch without one is flagged high for the boss (`teammate_no_photo`) | Saved on the teammate's punch, marked as made by the foreman | [true] `js/app.js` `startPunch`, `js/risk.js` `teammate_no_photo`, `core.ts` `ingestPunch` |
-| Boss taps **Use where I'm standing** when adding a job | The boss's own GPS | Saved as the job site's pin, not as anyone's punch | [true] `js/app.js` `job-here`; stops when the boss leaves the job form or picks another way (L2) |
+| Worker taps **Clock in** or **Clock out**, after picking the job | GPS watched for up to 20 s (stops early at 20 m accuracy), best fix kept: latitude, longitude, accuracy, time | Saved with the punch, sent to the server when there is signal | [true] `js/app.ts` `locate`, `js/geo.ts` `bestFix`; stops when they leave the screen (L2) |
+| Worker taps **Clock in** (job list) | One rough, low-accuracy reading to put the nearest job on top | Stays in the app's memory for that screen; never saved or sent | [true] `js/app.ts` `sortJobsByDistance`; stops when they pick a job or leave the list (L2) |
+| First sign-in, **OK, ask me** | One reading only to make the phone show its permission prompt | Thrown away | [true] `js/app.ts` `prime-location`; stops if the app goes to the background (L2) |
+| Foreman clocks in a teammate | The **foreman's** phone GPS; a picture is asked for, and a punch without one is flagged high for the boss (`teammate_no_photo`) | Saved on the teammate's punch, marked as made by the foreman | [true] `js/app.ts` `startPunch`, `js/risk.ts` `teammate_no_photo`, `core.ts` `ingestPunch` |
+| Boss taps **Use where I'm standing** when adding a job | The boss's own GPS | Saved as the job site's pin, not as anyone's punch | [true] `js/app.ts` `job-here`; stops when the boss leaves the job form or picks another way (L2) |
 | Any other time (home screen, chat, boss tabs, app closed, phone locked) | Nothing | — | [true] no other geolocation call in `js/`, none in `sw.js`, no background or periodic sync (`tests/location.test.js`, `tests/e2e-location.js` LOC-1) |
 
 Rules:
@@ -39,13 +39,13 @@ Rules:
   away (after going to the background they clock in with a picture). The same holds for the job
   list's rough reading and the permission primer's one reading: every read in the app goes through
   one gate (`watchGps`) tied to its screen. The boss's "Use where I'm standing" stops the same way when they
-  leave the job form. [true] `js/app.js` `watchGps`/`stopGps`, `js/geo.js` `bestFix` `signal`;
+  leave the job form. [true] `js/app.ts` `watchGps`/`stopGps`, `js/geo.ts` `bestFix` `signal`;
   `tests/e2e-location.js` LOC-2, `tests/unit.test.js`
 - **L3** No location is read for a worker with no consent on record (they clock in with a
   picture instead). This also applies when a foreman clocks them in. The sync function checks it
   too: a punch from someone whose latest record at that time isn't "agree" to the current words is
   stored without its location (`core.ts` `ingestPunch`), and a consent record the server refuses is
-  forgotten on the phone, so they're asked again. [true] `js/app.js` `startPunch`,
+  forgotten on the phone, so they're asked again. [true] `js/app.ts` `startPunch`,
   tested in `tests/e2e-consent.js` CON-2
 - **L3a** When sync drops a punch's location (no consent, or an impossible reading), it drops that
   punch's hash and signature too, and the next punch keeps no pointer to that hash, since they cover
@@ -53,7 +53,7 @@ Rules:
   `tests/edge/harden.test.ts` PS-M112-2
 - **L4** Pictures are re-drawn on the phone at 1024 px before upload, which strips the camera's
   EXIF data, including any GPS tag. The stamp says name, job and time, not coordinates.
-  [true] `js/app.js` `stampPhoto`
+  [true] `js/app.ts` `stampPhoto`
 - **L5** The server works out distance and on-site status itself; the phone's own verdict is not
   trusted. [true] `supabase/migrations/20261022000000_init.sql:184-212`
 
@@ -99,7 +99,7 @@ Rules:
   They can agree again later. After a withdrawal the app asks again only when they tap Clock in,
   not every time it opens. [true] (Home has the link; there is no menu)
 - **C4** When `text_version` changes, everyone is asked again at next sign-in. [true] `CONSENT_VERSION`
-  in `js/app.js`
+  in `js/app.ts`
 - **C5** The consent record goes through the same offline outbox as punches, so it works with no
   signal. Demo mode keeps it in the browser. The phone remembers each worker's newest record
   (action, version, time; key `cc.consents`), so someone who agreed offline isn't asked again
@@ -131,10 +131,10 @@ federal; West Virginia's own rules are a "needs Chase" check (see the end).
 | Sign-in limit counts: a keyed hash (HMAC with `RATE_HMAC_KEY`) of the caller's IP, or of the company for the company cap, and the time, per scope; never the IP itself | Supabase `app.rate_hits` (no phone can read it) | **1 day** | Deleted by `app.apply_retention` | [built, M1.9: `20261029000000_crew_auth.sql`, `tests/sql/60_m19_test.sql`] |
 | Wrong-PIN count, lock time, lock rounds and "PIN blocked" | Supabase `crew` (server-only columns) | Until the next good PIN (count), the end of the lock, or the boss sets a new PIN (rounds, block) | Reset to 0/null/false | [built, M1.9: `guard.ts` `pinFailure`, `PIN_RESET`; `tests/edge/m19.test.ts`] |
 | Push subscriptions | Supabase `push_subscriptions` | While in use | Deleted when the worker leaves or the browser retires it | [partly true: retired ones are deleted, `_shared/push.ts:28`] |
-| Boss and foreman's team cache | Their phone, localStorage `cc.team` | Up to 13 days of punch times (from the Monday a week before this week, for the week view); GPS only for the last 8 days | Lat, lng, accuracy, address and distance are dropped from any punch older than 8 days before it is held or cached; replaced on each refresh; cleared on sign-out | [true, PS-M113-1] `Report.dropOldGps` in `js/api-supabase.js` `team()` and `js/app.js` `loadTeam()`; `tests/enhance.test.js` |
+| Boss and foreman's team cache | Their phone, localStorage `cc.team` | Up to 13 days of punch times (from the Monday a week before this week, for the week view); GPS only for the last 8 days | Lat, lng, accuracy, address and distance are dropped from any punch older than 8 days before it is held or cached; replaced on each refresh; cleared on sign-out | [true, PS-M113-1] `Report.dropOldGps` in `js/api-supabase.ts` `team()` and `js/app.ts` `loadTeam()`; `tests/enhance.test.js` |
 | Weekly CSV (timesheet) | Made on the boss's phone, saved to their Downloads | Until the boss deletes it | The boss owns the file; the app keeps no copy and sends it nowhere. Name, Date, In, Out, Hours only: no GPS, ids, photos or risk flags; cells a spreadsheet would run as a formula are escaped | [true, M1.13] `Report.timesheetCsv`; `tests/enhance.test.js` ENH-3, PS-M113-3 |
-| Each worker's newest consent record, as this phone knows it | The phone, localStorage `cc.consents` | Until replaced by a newer record | Kept on sign-out so an offline re-sign-in isn't asked again; holds action, text version and time only | [true] `js/app.js` `rememberConsent` |
-| Unsent punches and pictures | Phone IndexedDB outbox | Until sent | Removed when the server accepts them or refuses them for permission. Any other refusal (for example "Punch too old") is final: the phone deletes its GPS, picture, signature and edit data at once and keeps only a stub (who, job, in/out, time, reason) so the sync line can explain it; the stub is never resent. Network, server or picture-upload failures keep the whole punch and retry. | [true] `js/app.js:85-90,112-125`; [stub kept until cleared, no trim yet] |
+| Each worker's newest consent record, as this phone knows it | The phone, localStorage `cc.consents` | Until replaced by a newer record | Kept on sign-out so an offline re-sign-in isn't asked again; holds action, text version and time only | [true] `js/app.ts` `rememberConsent` |
+| Unsent punches and pictures | Phone IndexedDB outbox | Until sent | Removed when the server accepts them or refuses them for permission. Any other refusal (for example "Punch too old") is final: the phone deletes its GPS, picture, signature and edit data at once and keeps only a stub (who, job, in/out, time, reason) so the sync line can explain it; the stub is never resent. Network, server or picture-upload failures keep the whole punch and retry. | [true] `js/app.ts:179-199,212-233`; [stub kept until cleared, no trim yet] |
 | Daily and weekly reports | The boss's Google Sheet (shelved, Chase, 2026-11-23) | 3 years (hours only, no GPS) | The boss deletes old rows | [shelved (Chase, 2026-11-23): no export runs; when it did, no GPS went to the Sheet, `report-export` sent shifts only. Do not set `REPORT_TOKEN` while the export is shelved, so `report-export` refuses every request] |
 | Sign-in sessions | Supabase Auth | 1 hour token, refresh until sign-out | Ended on new PIN or deactivation | [true] `20261023000000_auth_hook.sql:32-41` |
 
@@ -198,11 +198,11 @@ Consent row is [true, M1.2]; a foreman sees status only (agreed or not), not the
 
 Data that leaves to other services:
 - **OpenStreetMap / USGS map tiles**: the boss's map loads tiles, so those servers see which area
-  is being looked at (not who is on it). [true] `js/app.js:645`, `sw.js:28-30`
+  is being looked at (not who is on it). [true] `js/app.ts:1076-1081`, `sw.js:36-37,51-56`
 - **US Census geocoder, then OpenStreetMap Nominatim**: job addresses the boss types. Never a
   worker's location. [true] `supabase/functions/geocode/index.ts`
 - **Hugging Face**: none. On-phone AI models are shelved (config `onPhoneAi` is off in every build),
-  so no model is downloaded; the photo too-dark or too-blurry check runs in plain JS on the phone. [true] `js/ai.js`, `scripts/build-site.mjs`
+  so no model is downloaded; the photo too-dark or too-blurry check runs in plain JS on the phone. [true] `js/ai.ts`, `scripts/build-site.mjs`
 - **Web push services** (Apple, Google, Mozilla): alert text such as "Jake R.: check this punch".
   No coordinates are put in push text. [true] `supabase/functions/sync/index.ts:31`
 - No analytics, ads, trackers or AI vendors get any crew data. [true]
@@ -241,7 +241,7 @@ Rules:
   tiles and never loads the AI models; the crew app shows no bar; tested in `tests/e2e-demo.js`
   (SEP-3/4/5) and `tests/e2e-demobar.js` (DEMOBAR-3, DEMOBAR-12)]
 - **S5** The crew app never runs the old Google Sheets backend (`backend: 'sheets'`): it keeps the
-  PIN in the phone's storage (`js/app.js:295`). [to build: refuse `sheets` in a non-demo build,
+  PIN in the phone's storage (`js/app.ts:526-527`). [to build: refuse `sheets` in a non-demo build,
   M1.1]
 - **S6** Database grants: a signed-out caller (`anon`) holds no right on any public table, column,
   sequence or function. A signed-in phone (`authenticated`) holds only what the app uses: read

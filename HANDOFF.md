@@ -3,8 +3,8 @@
 stage: building
 goal: portfolio
 milestone: CRW-M2
-now: studio demo bar (intake #38, M1.18) built on claude/project-thread-4p3a4i; review fixes UX-R1..R5, PS-R1, QA-R1..R3 built; qa-tdd 3x and re-review next, then PR. LIC-1 merged (#58)
-next: TS-2 (issue #36 PR 2, approved migration plan); then metrics and beta scorecard (portfolio review item 3)
+now: TS-2 (issue #36 PR 2, M0.4) built on claude/project-thread-4p3a4i, not committed: js/*.ts in strict TypeScript, esbuild type strip, emitted js/*.js committed; qa-tdd 3x, architect and privacy-security review next, then PR
+next: TS-3 (tests to .test.ts); then metrics and beta scorecard (portfolio review item 3)
 waiting_on_chase:
   - Supabase project, SETUP steps 1.1 to 1.4 (unblocks M2.1)
 blockers: []
@@ -12,7 +12,7 @@ blockers: []
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-11-25 (intake #38 studio demo bar review fixes UX-R1..R5, PS-R1, QA-R1..R3 built)
+Updated: 2026-11-25 (TS-2 built: front end in strict TypeScript, esbuild type strip, M0.4)
 
 ## What it is
 
@@ -25,6 +25,30 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
 
+- TS-2 review fixes (2026-11-26, `tests/ts2-review.test.js`, each test-first by qa-tdd): ARCH-R1
+  `scripts/build-ts.mjs` fails on any esbuild warning (printed as file:line:col, nothing written,
+  exit 1); PS-R3 the root install is `npm ci --ignore-scripts` in CI, README and CLAUDE.md (esbuild
+  still builds without its install script); PS-R1 PRIVACY's map-tiles row cites `sw.js:36-37,51-56`;
+  PS-R2 the outbox row cites `js/app.ts:179-199,212-233`. ARCH-R2/R3 guards already green.
+- `M0.4.2`-`M0.4.5` TS-2 (2026-11-25, issue #36 PR 2, spec `docs/product/SPEC-TS-2.md`, built, not
+  committed or reviewed yet). The 14 hand-written `js/*.js` are now `js/*.ts` (renamed with `git mv`),
+  JSDoc types turned into inline TypeScript (no `@ts-ignore`, 9 `any`, the same as the JSDoc on main).
+  `npm run build` (`scripts/build-ts.mjs`, esbuild 0.28.2 pinned exact, devDependency) strips the types
+  file by file (loader ts, es2022, no bundle or minify) into `js/*.js`, each with a "Generated from
+  js/NAME.ts" banner; they are committed, marked `linguist-generated`, and CI runs
+  `npm run build && git diff --exit-code -- js/` before the sync-shared step. CI now runs `npm ci`
+  before `npm test`. tsconfig checks `js/*.ts` with `erasableSyntaxOnly`. The five modules the tests
+  `require` (geo, report, chain, risk, ai) end in type-only `export declare` lines so `require()` and
+  `globals.d.ts` keep their types; esbuild erases them, so the emitted files stay classic scripts
+  (TS2-6). Emitted code is the same as main apart from whitespace and comments (checked with
+  esbuild minifyWhitespace), except geo and report now fall back to `globalThis` instead of top-level
+  `this` (esbuild turns `this` into `void 0` in a file with exports; see Decisions to review).
+  Emitted total 173,361 bytes (budget 221,763). `build-site` no longer copies `.ts` into `dist/`.
+  `tests/location.test.js` and `tests/demo.test.js` PS-M110-1 read `js/app.ts`, `js/geo.ts` and
+  `js/messenger.ts` (source-text checks). CLAUDE.md, README, PLAN (M0.4), DESIGN, PRIVACY and
+  AGENT-NOTES cite `js/*.ts`; three PRIVACY citations that had drifted were re-pointed. Tests:
+  `tests/ts2.test.js` 23 of 23, `npm test`, `npm run typecheck`. Not yet: qa-tdd 3x, architect and
+  privacy-security review, TS2-14 phone check and TS2-15 language bar after the deploy.
 - `M1.18.2`-`M1.18.3` Studio demo bar (2026-11-25, intake #38, spec `docs/product/SPEC-DEMO-BAR.md`,
   built, not committed or reviewed yet). The old `.demo-banner` (its label, actions, "Reset sample
   data", the `confirm()` and their CSS) is gone. Every demo screen now opens with a 48px
@@ -633,6 +657,13 @@ activate (it failed once in CI on timing).
 
 ## Decisions to review
 
+- **TS-2 (2026-11-25): `no build step` now means no deploy-time build.** Emitted `js/*.js` are
+  committed and CI-checked, not built on Pages or the crew host, so neither needs a toolchain and the
+  demo build is unchanged. Revert the PR to undo.
+- **TS-2: geo and report fall back to `globalThis`, not top-level `this`** (2026-11-25): the type-only
+  exports make esbuild treat those files as modules and emit `void 0` for top-level `this`. In every
+  place they run (browser, Deno, Node vm with `self`) `self` exists first, and a classic script's
+  top-level `this` is `globalThis` anyway; chain, risk and ai already used `globalThis`.
 - **Demo bar back link goes to the site root** (2026-11-25, #38, SPEC-DEMO-BAR decision 1): both
   "← Portfolio" and "← More of Chase's work" go to https://chaseholroyd.com/, not /crew-clock/ (where
   the demo itself lives, so it would loop). Reversible: change one URL when a case-study path exists.

@@ -1,12 +1,16 @@
 {
-  // TS-1 (issue #36): type-check the plain JS with tsc. No build step, nothing is emitted.
-  // js/ and the unit tests are strict. The browser click-throughs (tests/e2e*.js) are checked by
-  // tsconfig.e2e.json with lighter rules; npm run typecheck runs both.
+  // TS-1 and TS-2 (issue #36): js/*.ts is the source, in strict TypeScript. tsc only checks
+  // (noEmit); npm run build (esbuild) strips the types into the committed js/*.js, which are
+  // generated and not checked here. erasableSyntaxOnly keeps the build a pure type strip: no
+  // enums, namespaces or parameter properties. The unit tests stay JS (checkJs) until TS-3.
+  // The browser click-throughs (tests/e2e*.js) are checked by tsconfig.e2e.json with lighter
+  // rules; npm run typecheck runs both.
   "compilerOptions": {
     "strict": true,
     "checkJs": true,
     "allowJs": true,
     "noEmit": true,
+    "erasableSyntaxOnly": true,
     "target": "ES2022",
     "lib": ["dom", "dom.iterable", "es2022"],
     "module": "preserve",
@@ -14,7 +18,7 @@
     "types": ["node"],
     "skipLibCheck": true
   },
-  "include": ["js/*.js", "js/globals.d.ts", "tests/"],
+  "include": ["js/*.ts", "tests/"],
   "exclude": [
     "js/vendor",
     "vendor",

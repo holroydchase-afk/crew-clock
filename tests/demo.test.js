@@ -112,7 +112,8 @@ test('M1.10-b EVENING (guard) demo seeded at 1:30 PM keeps Ray, Jake and Cody on
 // PS-M110-1: a crew build that fell back to demo (backend 'supabase', no URL) must never get the
 // sample chat or its sample keys, the same guard as fakeGps and forgetCrewApp.
 test('PS-M110-1 the sample chat seeds only in a real demo build', () => {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'js/messenger.js'), 'utf8');
+  // TS-2: reads the TypeScript source (the emitted js/messenger.js has double quotes and no comments).
+  const src = fs.readFileSync(path.join(__dirname, '..', 'js/messenger.ts'), 'utf8');
   const body = src.slice(src.indexOf('async function seedDemoChat'), src.indexOf('const sync = '));
   assert.match(body.split('\n')[1], /Api\.isDemo/);
   assert.match(body.split('\n')[1], /cfg\.backend\s*!==\s*'demo'/);
