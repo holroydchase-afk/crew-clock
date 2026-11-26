@@ -77,7 +77,9 @@ export function stampVersion(sw, hash) {
 function build() {
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
-  for (const p of COPY) cpSync(join(root, p), join(out, p), { recursive: true });
+  // TS-2: js/*.ts (and js/globals.d.ts) are the source, not the site: only the emitted js/*.js ship.
+  const notTs = (/** @type {string} */ src) => !src.endsWith('.ts');
+  for (const p of COPY) cpSync(join(root, p), join(out, p), { recursive: true, filter: notTs });
 
   const configPath = join(out, 'config.js');
   const config = shelveAi(readFileSync(configPath, 'utf8'));

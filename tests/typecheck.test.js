@@ -29,11 +29,13 @@ test('TS-1 tsconfig.json: strict, checkJs, allowJs, noEmit', () => {
   for (const k of ['strict', 'checkJs', 'allowJs', 'noEmit']) assert.strictEqual(o[k], true, k);
 });
 
-test('TS-1 tsconfig.json checks js/ and tests/, skips vendored and other-runtime code', () => {
+// Rewritten for TS2-5 (docs/product/SPEC-TS-2.md): js/*.js is now generated, so tsc checks js/*.ts.
+test('TS-1/TS2-5 tsconfig.json checks js/*.ts (not the generated js/*.js) and tests/, skips vendored and other-runtime code', () => {
   assert.ok(fs.existsSync(path.join(ROOT, 'tsconfig.json')), 'tsconfig.json missing');
   const c = jsonc(read('tsconfig.json'));
   const inc = (c.include || []).join(' ');
-  assert.match(inc, /(^|\s)js\/(\*\*\/)?\*(\.js)?(\s|$)/, 'include covers js/*.js');
+  assert.match(inc, /(^|\s)js\/\*\.ts(\s|$)/, 'include covers js/*.ts');
+  assert.doesNotMatch(inc, /(^|\s)js\/(\*\*\/)?\*(\.js)?(\s|$)/, 'include no longer covers js/*.js (generated)');
   assert.match(inc, /(^|\s)tests(\/|\s|$)/, 'include covers tests/');
   const exc = (c.exclude || []).map((/** @type {string} */ e) => e.replace(/\/(\*\*)?\/?$/, ''));
   for (const d of ['js/vendor', 'vendor', 'messenger', 'supabase']) assert.ok(exc.includes(d), `exclude ${d}`);
@@ -75,7 +77,8 @@ test('ARCH-1 root package-lock.json exists and pins typescript at the devDepende
 test('ARCH-1 CI installs the root dev tools with npm ci, not npm install --no-package-lock', () => {
   const ci = read('.github/workflows/ci.yml');
   assert.doesNotMatch(ci, /npm install --no-package-lock/);
-  assert.match(ci, /^\s*run:\s*npm ci\s*$/m, 'a root step runs plain `npm ci`');
+  // QA-R10: PS-R3 makes the root install `npm ci --ignore-scripts`, strictly (not optional).
+  assert.match(ci, /^\s*run:\s*npm ci --ignore-scripts\s*$/m, 'a root step runs `npm ci --ignore-scripts`');
 });
 
 test('PS-SHELF-3 ci.yml declares top-level permissions: contents: read', () => {

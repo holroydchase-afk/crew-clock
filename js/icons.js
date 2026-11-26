@@ -1,7 +1,6 @@
-// Inline SVG icons (stroke style, inherit currentColor).
-(function (root) {
-  /** @param {string} d @param {string} [extra] */
-  const p = (d, extra) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${extra || ''}>${d}</svg>`;
+// Generated from js/icons.ts by npm run build. Do not edit.
+(function(root) {
+  const p = (d, extra) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${extra || ""}>${d}</svg>`;
   root.Icons = {
     in: p('<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/>'),
     out: p('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>'),
@@ -25,6 +24,6 @@
     chat: p('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-5A8 8 0 1 1 21 12z"/>'),
     lock: p('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
     refresh: p('<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>'),
-    teammate: p('<circle cx="8" cy="8" r="3.5"/><path d="M1.5 20a6.5 6.5 0 0 1 13 0"/><path d="M19 8v6M16 11h6"/>'),
+    teammate: p('<circle cx="8" cy="8" r="3.5"/><path d="M1.5 20a6.5 6.5 0 0 1 13 0"/><path d="M19 8v6M16 11h6"/>')
   };
 })(self);

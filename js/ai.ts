@@ -1,0 +1,202 @@
+// AI that runs on the phone, sized to the phone. Nothing here sends data anywhere.
+//   Tier 0 (every phone): photo too dark / too blurry checks, plain-words day summary.
+//   Tier 1 (4 GB+ RAM): a small image model labels what's in a punch photo (~14 MB, once, on Wi-Fi).
+//   Tier 2 (WebGPU + 6 GB+ RAM, usually the boss's phone): a small language model writes the day summary.
+// Tiers 1 and 2 are shelved (Chase, 2026-11-23): off unless config onPhoneAi is true, so no model downloads.
+
+// What the phone reports about itself (Chrome only for most of it; Safari says nothing).
+type PhoneInfo = { deviceMemory?: number, hardwareConcurrency?: number, gpu?: unknown,
+  connection?: { saveData?: boolean, type?: string, effectiveType?: string } };
+
+// Just the slice of Transformers.js used here (it loads from the CDN, so there are no package types).
+type Pipeline = (input: unknown, opts: Record<string, unknown>) => Promise<any>;
+type Transformers = { env: { allowLocalModels: boolean },
+  pipeline: (task: string, model: string, opts: Record<string, unknown>) => Promise<Pipeline> };
+
+(function (root) {
+  const TRANSFORMERS = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2';
+  const VISION_MODEL = 'Xenova/mobilenet_v2_1.0_224';
+  const TEXT_MODEL = 'onnx-community/Qwen2.5-0.5B-Instruct';
+
+  // ImageNet labels that suggest a real job site.
+  const SITE_WORDS = ['pickup', 'truck', 'trailer', 'tractor', 'forklift', 'crane', 'shovel', 'hammer', 'chain saw',
+    'lumber', 'plank', 'barn', 'boathouse', 'patio', 'picket fence', 'worm fence', 'stone wall', 'roof', 'tile roof',
+    'thatch', 'shingle', 'brick', 'cinder', 'ladder', 'hard hat', 'jeep', 'van', 'garage', 'carpenter', 'drill', 'plow'];
+
+
+  function tier(nav?: PhoneInfo): 0 | 1 | 2 {
+    const n: PhoneInfo = nav || (typeof navigator !== 'undefined' ? navigator : {});
+    const mem = n.deviceMemory || 2; // Safari doesn't say; assume a modest phone
+    const cores = n.hardwareConcurrency || 2;
+    const saveData = !!(n.connection && n.connection.saveData);
+    if (saveData || typeof WebAssembly === 'undefined' || mem < 4 || cores < 4) return 0;
+    if (n.gpu && mem >= 6) return 2;
+    return 1;
+  }
+
+  // The tier the app may use for models: 0 while on-phone AI is shelved (config onPhoneAi not true).
+  function modelTier(config: { onPhoneAi?: unknown } | null | undefined, nav?: PhoneInfo): 0 | 1 | 2 {
+    return config && config.onPhoneAi === true ? tier(nav) : 0;
+  }
+
+  function aiOn(config: { onPhoneAi?: unknown } | null | undefined) {
+    const cfg = config || (typeof self !== 'undefined' && self.APP_CONFIG) || null;
+    return !!(cfg && cfg.onPhoneAi === true);
+  }
+
+  function shelved() {
+    return Promise.reject(new Error('On-phone AI is shelved (config onPhoneAi is not true)'));
+  }
+
+  function onWifi(nav?: PhoneInfo) {
+    const c = ((nav || navigator) as PhoneInfo).connection;
+    if (!c) return true; // iPhone doesn't report; the download is still opt-in
+    return c.type === 'wifi' || c.type === 'ethernet' || (!c.type && c.effectiveType === '4g' && !c.saveData);
+  }
+
+  // ---------- tier 0: photo quality from raw pixels (RGBA) ----------
+  // data: RGBA pixels, w by h.
+  function analyzePixels(data: ArrayLike<number>, w: number, h: number) {
+    const gray = new Float32Array(w * h);
+    let sum = 0;
+    for (let i = 0, j = 0; i < data.length; i += 4, j++) {
+      gray[j] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+      sum += gray[j];
+    }
+    const brightness = sum / (w * h);
+    // Variance of the Laplacian: low means few edges, i.e. blur.
+    let lsum = 0;
+    let lsq = 0;
+    let n = 0;
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const k = y * w + x;
+        const lap = 4 * gray[k] - gray[k - 1] - gray[k + 1] - gray[k - w] - gray[k + w];
+        lsum += lap;
+        lsq += lap * lap;
+        n++;
+      }
+    }
+    const sharpness = n ? lsq / n - (lsum / n) ** 2 : 0;
+    let problem = null;
+    if (brightness < 35) problem = 'dark';
+    else if (brightness > 245) problem = 'bright';
+    else if (sharpness < 25) problem = 'blurry';
+    return { brightness: Math.round(brightness), sharpness: Math.round(sharpness), problem };
+  }
+
+  function photoQuality(dataUrl: string): Promise<{ brightness?: number, sharpness?: number, problem: string | null }> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const w = 160;
+        const h = Math.max(1, Math.round((img.height / img.width) * w));
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        const ctx = c.getContext('2d') as CanvasRenderingContext2D;
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(analyzePixels(ctx.getImageData(0, 0, w, h).data, w, h));
+      };
+      img.onerror = () => resolve({ problem: null });
+      img.src = dataUrl;
+    });
+  }
+
+  const PHOTO_WORDS: Record<string, string> = {
+    dark: "That picture is too dark. Try again with more light.",
+    bright: 'That picture is washed out. Try again out of direct sun.',
+    blurry: 'That picture is blurry. Hold the phone still and try again.',
+  };
+
+  // One rounding rule for every hours figure on screen, the same as Report.fmtHours: half a tenth
+  // rounds up, so 8.45 h shows as 8.5 everywhere (LIVE-3, UX-R42)
+  function tenths(h: number | null | undefined) { return Math.round((h || 0) * 10) / 10; }
+
+  // ---------- tier 0: day summary from facts, no model ----------
+  // shifts: Report.pairShifts output; names: id -> name; jobs: id -> name; notIn: names; now: ms
+  // A shift still open counts up to now, and the sentence says "so far today" (UX-R21).
+  // opts.pastDay: the shifts are another day's (the demo's "Yesterday (sample day)"), so just
+  // "so far", never "so far today" (LIVE-2), even if a visitor's own shift this morning is still open (UX-R46b).
+  // shifts: Report.pairShifts output (or the fields it uses).
+  function plainSummary(shifts: (Partial<Shift> & { crewId: string })[], names: Record<string, string>, jobs: Record<string, string>, notIn?: string[] | null, now?: number | null, opts?: { pastDay?: boolean, dayOver?: boolean }) {
+    const at = now == null ? Date.now() : now;
+    const people = new Set(shifts.map((s) => s.crewId));
+    const onsite = shifts.filter((s) => s.status === 'onsite').length;
+    const running = shifts.filter((s) => s.open && s.inAt != null && at > (s.inAt as number));
+    // Each shift counts as the tenths shown on its row and in the Week cells, so the totals agree (UX-R50)
+    const hours = shifts.reduce((a, s) => a + tenths(s.hours), 0) + running.reduce((a, s) => a + tenths((at - (s.inAt as number)) / 3600000), 0);
+    const flagged = shifts.filter((s) => s.status === 'offsite' || s.status === 'near' || s.status === 'nogps' || s.missingOut);
+    const byJob: Record<string, number> = {};
+    shifts.forEach((s) => { byJob[jobs[String(s.jobId)] || 'a job'] = (byJob[jobs[String(s.jobId)] || 'a job'] || 0) + 1; });
+    const busiest = Object.entries(byJob).sort((a, b) => b[1] - a[1])[0];
+    const parts = [];
+    const worked = running.length ? `${people.size === 1 ? 'has' : 'have'} worked ${hours.toFixed(1)} hours so far${opts && opts.pastDay ? '' : ' today'}` : `worked ${hours.toFixed(1)} hours`;
+    parts.push(`${people.size} ${people.size === 1 ? 'person' : 'people'} ${worked} across ${Object.keys(byJob).length} ${Object.keys(byJob).length === 1 ? 'job' : 'jobs'}.`);
+    if (shifts.length) parts.push(`${onsite} of ${shifts.length} ${shifts.length === 1 ? 'shift was' : 'shifts were'} fully on site${busiest ? `; ${busiest[0]} had the most crew` : ''}.`);
+    // Each person once, and no ".." when a name ends in a period ("Ray T.") (UX-8).
+    const end = (t: string) => (/\.$/.test(t) ? t : t + '.');
+    // Each person once, under the reason from their worst shift, worst first (UX-R12):
+    // "Check: off site for Ray T.; no GPS for Billy S.; near the job for Cody M."
+    const REASONS: [string,string][] = [['offsite', 'off site'], ['nogps', 'no GPS'], ['missingOut', 'no clock-out'], ['near', 'near the job']];
+    const reasonOf = (s: Partial<Shift>) => (s.status === 'offsite' ? 0 : s.status === 'nogps' ? 1 : s.missingOut ? 2 : 3);
+    const worst: Record<string, number> = {};
+    flagged.forEach((s) => { if (worst[s.crewId] == null || reasonOf(s) < worst[s.crewId]) worst[s.crewId] = reasonOf(s); });
+    const groups = REASONS.map(([, words], i) => [words, Object.keys(worst).filter((id) => worst[id] === i).map((id) => names[id] || 'someone')] as [string, string[]])
+      .filter(([, who]) => who.length);
+    if (groups.length) parts.push(end(`Check: ${groups.map(([words, who]) => `${words} for ${who.join(', ')}`).join('; ')}`));
+    // Mid-day the missing are "not in yet"; once the day is over (or unknown) they "didn't clock in" (UX-R51)
+    if (notIn && notIn.length) parts.push(end(`${opts && opts.dayOver === false ? 'Not in yet' : "Didn't clock in"}: ${notIn.join(', ')}`));
+    return parts.join(' ');
+  }
+
+  // ---------- tiers 1 and 2: models from the Hugging Face hub, cached by the browser ----------
+  let lib: Promise<Transformers> | null = null;
+  function transformers(): Promise<Transformers> {
+    lib = lib || import(TRANSFORMERS).then((m: Transformers) => { m.env.allowLocalModels = false; return m; });
+    return lib;
+  }
+
+  let vision: Promise<Pipeline> | null = null;
+  async function labelPhoto(dataUrl: string, config?: AppConfig | null): Promise<{ labels: { label: string, score: number }[], looksLikeSite: boolean }> {
+    if (!aiOn(config)) return shelved();
+    const t = await transformers();
+    vision = vision || t.pipeline('image-classification', VISION_MODEL, { dtype: 'q8' });
+    const out = await (await vision)(dataUrl, { top_k: 5 });
+    const labels = (out as { label: string, score: number }[]).map((o) => ({ label: o.label.split(',')[0], score: o.score }));
+    const site = labels.filter((l) => SITE_WORDS.some((w) => l.label.toLowerCase().includes(w)));
+    return { labels, looksLikeSite: site.length > 0 };
+  }
+
+  let writer: Promise<Pipeline> | null = null;
+  async function writeSummary(facts: string, config?: AppConfig | null): Promise<string> {
+    if (!aiOn(config)) return shelved();
+    const t = await transformers();
+    writer = writer || t.pipeline('text-generation', TEXT_MODEL, { device: 'webgpu', dtype: 'q4f16' });
+    const messages = [
+      { role: 'system', content: 'You write a 3 sentence end-of-day note for a construction boss. Plain words. Only use the facts given. No lists.' },
+      { role: 'user', content: facts },
+    ];
+    const out = await (await writer)(messages, { max_new_tokens: 120, do_sample: false });
+    const last: string | { content: string }[] = out[0].generated_text;
+    return Array.isArray(last) ? last[last.length - 1].content : String(last);
+  }
+
+  const api = { tier, modelTier, onWifi, analyzePixels, photoQuality, PHOTO_WORDS, plainSummary, tenths: (h: number | null | undefined) => tenths(h).toFixed(1), labelPhoto, writeSummary, SITE_WORDS };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.AI = api;
+})(typeof self !== 'undefined' ? self : globalThis);
+
+// What require('./ai.js') returns (the tests, Node) and what globals.d.ts gives self.AI.
+// Type-only: the build erases `export declare`, so js/ai.js stays a classic script.
+export declare function tier(nav?: PhoneInfo): 0 | 1 | 2;
+export declare function modelTier(config: { onPhoneAi?: unknown } | null | undefined, nav?: PhoneInfo): 0 | 1 | 2;
+export declare function onWifi(nav?: PhoneInfo): boolean;
+export declare function analyzePixels(data: ArrayLike<number>, w: number, h: number): { brightness: number, sharpness: number, problem: string | null };
+export declare function photoQuality(dataUrl: string): Promise<{ brightness?: number, sharpness?: number, problem: string | null }>;
+export declare const PHOTO_WORDS: Record<string, string>;
+export declare function plainSummary(shifts: (Partial<Shift> & { crewId: string })[], names: Record<string, string>, jobs: Record<string, string>, notIn?: string[] | null, now?: number | null, opts?: { pastDay?: boolean, dayOver?: boolean }): string;
+export declare function tenths(h: number | null | undefined): string;
+export declare function labelPhoto(dataUrl: string, config?: AppConfig | null): Promise<{ labels: { label: string, score: number }[], looksLikeSite: boolean }>;
+export declare function writeSummary(facts: string, config?: AppConfig | null): Promise<string>;
+export declare const SITE_WORDS: string[];

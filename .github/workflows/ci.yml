@@ -39,14 +39,18 @@ jobs:
         with:
           deno-version: v2.x
 
+      - name: Install dev tools (TypeScript and esbuild, from the root lockfile)
+        run: npm ci --ignore-scripts
       - name: Unit tests
         run: npm test
-      - name: Install dev tools (TypeScript, from the root lockfile)
-        run: npm ci
-      - name: Type check (tsc over the plain JS, no build step)
+      - name: Type check (tsc over js/*.ts and the tests)
         run: npm run typecheck
       - name: Agent roster matches CLAUDE.md
         run: bash scripts/check-agents.sh
+      - name: Emitted js/*.js match js/*.ts (TS-2)
+        # js/*.js are committed so Pages and the crew host need no toolchain; this fails if a
+        # .ts change was pushed without npm run build (or a new .ts without its .js).
+        run: npm run build && git diff --exit-code -- js/ && test -z "$(git status --porcelain -- js/)"
       - name: Shared modules in sync
         run: ./scripts/sync-shared.sh && git diff --exit-code
 

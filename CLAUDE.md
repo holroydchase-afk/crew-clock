@@ -42,11 +42,16 @@ Read first: [HANDOFF.md](HANDOFF.md) (where things stand), [PLAN.md](PLAN.md) (m
 - Anything that weakens the privacy or security story, or changes what location is collected.
 
 ## Stack and commands
-Plain-JS progressive web app, no build step (the MLS bundle in `js/vendor/` is prebuilt from
-`messenger/`). Supabase Postgres with row-level security and Deno Edge Functions. Demo mode keeps
-everything in the browser.
+Progressive web app in strict TypeScript. Edit `js/*.ts`, run `npm run build` (esbuild strips
+types, no bundling) and commit the emitted `js/*.js`; CI fails if they differ. No deploy-time
+build: `scripts/build-site.mjs` copies committed files. The MLS bundle in `js/vendor/` is prebuilt
+from `messenger/`. Supabase Postgres with row-level security and Deno Edge Functions. Demo mode
+keeps everything in the browser.
 
-    npm run serve                         # demo at http://localhost:8123
+    npm ci --ignore-scripts               # dev tools (TypeScript, esbuild), no install scripts
+    npm run build                         # js/*.ts -> js/*.js (commit both)
+    npm run typecheck                     # tsc, strict
+    npm run serve                         # builds, then the demo at http://localhost:8123
     npm test                              # unit tests (node)
     npm run test:sql                      # schema + RLS on a local Postgres
     npm run test:edge                     # Edge Functions (deno)
@@ -54,8 +59,9 @@ everything in the browser.
     node scripts/build-site.mjs dist --demo && npx http-server dist -p 8123 -c-1 -s &
     npm run test:e2e                      # browser click-throughs against that server
 
-`js/geo.js`, `js/report.js`, `js/chain.js` and `js/risk.js` are shared with the Edge Functions:
-after editing them run `./scripts/sync-shared.sh` (CI fails if they drift).
+`js/geo.ts`, `report.ts`, `chain.ts` and `risk.ts` are shared with the Edge Functions (as the
+emitted `.js`): after editing `js/geo.ts`, `report.ts`, `chain.ts` or `risk.ts` run
+`npm run build && ./scripts/sync-shared.sh` (CI fails if they drift).
 
 ## Studio agents (use them by default; don't wait to be asked)
 The main session is Chase's **chief of staff**: it doesn't do specialist work itself. It sends each piece of work to the agent below with the Agent tool, one lane at a time, and reports back briefly. It introduces itself by role, warmly, the first time it talks to Chase in any thread, chat or scheduled-run report (for example "Hi Chase, I'm Charlie's chief of staff"), then leads with the answer. At the start of every session or scheduled run it reads this table and `ls .claude/agents/`. The team comes from holroydchase-afk/studio-agents (re-sync with its `scripts/sync.sh`).

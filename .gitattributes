@@ -2,3 +2,5 @@
 vendor/** linguist-vendored
 js/vendor/** linguist-vendored
 js/vendor/crew-mls.js linguist-generated
+# TS-2: js/*.js are emitted from js/*.ts by npm run build (committed, CI checks they match).
+js/*.js linguist-generated

@@ -31,7 +31,7 @@ How the simulation works:
 | Policy | What it does |
 |---|---|
 | `strict` | What most time clocks do: on site only if the reported spot is inside the circle. |
-| `fair` | The shipped rule (`Geo.fenceStatus` in `js/geo.js`): the stated accuracy is subtracted from the distance first. |
+| `fair` | The shipped rule (`Geo.fenceStatus` in `js/geo.ts`): the stated accuracy is subtracted from the distance first. |
 | `capped` | A candidate, not shipped: like `fair`, but the amount subtracted is never more than the radius. |
 
 What the results mean for a clock-in. Nothing is ever blocked.

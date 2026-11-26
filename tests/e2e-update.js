@@ -28,7 +28,16 @@ function build(out) {
 // app version and anything served from it is easy to spot.
 build(OLD);
 const oldBackend = path.join(OLD, 'crew-clock/js/demo-backend.js');
-fs.writeFileSync(oldBackend, fs.readFileSync(oldBackend, 'utf8').replace("'Sam W.'", "'Old Boss'").replace(/cc\.demo\.db\.v\d+/, 'cc.demo.db.old'));
+// QA-R5 (TS-2): the built file is esbuild output, which uses double quotes, so match either quote
+// and fail loudly if nothing was replaced (a silent no-op made the old deploy look like the new one).
+const oldSrc = fs.readFileSync(oldBackend, 'utf8');
+const BOSS = /(["'])Sam W\.\1/;
+const STORE_KEY = /cc\.demo\.db\.v\d+/;
+assert.ok(BOSS.test(oldSrc), 'QA-R5 the built demo-backend.js names the boss Sam W. (in either quote style)');
+assert.ok(STORE_KEY.test(oldSrc), 'QA-R5 the built demo-backend.js has a cc.demo.db.v<n> storage key');
+const oldPatched = oldSrc.replace(BOSS, '$1Old Boss$1').replace(STORE_KEY, 'cc.demo.db.old');
+assert.ok(oldPatched.includes('Old Boss') && !BOSS.test(oldPatched) && oldPatched.includes('cc.demo.db.old'), 'QA-R5 the old deploy really has the old boss name and storage key');
+fs.writeFileSync(oldBackend, oldPatched);
 const oldSw = path.join(OLD, 'crew-clock/sw.js');
 fs.writeFileSync(oldSw, fs.readFileSync(oldSw, 'utf8').replace(/const VERSION = '([^']+)'/, "const VERSION = '$1-old'"));
 build(NEW);
