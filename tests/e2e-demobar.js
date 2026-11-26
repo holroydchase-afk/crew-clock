@@ -1,5 +1,5 @@
 // Studio demo bar (docs/product/SPEC-DEMO-BAR.md, CRW M1.18, intake #38): browser cases DEMOBAR-1..12,
-// 14 and 17 by criterion ID. DEMOBAR-13 (and the static half of DEMOBAR-10) is tests/demobar.test.js;
+// 14 and 17 by criterion ID. DEMOBAR-13 (and the static half of DEMOBAR-10) is tests/demobar.test.ts;
 // DEMOBAR-15 (ux-reviewer shots) and DEMOBAR-16 (live demo on a real phone) are manual.
 // Hooks the spec names: the bar is `section[aria-label="Demo"]`, its toggle is the button named
 // "Demo details" (aria-expanded, aria-controls naming the drawer), the drawer holds the "No signal"

@@ -26,12 +26,12 @@ The consent screen (below) is the short version of this.
 | First sign-in, **OK, ask me** | One reading only to make the phone show its permission prompt | Thrown away | [true] `js/app.ts` `prime-location`; stops if the app goes to the background (L2) |
 | Foreman clocks in a teammate | The **foreman's** phone GPS; a picture is asked for, and a punch without one is flagged high for the boss (`teammate_no_photo`) | Saved on the teammate's punch, marked as made by the foreman | [true] `js/app.ts` `startPunch`, `js/risk.ts` `teammate_no_photo`, `core.ts` `ingestPunch` |
 | Boss taps **Use where I'm standing** when adding a job | The boss's own GPS | Saved as the job site's pin, not as anyone's punch | [true] `js/app.ts` `job-here`; stops when the boss leaves the job form or picks another way (L2) |
-| Any other time (home screen, chat, boss tabs, app closed, phone locked) | Nothing | — | [true] no other geolocation call in `js/`, none in `sw.js`, no background or periodic sync (`tests/location.test.js`, `tests/e2e-location.js` LOC-1) |
+| Any other time (home screen, chat, boss tabs, app closed, phone locked) | Nothing | — | [true] no other geolocation call in `js/`, none in `sw.js`, no background or periodic sync (`tests/location.test.ts`, `tests/e2e-location.js` LOC-1) |
 
 Rules:
 - **L1** Location is read only inside the punch flow and the boss's "Use where I'm standing".
   No `watchPosition` that outlives the punch screen, no background location, no periodic or
-  background sync that reads location. [true] `tests/location.test.js` fails if a location read
+  background sync that reads location. [true] `tests/location.test.ts` fails if a location read
   appears anywhere else in `js/` or in `sw.js`; `tests/e2e-location.js` LOC-1 walks Home, the
   teammate list and every boss screen at 390 and 1280 wide and counts zero reads.
 - **L2** When the worker backs out of the "Finding you" screen, taps "Take a picture instead",
@@ -40,7 +40,7 @@ Rules:
   list's rough reading and the permission primer's one reading: every read in the app goes through
   one gate (`watchGps`) tied to its screen. The boss's "Use where I'm standing" stops the same way when they
   leave the job form. [true] `js/app.ts` `watchGps`/`stopGps`, `js/geo.ts` `bestFix` `signal`;
-  `tests/e2e-location.js` LOC-2, `tests/unit.test.js`
+  `tests/e2e-location.js` LOC-2, `tests/unit.test.ts`
 - **L3** No location is read for a worker with no consent on record (they clock in with a
   picture instead). This also applies when a foreman clocks them in. The sync function checks it
   too: a punch from someone whose latest record at that time isn't "agree" to the current words is
@@ -131,8 +131,8 @@ federal; West Virginia's own rules are a "needs Chase" check (see the end).
 | Sign-in limit counts: a keyed hash (HMAC with `RATE_HMAC_KEY`) of the caller's IP, or of the company for the company cap, and the time, per scope; never the IP itself | Supabase `app.rate_hits` (no phone can read it) | **1 day** | Deleted by `app.apply_retention` | [built, M1.9: `20261029000000_crew_auth.sql`, `tests/sql/60_m19_test.sql`] |
 | Wrong-PIN count, lock time, lock rounds and "PIN blocked" | Supabase `crew` (server-only columns) | Until the next good PIN (count), the end of the lock, or the boss sets a new PIN (rounds, block) | Reset to 0/null/false | [built, M1.9: `guard.ts` `pinFailure`, `PIN_RESET`; `tests/edge/m19.test.ts`] |
 | Push subscriptions | Supabase `push_subscriptions` | While in use | Deleted when the worker leaves or the browser retires it | [partly true: retired ones are deleted, `_shared/push.ts:28`] |
-| Boss and foreman's team cache | Their phone, localStorage `cc.team` | Up to 13 days of punch times (from the Monday a week before this week, for the week view); GPS only for the last 8 days | Lat, lng, accuracy, address and distance are dropped from any punch older than 8 days before it is held or cached; replaced on each refresh; cleared on sign-out | [true, PS-M113-1] `Report.dropOldGps` in `js/api-supabase.ts` `team()` and `js/app.ts` `loadTeam()`; `tests/enhance.test.js` |
-| Weekly CSV (timesheet) | Made on the boss's phone, saved to their Downloads | Until the boss deletes it | The boss owns the file; the app keeps no copy and sends it nowhere. Name, Date, In, Out, Hours only: no GPS, ids, photos or risk flags; cells a spreadsheet would run as a formula are escaped | [true, M1.13] `Report.timesheetCsv`; `tests/enhance.test.js` ENH-3, PS-M113-3 |
+| Boss and foreman's team cache | Their phone, localStorage `cc.team` | Up to 13 days of punch times (from the Monday a week before this week, for the week view); GPS only for the last 8 days | Lat, lng, accuracy, address and distance are dropped from any punch older than 8 days before it is held or cached; replaced on each refresh; cleared on sign-out | [true, PS-M113-1] `Report.dropOldGps` in `js/api-supabase.ts` `team()` and `js/app.ts` `loadTeam()`; `tests/enhance.test.ts` |
+| Weekly CSV (timesheet) | Made on the boss's phone, saved to their Downloads | Until the boss deletes it | The boss owns the file; the app keeps no copy and sends it nowhere. Name, Date, In, Out, Hours only: no GPS, ids, photos or risk flags; cells a spreadsheet would run as a formula are escaped | [true, M1.13] `Report.timesheetCsv`; `tests/enhance.test.ts` ENH-3, PS-M113-3 |
 | Each worker's newest consent record, as this phone knows it | The phone, localStorage `cc.consents` | Until replaced by a newer record | Kept on sign-out so an offline re-sign-in isn't asked again; holds action, text version and time only | [true] `js/app.ts` `rememberConsent` |
 | Unsent punches and pictures | Phone IndexedDB outbox | Until sent | Removed when the server accepts them or refuses them for permission. Any other refusal (for example "Punch too old") is final: the phone deletes its GPS, picture, signature and edit data at once and keeps only a stub (who, job, in/out, time, reason) so the sync line can explain it; the stub is never resent. Network, server or picture-upload failures keep the whole punch and retry. | [true] `js/app.ts:179-199,212-233`; [stub kept until cleared, no trim yet] |
 | Daily and weekly reports | The boss's Google Sheet (shelved, Chase, 2026-11-23) | 3 years (hours only, no GPS) | The boss deletes old rows | [shelved (Chase, 2026-11-23): no export runs; when it did, no GPS went to the Sheet, `report-export` sent shifts only. Do not set `REPORT_TOKEN` while the export is shelved, so `report-export` refuses every request] |
@@ -223,9 +223,9 @@ Rules:
 - **S2** The crew's Supabase URL, key and company code exist only in the Cloudflare project's
   variables, never in the repo, never in GitHub variables. The real company code is random, 8 or
   more characters (`scripts/new-company.ts ... random ...`), and not any word written in this repo.
-  The old code is in public git history (and its hash in `tests/m19.test.js`, which only detects it),
+  The old code is in public git history (and its hash in `tests/m19.test.ts`, which only detects it),
   so it is retired for good: never use it as a live code.
-  [built, M1.9: `tests/m19.test.js` fails on the old code anywhere in the repo; the variables are
+  [built, M1.9: `tests/m19.test.ts` fails on the old code anywhere in the repo; the variables are
   M2.1/M2.2]
 - **S3** CORS (`APP_ORIGIN`, the B2 bucket rule) lists only the crew app's address, never the
   demo's, and the functions refuse to start without `APP_ORIGIN`. [functions true since M1.9:

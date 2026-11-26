@@ -52,7 +52,7 @@ keeps everything in the browser.
     npm run build                         # js/*.ts -> js/*.js (commit both)
     npm run typecheck                     # tsc, strict
     npm run serve                         # builds, then the demo at http://localhost:8123
-    npm test                              # unit tests (node)
+    npm test                              # unit tests: node --test tests/*.test.ts (Node >= 22.18)
     npm run test:sql                      # schema + RLS on a local Postgres
     npm run test:edge                     # Edge Functions (deno)
     npm run test:mls                      # MLS chat

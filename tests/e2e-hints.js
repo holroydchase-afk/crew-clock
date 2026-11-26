@@ -1,6 +1,6 @@
 // Demo hints (docs/product/SPEC-DEMO-HINTS.md): one pulsing dot on the next thing to tap, instead of
 // the pitch and the "Demo: ..." explainers. Browser cases HINT-1 and HINT-3..HINT-12, by criterion ID;
-// HINT-2 is static (tests/hints.test.js) and HINT-14 is a manual ux-reviewer pass. UX-R70..R73
+// HINT-2 is static (tests/hints.test.ts) and HINT-14 is a manual ux-reviewer pass. UX-R70..R73
 // (ux-reviewer findings) check the dot reads as a "tap here" ring and covers no words.
 // Hooks (spec, "Hooks"): the dot is `.hint-dot` inside the target; the target has data-hint="1".."7"
 // and aria-describedby naming a visually hidden "Suggested next step"; progress is in localStorage

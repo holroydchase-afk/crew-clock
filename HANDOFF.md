@@ -3,8 +3,8 @@
 stage: building
 goal: portfolio
 milestone: CRW-M2
-now: TS-2 (issue #36 PR 2, M0.4) built on claude/project-thread-4p3a4i, not committed: js/*.ts in strict TypeScript, esbuild type strip, emitted js/*.js committed; qa-tdd 3x, architect and privacy-security review next, then PR
-next: TS-3 (tests to .test.ts); then metrics and beta scorecard (portfolio review item 3)
+now: TS-3 (issue #36 PR 3, M0.5) built on claude/project-thread-4p3a4i, not committed: the 29 unit tests are tests/*.test.ts in strict TypeScript on Node type stripping (TS-2 merged in #66); qa-tdd 3x, architect review next, then PR
+next: after merge TS3-12 (language bar); then metrics and beta scorecard (portfolio review item 3)
 waiting_on_chase:
   - Supabase project, SETUP steps 1.1 to 1.4 (unblocks M2.1)
 blockers: []
@@ -12,7 +12,7 @@ blockers: []
 
 _Read this before starting work. Update it in the same commit whenever you make progress. It is the single source of truth for where things stand._
 
-Updated: 2026-11-25 (TS-2 built: front end in strict TypeScript, esbuild type strip, M0.4)
+Updated: 2026-11-26 (TS-3 built: unit tests in strict TypeScript, M0.5)
 
 ## What it is
 
@@ -25,6 +25,23 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Done
 
+- `M0.5.2`-`M0.5.4` TS-3 (2026-11-26, issue #36 PR 3, spec `docs/product/SPEC-TS-3.md`, built by
+  engineer against qa-tdd's `tests/ts3.test.ts`, not committed or reviewed yet). The 29 unit tests
+  are renamed with `git mv` to `tests/*.test.ts`, and qa-tdd's `ts3` test last: ESM `import` from
+  `node:*`, `import.meta.dirname`/`filename`, and `createRequire` only to load the emitted `js/*.js`,
+  each typed `as typeof import('../js/NAME.js')`. JSDoc types became inline TypeScript; every assert
+  kept, no skip, only or todo, no suppression comments, 0 real explicit `any` (TS3-6's scan counts 1,
+  the words "guard: any test" in a ts3 title). `npm test` is `node --test tests/*.test.ts` (Node's own
+  type stripping, no build step for tests) and package.json pins `engines.node` `>=22.18`. tsconfig
+  keeps `allowJs`/`checkJs` for the JS e2e. Stale `.test.js` names fixed in scripts, tests and fixture
+  comments, `tests/sql/runner.test.mjs`, CLAUDE.md, README, PRIVACY, DESIGN, NOTES claims,
+  CRW-RESTYLE and `.gitleaksignore`. ARCH-R3 (left on purpose): `css/app.css:2`'s comment still says
+  `tests/theme.test.js`, because changing a shipped file moves the demo VERSION hash that TS3-9 pins;
+  follow-up: fix that comment in the next PR that changes `css/app.css` anyway. ARCH-R1:
+  `studio-checks.json` `agents.verify` is now `npm ci --ignore-scripts && npm test` (runs stays 3),
+  since agents-check reruns it with no `npm ci` before it. Tests: `npm test` 295 of 295
+  (282 pinned plus 13 TS3), `npm run typecheck` 0 errors. Not yet: qa-tdd 3x, architect review, PR,
+  TS3-12 language bar after merge.
 - TS-2 review fixes (2026-11-26, `tests/ts2-review.test.js`, each test-first by qa-tdd): ARCH-R1
   `scripts/build-ts.mjs` fails on any esbuild warning (printed as file:line:col, nothing written,
   exit 1); PS-R3 the root install is `npm ci --ignore-scripts` in CI, README and CLAUDE.md (esbuild

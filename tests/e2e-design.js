@@ -17,7 +17,7 @@
 //          --ink/--muted, never --accent)
 //   AC-R62 the map's job pin square is --ink, light and dark
 //   AC-R63 no boss tab label overflows its tab or the screen at 360x780 and 390x844
-//   AC-R64 the demo "pretend I'm at the job" label on worker Home is --ink Static CSS checks are in tests/theme.test.js. Against a demo build on :8123:
+//   AC-R64 the demo "pretend I'm at the job" label on worker Home is --ink Static CSS checks are in tests/theme.test.ts. Against a demo build on :8123:
 //   node scripts/build-site.mjs dist --demo && npx http-server dist -p 8123 -c-1 -s &
 //   node tests/e2e-design.js               (or one viewport: node tests/e2e-design.js 390)
 const { launch } = require('./browser.js');

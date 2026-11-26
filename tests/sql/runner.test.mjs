@@ -1,8 +1,8 @@
 // M2.0 Supabase pre-connect grants (intake #35, docs/product/SPEC-SUPABASE-GRANTS.md): the checks that
 // run tests/sql/run.sh against Postgres (GRANT-1 red without the revoke, GRANT-9 green with it).
-// Outside the tests/*.test.js glob on purpose: npm test runs where there is no Postgres. Run by
+// Outside the tests/*.test.ts glob on purpose: npm test runs where there is no Postgres. Run by
 // `npm run test:sql` after run.sh (local Postgres as root via `su postgres`, or PGHOST/PGUSER/PGPASSWORD
-// when set, as in CI's SQL step). The static runner and layout checks are in tests/grants.test.js.
+// when set, as in CI's SQL step). The static runner and layout checks are in tests/grants.test.ts.
 import test from 'node:test';
 import assert from 'node:assert';
 import fs from 'node:fs';

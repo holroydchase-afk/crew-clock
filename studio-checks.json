@@ -1,5 +1,5 @@
 {
-  "agents": { "verify": "npm test", "runs": 3 },
+  "agents": { "verify": "npm ci --ignore-scripts && npm test", "runs": 3 },
   "logs": {
     "roots": ["js", "supabase/functions", "sw.js", "config.js"],
     "banned": [],
