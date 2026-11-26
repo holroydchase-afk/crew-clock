@@ -24,6 +24,9 @@ QA-R10 | P2 | scripts/build-site.mts (PS-R1) | .mts, .cts, .d.mts shipped; red t
 QA-R11 | P2 | tests/ts4.test.ts TS4-9 test:sql | bare 0700 copy unreadable by su postgres; skips only then | tests/ts4.test.ts
 QA-R12 | P2 | local e2e environment | browser download blocked; e2e ran with playwright 1.63.0 on preinstalled chromium-1243, not CI's 1.56.1 | none
 
+QA-R13 | P1 | tests/ts4.test.ts TS4-6 (PR #69 CI test job) | failed on a shallow checkout (no base commit in git); now skips with that reason while the TS4-6 pin guard still enforces main's digests, and fails hard when the base is present and differs; ts4 copyTree also skips a linked node_modules entry | tests/ts4.test.ts
+Follow-up after PR #69 CI: shallow-clone simulation (git clone --depth 1) ts4 24 pass, 0 fail, 2 skipped (TS4-6 base compare, TS4-9 path-only, both no-base reasons); normal run 26/0, npm test 322/0 once.
+
 ```agentrun
 date: 2026-11-26
 agent: qa-tdd
@@ -39,7 +42,7 @@ tool: Bash | ok | e2e 3x against build-site.mts demo dist on port 8123, all 17 f
 tool: Bash | ok | agents.verify once in a bare copy with no node_modules, exit 0
 tool: agent-guard | failed | only-tests flags the engineer's TS-4 product edits and staff-pm's spec, not qa-tdd changes; qa-tdd edited only tests/ts4.test.ts, the spec lines the chief of staff decided and run logs
 verdict: green
-findings: 12
+findings: 13
 p0: 0
 artifact: tests/ts4.test.ts
 escalated: yes

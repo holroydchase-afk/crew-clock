@@ -40,6 +40,8 @@ contract: [docs/PRIVACY.md](docs/PRIVACY.md).
   name the `.mts` files. Demo and crew dist byte-identical to main (VERSION `v3-b95449e9fb`),
   `js/*.js` unchanged. Left on purpose (QA-R1): `sw.js:2`'s comment still names the old
   build-site, since editing sw.js moves VERSION; fix it in the next PR that changes sw.js.
+  ci.yml's test job checks out with `fetch-depth: 0`, so TS4-6 can compare against main's
+  build-site from git history (also fixes TS-3 QA-R2's stale-pin fallback).
   Review fixes: PS-R1 (privacy-security, P2) build-site's filter now drops `.ts`, `.mts`, `.cts`
   and `.d.mts` sources from dist (`/\.[cm]?ts$/`), demo dist still byte-identical. Architect notes,
   open: ARCH-R2 when doing SETUP step 5, check Cloudflare does not run `npm install` before the build

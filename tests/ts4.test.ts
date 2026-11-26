@@ -250,12 +250,15 @@ test('TS4-6 (guard) the build-site there is now gives main\'s demo and crew dist
   checkPin(path.join(dir, 'crew'), CREW_PIN, 'crew build');
 });
 
-test('TS4-6 build-site.mts gives byte-identical demo and crew dist to main\'s build-site.mjs on the same files', { timeout: 120000 }, () => {
+// QA-R13: a shallow checkout (CI's actions/checkout default, and copies of it) has no base commit, so there is
+// nothing to compare against: skip with that reason. The (guard) test above still holds the build to main's
+// pinned digests while the window is open. With a base present, any difference fails hard.
+test('TS4-6 build-site.mts gives byte-identical demo and crew dist to main\'s build-site.mjs on the same files', { timeout: 120000, skip: !BASE && 'git has no base commit here (shallow checkout); the TS4-6 (guard) test still checks main\'s pinned digests' }, () => {
   requireMts('scripts/build-site');
   const dir = tmp('t6');
   // The base's build script, run from a copy of the current tree's app files so only the script differs.
   const baseSrc = atBase('scripts/build-site' + OLD_EXT) || atBase('scripts/build-site' + NEW_EXT);
-  assert.ok(baseSrc, 'git has the base build-site (CI checks out with fetch-depth 0)');
+  assert.ok(baseSrc, `the base ${BASE} has scripts/build-site (.mjs or .mts)`);
   const baseExt = atBase('scripts/build-site' + OLD_EXT) ? OLD_EXT : NEW_EXT;
   const tree = path.join(dir, 'tree');
   fs.mkdirSync(path.join(tree, 'scripts'), { recursive: true });
@@ -443,6 +446,7 @@ function copyTree() {
   const ls = git(['ls-files', '--cached', '--others', '--exclude-standard']);
   for (const f of String(ls.stdout).split('\n')) {
     if (!f || /(^|\/)\d+_tmp(_test)?\.sql$/.test(f)) continue;
+    if (f === 'node_modules' || f === 'messenger/node_modules') continue; // a linked install shows up as a file; linked below
     try {
       fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
       fs.copyFileSync(path.join(ROOT, f), path.join(dir, f));

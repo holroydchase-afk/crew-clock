@@ -32,6 +32,9 @@ jobs:
           --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v7
+        with:
+          # TS4-6 builds main's build-site from git history to compare dist (also TS-3 QA-R2's pin fallback)
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
