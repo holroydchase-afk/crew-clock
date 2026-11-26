@@ -136,7 +136,7 @@ No paid services, no analytics, no tracking scripts.
     npm run test:mls          # MLS group chat (three people, late joiner)
 
     npm install --no-save playwright@1.56.1 http-server@14.1.1 axe-core@4.11.3
-    node scripts/build-site.mjs dist --demo && npx http-server dist -p 8123 -c-1 -s &
+    node scripts/build-site.mts dist --demo && npx http-server dist -p 8123 -c-1 -s &
     npm run test:e2e          # browser click-throughs, plus an axe accessibility check of every
                               # demo screen at phone and laptop size, light and dark
 
@@ -155,7 +155,7 @@ CI runs all of them on every pull request.
 | `supabase/migrations/` | Schema, security rules, schedules |
 | `supabase/functions/` | Edge Functions: `pin-login`, `crew-list`, `sync`, `photo-upload`, `photo-url`, `geocode`, `digest`, `report-export` |
 | `backend/sheets-export.gs` | Google Sheets reports (shelved, kept for later) |
-| `scripts/build-site.mjs`, `.github/workflows/pages.yml` | Static site build; Pages deploys the demo-only build after CI passes (`_headers` is for the crew app on Cloudflare) |
+| `scripts/build-site.mts`, `.github/workflows/pages.yml` | Static site build; Pages deploys the demo-only build after CI passes (`_headers` is for the crew app on Cloudflare) |
 | `backend/Code.gs` | The original all-in-Google-Sheets backend, kept for history; the crew app uses Supabase only |
 
 ## License

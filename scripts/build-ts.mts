@@ -1,5 +1,5 @@
 // TS-2 (issue #36, M0.4): strip the types from js/*.ts into the classic scripts phones load.
-//   node scripts/build-ts.mjs [--src DIR] [--out DIR]      (npm run build; both default to js)
+//   node scripts/build-ts.mts [--src DIR] [--out DIR]      (npm run build; both default to js)
 // esbuild transforms each file on its own: loader ts, target es2022, no bundling, no format
 // change, no minify, no source map. tsconfig's erasableSyntaxOnly keeps this a pure type strip.
 // The emitted js/*.js are committed (no deploy-time build) and CI fails if they differ.
@@ -11,8 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** @param {string[]} argv @param {string} name @param {string} fallback */
-function flag(argv, name, fallback) {
+function flag(argv: string[], name: string, fallback: string): string {
   const i = argv.indexOf(name);
   return resolve(root, i >= 0 && argv[i + 1] ? argv[i + 1] : fallback);
 }
@@ -29,7 +28,7 @@ if (!names.length) {
   process.exit(1);
 }
 
-let transform;
+let transform: typeof import('esbuild').transform;
 try {
   ({ transform } = await import('esbuild'));
 } catch {
@@ -37,11 +36,10 @@ try {
   process.exit(1);
 }
 
-/** @type {{ file: string, code: string }[]} */
-const built = [];
+const built: { file: string, code: string }[] = [];
 let failed = false;
-/** @param {string} f @param {{ text: string, location?: { line: number, column: number } | null }} m */
-const where = (f, m) => `js/${f}${m.location ? `:${m.location.line}:${m.location.column}` : ''}: ${m.text}`;
+type Msg = { text: string, location?: { line: number, column: number } | null };
+const where = (f: string, m: Msg) => `js/${f}${m.location ? `:${m.location.line}:${m.location.column}` : ''}: ${m.text}`;
 for (const f of names) {
   const name = f.slice(0, -3);
   try {
@@ -60,7 +58,7 @@ for (const f of names) {
     built.push({ file: `${name}.js`, code: `// Generated from js/${name}.ts by npm run build. Do not edit.\n${r.code}` });
   } catch (e) {
     failed = true;
-    const errors = /** @type {{ errors?: { text: string, location?: { line: number, column: number } }[] }} */ (e).errors;
+    const errors = (e as { errors?: Msg[] }).errors;
     for (const er of errors || [{ text: String(e) }]) console.error(`build-ts: ${where(f, er)}`);
   }
 }

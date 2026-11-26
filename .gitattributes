@@ -4,3 +4,29 @@ js/vendor/** linguist-vendored
 js/vendor/crew-mls.js linguist-generated
 # TS-2: js/*.js are emitted from js/*.ts by npm run build (committed, CI checks they match).
 js/*.js linguist-generated
+# TS-4: studio-agents owns these scripts (its sync-tools.sh and install-rules.sh copy them here), so they
+# are vendored for the language bar. The repo's own scripts (build-site.mts, build-ts.mts) still count.
+scripts/agent-guard.mjs linguist-vendored
+scripts/agent-memory.mjs linguist-vendored
+scripts/agent-scorecard.mjs linguist-vendored
+scripts/check-agent-run.mjs linguist-vendored
+scripts/check-findings.mjs linguist-vendored
+scripts/check-logs.mjs linguist-vendored
+scripts/check-qa-report.mjs linguist-vendored
+scripts/check-spec.mjs linguist-vendored
+scripts/check-story-entry.mjs linguist-vendored
+scripts/check-ux-run.mjs linguist-vendored
+scripts/eval-miss-cases.mjs linguist-vendored
+scripts/eval-miss-score.mjs linguist-vendored
+scripts/qa-run3.mjs linguist-vendored
+scripts/spec-lint.mjs linguist-vendored
+scripts/stamp-run.mjs linguist-vendored
+scripts/triage-report.mjs linguist-vendored
+scripts/ux-flows.mjs linguist-vendored
+scripts/ux-issues.mjs linguist-vendored
+scripts/ux-recheck.mjs linguist-vendored
+scripts/ux-refs.mjs linguist-vendored
+scripts/ux-rules.mjs linguist-vendored
+scripts/ux-search.mjs linguist-vendored
+scripts/ux-shots.mjs linguist-vendored
+scripts/ux-state.mjs linguist-vendored

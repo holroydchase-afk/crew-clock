@@ -1,5 +1,5 @@
 // M1.12 Harden: browser cases named by finding ID (HRD-14 forms, HRD-13 private mode, PS-M111-1 PIN toast).
-//   node scripts/build-site.mjs dist --demo && npx http-server dist -p 8123 -c-1 -s &
+//   node scripts/build-site.mts dist --demo && npx http-server dist -p 8123 -c-1 -s &
 //   BASE_URL=http://localhost:8123/ node tests/e2e-harden2.js     (or one case: ... e2e-harden2.js HRD-13)
 // Every off-origin request (map tiles) is answered empty in the test, never reaching the internet.
 // Every name typed here is made up.

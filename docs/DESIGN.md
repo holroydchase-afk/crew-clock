@@ -69,7 +69,7 @@ flowchart LR
 
 - The app is static files with no deploy-time build step. The source is `js/*.ts`; `npm run build`
   (esbuild, types stripped, no bundling) writes the `js/*.js` that are committed, and CI fails if
-  they differ. `scripts/build-site.mjs` only copies the committed files (never the `.ts`), fills
+  they differ. `scripts/build-site.mts` only copies the committed files (never the `.ts`), fills
   `config.js` from the host's environment and stamps the service worker version.
 - All writes of punches go through the `sync` Edge Function, which uses the service role. The
   signed-in role can only read punches (`supabase/migrations/20261022000000_init.sql:297-299`, `:346`).
@@ -79,7 +79,7 @@ flowchart LR
   the server. `scripts/sync-shared.sh` copies them and CI fails if the copies drift
   (`.github/workflows/ci.yml:54-55`, after the build-diff step at `:50-53`).
 - The demo is the same files built with `--demo`. `js/api.ts:32-40` routes it to an in-browser
-  backend, and the build refuses any config that names a backend (`scripts/build-site.mjs:57-63`).
+  backend, and the build refuses any config that names a backend (`scripts/build-site.mts:57-63`).
 
 ## 4. The life of one punch
 
@@ -131,7 +131,7 @@ flowchart LR
 | Location only inside the punch flow, with an append-only consent record (`js/app.ts:70-105`, `supabase/migrations/20261023100000_location_consents.sql:20-30`). | Background tracking or periodic check-ins. | The promise to the crew is no all-day tracking (`docs/PRIVACY.md`). Tests fail if a location read appears elsewhere (`tests/location.test.ts`). | No evidence of where anyone was between punches. The server re-checks consent and strips coordinates without it (`core.ts:203-207`, `:229`). |
 | Signed, hash-chained punches with a key that cannot be exported (`js/chain.ts`, `js/device.ts`). | Trust the row in the database. | An edit after the fact no longer matches what the phone signed; a missing punch shows as a gap at ingest. | Unsigned punches from phones without WebCrypto are accepted and flagged. Verification after ingest is not shipped in the crew app (section 6). |
 | Supabase Auth sessions signed with asymmetric (ES256) keys; functions verify against public keys and refuse HS256 and `alg: none` (`auth.ts:7-19`). | The first version, where `pin-login` signed tokens with the shared JWT secret (commit `0534415`, 2026-10-22). | No function holds a secret that could mint a session. Phones keep a refresh token, never the PIN (`js/api-supabase.ts:51-53`). | A sign-in hook and trigger in SQL to add claims and end sessions (`supabase/migrations/20261023000000_auth_hook.sql`). The refresh token sits in `localStorage`. |
-| The demo is a separate build that cannot reach a backend (`.github/workflows/pages.yml:38`, `scripts/build-site.mjs:57-63`). | One deployment with a demo switch. | A visitor to a public portfolio demo must never be one config mistake away from crew data. Server CORS allows only the crew app's address (`guard.ts:76-84`). | Two builds and two hosts to keep working. Push alerts, which need a server, are not in the demo (`README.md` table). |
+| The demo is a separate build that cannot reach a backend (`.github/workflows/pages.yml:38`, `scripts/build-site.mts:57-63`). | One deployment with a demo switch. | A visitor to a public portfolio demo must never be one config mistake away from crew data. Server CORS allows only the crew app's address (`guard.ts:76-84`). | Two builds and two hosts to keep working. Push alerts, which need a server, are not in the demo (`README.md` table). |
 | Strict TypeScript stripped to classic scripts, no deploy-time build step, no SDK (`js/api-supabase.ts:1`). | A framework and bundler. | Small download on cheap phones; the committed `js/*.js` are what ships, and CI checks they match `js/*.ts`. | `js/app.ts` is one 1,872-line file with hand-written rendering. The type strip needs `npm ci` (esbuild) before `npm run build`. |
 | Postgres with row-level security instead of the original Google Sheets backend (`backend/Code.gs`, kept for history). | Keep the Sheet as the database. | The commits do not state one reason. What the code shows: the Sheet backend kept PINs in a tab and on the phone (`docs/PRIVACY.md` S5, `backend/Code.gs:10`), and had no per-person read rules. | A real server to set up and operate. The old adapter path is still in `js/api.ts:7-38`, and a non-demo build does not yet refuse it (`docs/PRIVACY.md` S5 is marked "to build"). |
 
@@ -146,7 +146,7 @@ flowchart LR
 | A lost or shared phone | Clocking in as the phone's owner; one phone used for two people. | A new PIN or turning the worker off deletes their sessions (`auth_hook.sql:30-41`); turning them off also revokes their devices (`retention.sql:141-150`). Two people on one phone within 15 minutes is flagged (`js/risk.ts:54-59`). | Until the boss acts, the phone stays signed in with no PIN prompt on reopening. An access token already issued stays valid until it expires. |
 | Someone guessing PINs | Trying PINs for a name on the crew list. | Five wrong PINs lock that person for 15 minutes; the third lock in a day blocks the PIN until the boss resets it. Limits per IP and per company per hour (`guard.ts:9-42`). PINs are stored as PBKDF2 hashes (`core.ts:34-42`). | PINs can be four digits. The per-company cap lets an attacker pause new sign-ins for an hour (`guard.ts:32-35`). Anyone with the company code can list crew names, with a per-IP limit (`js/api-supabase.ts:152-155`, `supabase/functions/crew-list/index.ts`). |
 | A demo visitor | Reaching real data from the public demo. | The demo build has no backend address and CI tests that it makes no off-origin request except map tiles (`tests/site.test.ts:38-50`, `tests/e2e-demo.js:125-135`). | Map tile hosts see the visitor's IP. Neither build sends a Content-Security-Policy (`index.html`, `_headers`), so an injected script in the crew app could read the refresh token in `localStorage` (`js/api-supabase.ts:6`, `:15-17`). |
-| A leaked repo | Finding secrets or personal data in a public repo. | Real config comes from the host's environment at build time (`scripts/build-site.mjs:24-46`). CI scans the whole history for secrets (`.github/workflows/ci.yml:11-19`). | The scanner matches key patterns only. Keeping names and places out relies on review. |
+| A leaked repo | Finding secrets or personal data in a public repo. | Real config comes from the host's environment at build time (`scripts/build-site.mts:24-46`). CI scans the whole history for secrets (`.github/workflows/ci.yml:11-19`). | The scanner matches key patterns only. Keeping names and places out relies on review. |
 
 ## 7. Failure handling
 
@@ -182,7 +182,7 @@ Not handled:
 - Retention is a tested SQL function, but it has never run on a schedule (`PLAN.md` M2.4).
 - The geofence numbers are simulated from an assumed error model, not field data
   (`docs/evals/geofence.md` "What this is and is not").
-- On-phone AI models are shelved: both builds ship `onPhoneAi` false (`scripts/build-site.mjs:51-55`).
+- On-phone AI models are shelved: both builds ship `onPhoneAi` false (`scripts/build-site.mts:51-55`).
   Their downloads were never tested from a real phone (`HANDOFF.md` "Known limits").
 - The rate limiter's reading of proxy headers is to be checked against real headers at setup
   (`supabase/functions/_shared/guard.ts:44-47`).

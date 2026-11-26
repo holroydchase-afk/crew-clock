@@ -1,7 +1,7 @@
 // M2.0 Supabase pre-connect grants (intake #35, docs/product/SPEC-SUPABASE-GRANTS.md): the runner,
 // CI and file-layout criteria (GRANT-1, GRANT-9 to GRANT-13). The grant checks themselves live in
 // tests/sql/70_grants_test.sql. Nothing here needs Postgres (npm test runs where there is none):
-// the GRANT-1 and GRANT-9 runs of run.sh live in tests/sql/runner.test.mjs, run by npm run test:sql.
+// the GRANT-1 and GRANT-9 runs of run.sh live in tests/sql/runner.test.mts, run by npm run test:sql.
 import test from 'node:test';
 import assert from 'node:assert';
 import fs from 'node:fs';
@@ -49,9 +49,9 @@ test('GRANT-10 run.sh and ci.yml name no migration or test file; the CI SQL step
     assert.deepStrictEqual(src.match(/[\w-]+_test\.sql/g) || [], [], `${f} names no *_test.sql file`);
   }
   const pkg = JSON.parse(read('package.json'));
-  assert.match(pkg.scripts['test:sql'], /tests\/sql\/run\.sh[\s\S]*&&[\s\S]*node --test tests\/sql\/runner\.test\.mjs/,
+  assert.match(pkg.scripts['test:sql'], /tests\/sql\/run\.sh[\s\S]*&&[\s\S]*node --test tests\/sql\/runner\.test\.mts/,
     'npm run test:sql runs run.sh, then the Postgres runner checks (GRANT-1, GRANT-9)');
-  assert.doesNotMatch(pkg.scripts.test, /runner\.test\.mjs|test:sql/, 'npm test stays free of Postgres');
+  assert.doesNotMatch(pkg.scripts.test, /runner\.test\.mts|test:sql/, 'npm test stays free of Postgres');
   const run = read('tests/sql/run.sh');
   assert.match(run, /LC_ALL=C/, 'run.sh sorts its globs with LC_ALL=C');
   assert.match(run, /PGHOST/, 'run.sh uses PGHOST when set');

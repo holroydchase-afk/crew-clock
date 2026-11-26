@@ -44,7 +44,8 @@ Read first: [HANDOFF.md](HANDOFF.md) (where things stand), [PLAN.md](PLAN.md) (m
 ## Stack and commands
 Progressive web app in strict TypeScript. Edit `js/*.ts`, run `npm run build` (esbuild strips
 types, no bundling) and commit the emitted `js/*.js`; CI fails if they differ. No deploy-time
-build: `scripts/build-site.mjs` copies committed files. The MLS bundle in `js/vendor/` is prebuilt
+build: `scripts/build-site.mts` copies committed files. Repo scripts are `.mts` that Node runs as-is
+(type stripping; `.node-version` pins Node); the studio-synced `scripts/*.mjs` stay JS. The MLS bundle in `js/vendor/` is prebuilt
 from `messenger/`. Supabase Postgres with row-level security and Deno Edge Functions. Demo mode
 keeps everything in the browser.
 
@@ -56,7 +57,7 @@ keeps everything in the browser.
     npm run test:sql                      # schema + RLS on a local Postgres
     npm run test:edge                     # Edge Functions (deno)
     npm run test:mls                      # MLS chat
-    node scripts/build-site.mjs dist --demo && npx http-server dist -p 8123 -c-1 -s &
+    node scripts/build-site.mts dist --demo && npx http-server dist -p 8123 -c-1 -s &
     npm run test:e2e                      # browser click-throughs against that server
 
 `js/geo.ts`, `report.ts`, `chain.ts` and `risk.ts` are shared with the Edge Functions (as the

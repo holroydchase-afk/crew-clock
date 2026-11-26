@@ -1,5 +1,5 @@
 // M1.1 demo separation: browser cases for SEP-2..SEP-5, against a demo build on :8123.
-//   node scripts/build-site.mjs dist --demo && npx http-server dist -p 8123 -c-1 -s &
+//   node scripts/build-site.mts dist --demo && npx http-server dist -p 8123 -c-1 -s &
 //   node tests/e2e-demo.js            (or one case: node tests/e2e-demo.js SEP-3)
 // Every off-origin request is answered in the test (never reaches the internet) and logged.
 const { launch } = require('./browser.js');

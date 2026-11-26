@@ -1,5 +1,5 @@
 // Copies only the phone app into dist/ for a static host (Cloudflare Pages), so the
-// backend, migrations, tests and docs never go on the web. node scripts/build-site.mjs
+// backend, migrations, tests and docs never go on the web. node scripts/build-site.mts
 //
 // It also:
 // - fills config.js from environment variables when they are set (the host's dashboard),
@@ -22,7 +22,7 @@ const out = resolve(root, args.find((a) => !a.startsWith('--')) || 'dist');
 const COPY = ['index.html', 'config.js', 'manifest.webmanifest', 'sw.js', '_headers', 'css', 'js', 'vendor', 'icons', 'LICENSE', 'THIRD_PARTY_NOTICES.md'];
 
 // config.js key <- environment variable
-const ENV = {
+const ENV: Record<string, string> = {
   backend: 'CREW_BACKEND',
   supabaseUrl: 'SUPABASE_URL',
   supabaseAnonKey: 'SUPABASE_ANON_KEY',
@@ -32,7 +32,7 @@ const ENV = {
   sheetUrl: 'SHEET_URL',
 };
 
-export function fillConfig(src, env) {
+export function fillConfig(src: string, env: Record<string, string | undefined>): string {
   let text = src;
   for (const [key, name] of Object.entries(ENV)) {
     const value = env[name];
@@ -40,7 +40,7 @@ export function fillConfig(src, env) {
     const re = new RegExp(`^(\\s*${key}:\\s*)'[^']*'`, 'm');
     if (!re.test(text)) throw new Error(`config.js has no ${key}: '...' line`);
     const quoted = `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
-    text = text.replace(re, (_, head) => head + quoted);
+    text = text.replace(re, (_: string, head: string) => head + quoted);
   }
   return text;
 }
@@ -48,37 +48,38 @@ export function fillConfig(src, env) {
 // The public demo must never point at a real backend, whatever the config or environment says.
 // On-phone AI models are shelved (Chase, 2026-11-23): both builds ship onPhoneAi false, no env var
 // turns it on. Restoring it is a code change, reviewed like one.
-export function shelveAi(src) {
+export function shelveAi(src: string): string {
   const re = /^(\s*onPhoneAi:\s*)[^,\n]*/m;
   if (!re.test(src)) throw new Error('config.js has no onPhoneAi line');
-  return src.replace(re, (_, head) => head + 'false');
+  return src.replace(re, (_: string, head: string) => head + 'false');
 }
 
-export function assertDemo(config) {
-  const cfg = new Function('window', `${config}; return window.APP_CONFIG;`)({});
+export function assertDemo(config: string): void {
+  const cfg = new Function('window', `${config}; return window.APP_CONFIG;`)({}) as Record<string, unknown>;
   const live = ['supabaseUrl', 'supabaseAnonKey', 'orgCode', 'vapidPublicKey', 'backendUrl', 'sheetUrl'].filter((k) => cfg[k]);
   if (cfg.backend !== 'demo' || live.length) {
     throw new Error(`--demo build has a live backend (backend: ${cfg.backend}${live.length ? `, ${live.join(', ')}` : ''})`);
   }
 }
 
-export function shellFiles(sw) {
+export function shellFiles(sw: string): string[] {
   const m = sw.match(/const SHELL_FILES = \[([\s\S]*?)\];/);
   if (!m) throw new Error('sw.js has no SHELL_FILES list');
   return [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
 }
 
-export function stampVersion(sw, hash) {
+export function stampVersion(sw: string, hash: string): string {
   const re = /const VERSION = '([^']*)';/;
   if (!re.test(sw)) throw new Error('sw.js has no VERSION line');
-  return sw.replace(re, (_, v) => `const VERSION = '${v}-${hash}';`);
+  return sw.replace(re, (_: string, v: string) => `const VERSION = '${v}-${hash}';`);
 }
 
-function build() {
+function build(): void {
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
   // TS-2: js/*.ts (and js/globals.d.ts) are the source, not the site: only the emitted js/*.js ship.
-  const notTs = (/** @type {string} */ src) => !src.endsWith('.ts');
+  // PS-R1: TypeScript sources of any kind (.ts, .mts, .cts, .d.ts, .d.mts) never ship; plain .js does.
+  const notTs = (src: string) => !/\.[cm]?ts$/.test(src);
   for (const p of COPY) cpSync(join(root, p), join(out, p), { recursive: true, filter: notTs });
 
   const configPath = join(out, 'config.js');

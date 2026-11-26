@@ -1,5 +1,5 @@
 // M1.13 enhancements for a recruiter's 90-second visit, against a demo build on :8123:
-//   node scripts/build-site.mjs dist --demo && npx http-server dist -p 8123 -c-1 -s &
+//   node scripts/build-site.mts dist --demo && npx http-server dist -p 8123 -c-1 -s &
 //   node tests/e2e-enhance.js            (or one case: node tests/e2e-enhance.js ENH-2)
 // ENH-1 visible tamper check, ENH-2 the demo's "No signal" switch, ENH-3 the boss's weekly timesheet.
 // Every off-origin request is answered in the test and never reaches the internet.

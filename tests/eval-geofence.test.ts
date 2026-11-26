@@ -11,12 +11,12 @@ const require = createRequire(import.meta.url);
 const Geo = require('../js/geo.js') as typeof import('../js/geo.js');
 
 const ROOT = path.join(import.meta.dirname, '..');
-const MODEL = path.join(ROOT, 'evals', 'geofence', 'model.mjs');
-const RUNNER = path.join(ROOT, 'evals', 'geofence', 'run.mjs');
+const MODEL = path.join(ROOT, 'evals', 'geofence', 'model.mts');
+const RUNNER = path.join(ROOT, 'evals', 'geofence', 'run.mts');
 const REPORT_MD = path.join(ROOT, 'docs', 'evals', 'geofence.md');
 const REPORT_JSON = path.join(ROOT, 'docs', 'evals', 'geofence.json');
 
-// model.mjs is ESM; this file is CommonJS like the rest of tests/.
+// model.mts is ESM; this file is CommonJS like the rest of tests/.
 const load = () => import(pathToFileURL(MODEL).href);
 
 const SEED = 20261118;
@@ -194,9 +194,9 @@ test('EVAL-6 the known weakness is measured, not hidden: fair passes more people
 });
 
 test('EVAL-7 the committed report is current and says what it is', () => {
-  assert.ok(fs.existsSync(RUNNER), 'evals/geofence/run.mjs exists');
+  assert.ok(fs.existsSync(RUNNER), 'evals/geofence/run.mts exists');
   const r = spawnSync(process.execPath, [RUNNER, '--check'], { cwd: ROOT, encoding: 'utf8', timeout: 120000 });
-  assert.strictEqual(r.status, 0, `run.mjs --check exited ${r.status}: ${r.stdout}${r.stderr}`);
+  assert.strictEqual(r.status, 0, `run.mts --check exited ${r.status}: ${r.stdout}${r.stderr}`);
 
   const md = fs.readFileSync(REPORT_MD, 'utf8');
   assert.ok(md.startsWith('<!--'), 'starts with a generated-file comment');
@@ -212,5 +212,5 @@ test('EVAL-7 the committed report is current and says what it is', () => {
   assert.doesNotMatch(json, /\b20\d\d-\d\d-\d\dT?/, 'no date or timestamp in the JSON');
 
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-  assert.strictEqual(pkg.scripts['eval:geofence'], 'node evals/geofence/run.mjs');
+  assert.strictEqual(pkg.scripts['eval:geofence'], 'node evals/geofence/run.mts');
 });

@@ -1,6 +1,6 @@
 // M1.11 "UI to 8/10": the ux-reviewer's showcase findings (UX-R1 to UX-R17), each as a browser case
 // named by its finding ID. Wording is matched loosely (key words); behavior and geometry firmly.
-//   node scripts/build-site.mjs dist --demo && npx http-server dist -p 8125 -c-1 -s &
+//   node scripts/build-site.mts dist --demo && npx http-server dist -p 8125 -c-1 -s &
 //   BASE_URL=http://localhost:8123/ node tests/e2e-polish.js     (or one case: ... e2e-polish.js UX-R4)
 // Every off-origin request (map tiles) is answered empty in the test, never reaching the internet.
 // The page clock starts at 1:30 PM today, so the sample crew is mid-shift and Billy S. is clocked out.

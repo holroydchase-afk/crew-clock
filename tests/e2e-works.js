@@ -1,5 +1,5 @@
 // M1.10 "works for real": the tab bar clear of Safari 26's floating toolbar, and empty states that say what to do.
-//   node scripts/build-site.mjs dist --demo && npx http-server dist -p 8123 -c-1 -s &
+//   node scripts/build-site.mts dist --demo && npx http-server dist -p 8123 -c-1 -s &
 //   node tests/e2e-works.js            (or one case: node tests/e2e-works.js IOS-TABBAR)
 // Every off-origin request is answered in the test (never reaches the internet).
 const { launch } = require('./browser.js');

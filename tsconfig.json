@@ -5,13 +5,17 @@
   // enums, namespaces or parameter properties. TS-3: the unit tests are tests/*.test.ts, run by
   // Node's own type stripping (Node >= 22.18, no build step) and checked here in strict mode.
   // The browser click-throughs (tests/e2e*.js) are checked by tsconfig.e2e.json with lighter
-  // rules; npm run typecheck runs both.
+  // rules; npm run typecheck runs both. TS-4: the repo's own scripts (scripts/build-site.mts,
+  // build-ts.mts, tests/sql/runner.test.mts, evals/geofence/*.mts) are strict TypeScript too,
+  // run by Node's type stripping like the tests. The studio-synced scripts/*.mjs stay out:
+  // studio-agents owns them. scripts/new-company.ts is Deno, checked by deno check in CI.
   "compilerOptions": {
     "strict": true,
     "checkJs": true,
     "allowJs": true,
     "noEmit": true,
     "erasableSyntaxOnly": true,
+    "allowImportingTsExtensions": true,
     "target": "ES2022",
     "lib": ["dom", "dom.iterable", "es2022"],
     "module": "preserve",
@@ -19,7 +23,14 @@
     "types": ["node"],
     "skipLibCheck": true
   },
-  "include": ["js/*.ts", "tests/"],
+  "include": [
+    "js/*.ts",
+    "tests/",
+    "scripts/build-site.mts",
+    "scripts/build-ts.mts",
+    "evals/geofence/model.mts",
+    "evals/geofence/run.mts"
+  ],
   "exclude": [
     "js/vendor",
     "vendor",

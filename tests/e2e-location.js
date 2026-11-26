@@ -1,5 +1,5 @@
 // M1.3 location read only at the tap: browser cases for PRIVACY L1 and L2, against a demo build on :8123.
-//   node scripts/build-site.mjs dist --demo && npx http-server dist -p 8123 -c-1 -s &
+//   node scripts/build-site.mts dist --demo && npx http-server dist -p 8123 -c-1 -s &
 //   node tests/e2e-location.js            (or one case: node tests/e2e-location.js LOC-2)
 const { launch } = require('./browser.js');
 

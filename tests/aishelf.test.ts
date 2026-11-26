@@ -14,7 +14,7 @@ const require = createRequire(import.meta.url);
 const AI = require('../js/ai.js') as typeof import('../js/ai.js');
 
 const ROOT = path.join(import.meta.dirname, '..');
-const script = path.join(ROOT, 'scripts', 'build-site.mjs');
+const script = path.join(ROOT, 'scripts', 'build-site.mts');
 const readCfg = (file: string): AppConfig => new Function('window', `${fs.readFileSync(file, 'utf8')}; return window.APP_CONFIG;`)({});
 const BIG = { deviceMemory: 8, hardwareConcurrency: 8, gpu: {} };
 const MID = { deviceMemory: 4, hardwareConcurrency: 8 };

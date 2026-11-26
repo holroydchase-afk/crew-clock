@@ -202,7 +202,7 @@ Data that leaves to other services:
 - **US Census geocoder, then OpenStreetMap Nominatim**: job addresses the boss types. Never a
   worker's location. [true] `supabase/functions/geocode/index.ts`
 - **Hugging Face**: none. On-phone AI models are shelved (config `onPhoneAi` is off in every build),
-  so no model is downloaded; the photo too-dark or too-blurry check runs in plain JS on the phone. [true] `js/ai.ts`, `scripts/build-site.mjs`
+  so no model is downloaded; the photo too-dark or too-blurry check runs in plain JS on the phone. [true] `js/ai.ts`, `scripts/build-site.mts`
 - **Web push services** (Apple, Google, Mozilla): alert text such as "Jake R.: check this punch".
   No coordinates are put in push text. [true] `supabase/functions/sync/index.ts:31`
 - No analytics, ads, trackers or AI vendors get any crew data. [true]
@@ -212,14 +212,14 @@ Data that leaves to other services:
 | | Public demo | Crew app |
 | --- | --- | --- |
 | Address | `chaseholroyd.com/crew-clock/` (GitHub Pages) | Its own address on Cloudflare Pages, e.g. `clock.<domain>` |
-| Build | `node scripts/build-site.mjs dist --demo` | `node scripts/build-site.mjs` with backend variables |
+| Build | `node scripts/build-site.mts dist --demo` | `node scripts/build-site.mts` with backend variables |
 | Backend | None. Sample data in the visitor's own browser | Supabase, B2, push |
 | Names and jobs | Made up (see review F-07) | The real crew |
 
 Rules:
 - **S1** The GitHub Pages workflow always builds with `--demo`, takes no repo variables, and the
   build fails if `config.js` names any backend. [in the working tree, not yet merged: M0.1;
-  `pages.yml:38`, `build-site.mjs` `assertDemo`]
+  `pages.yml:38`, `build-site.mts` `assertDemo`]
 - **S2** The crew's Supabase URL, key and company code exist only in the Cloudflare project's
   variables, never in the repo, never in GitHub variables. The real company code is random, 8 or
   more characters (`scripts/new-company.ts ... random ...`), and not any word written in this repo.
